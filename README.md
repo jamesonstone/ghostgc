@@ -263,8 +263,9 @@ reparenting, redaction, schema migration and every relationship kind that must
 not establish ownership. A safety test is never weakened to make it pass.
 
 `fixtures/fixture-agent.sh` builds a real process tree — a session root, a
-worker shell, an idle child, a periodic-work child and a helper orphaned to
-`launchd` — so the collector can be exercised against a known shape:
+worker shell, idle and periodic-work children, a helper orphaned to `launchd`,
+and a native exact action target — so the collector can be exercised against a
+known shape:
 
 ```bash
 fixtures/fixture-agent.sh start

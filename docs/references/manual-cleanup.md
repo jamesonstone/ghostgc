@@ -69,7 +69,10 @@ SIGKILL or escalation path.
 ## Exercise the bundled fixture
 
 The fixture creates a dedicated direct `action-child` using the exact basename
-`fixture-helper`. It is the only process intended for live action validation:
+`fixture-helper`. It is the only process intended for live action validation.
+Run it from a persistent non-TTY command runner for the positive action suite;
+a normal interactive terminal deliberately makes the target hard-protected and
+is useful as a refusal test:
 
 ```bash
 fixtures/fixture-agent.sh start

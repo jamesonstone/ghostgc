@@ -130,11 +130,37 @@ at every unknown, stale or changed fact.
 
 ## VALIDATION
 
-Pending implementation.
+- `make check` — PASS; vet, source-size and all package tests.
+- `make race` — PASS; all packages under the race detector.
+- `make lint` — PASS with zero issues.
+- `git diff --check` — PASS.
+- All handwritten Go source and test files remain at or below 300 lines; the
+  largest remains 296 lines.
+- Action unit and socket tests prove exact recommendation projection, preview,
+  single use, expiry, replay rejection, changed-key refusal, token
+  non-persistence, pre-side-effect durability, metrics and structured history.
+- Platform source tests prove exactly one literal SIGTERM system-call site,
+  reject alternate signalling primitives, SIGKILL and shell terminators, and
+  exercise non-TERM plus changed-key refusal against the running collector.
+- Live run `20260803T180100Z-p6a5` at exact source/deployed `1e3cb06` used only
+  fixture target `44801:1785780083631995000`. It reached orphaned after more
+  than five continuous idle minutes, appeared only as recommended, issued a
+  memory-only preview, committed `action.attempting` before one SIGTERM,
+  recorded `action.signalled`, observed the target absent, and proved every
+  non-target survivor still alive before complete teardown. Metrics reported
+  1 attempted, 0 rejected and 1 completed action. Structured evidence is under
+  `tmp/2026-08-03/phase6-manual-cleanup/5/`.
+- Failed live attempts 1-4 are preserved literally. They prove that absent
+  survivors, inherited TTY, broken cadence continuity and real periodic CPU
+  activity each prevent the positive action path rather than being waived.
 
 ## OUTCOME
 
-Pending implementation.
+Phase 6 is complete. ghostgc now distinguishes recommendations from audit-only
+decisions, issues exact short-lived single-use approvals, revalidates every
+identity, ownership, lifecycle, activity, classification, policy and hard
+protection fact, and durably brackets one exact-key SIGTERM with pre/post action
+evidence. Audit remains the default and no automatic or SIGKILL path exists.
 
 ## REPOSITORY MEMORY
 
