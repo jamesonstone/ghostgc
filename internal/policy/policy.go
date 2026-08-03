@@ -1,4 +1,5 @@
-// Package policy evaluates bounded audit policies. It has no action interface.
+// Package policy evaluates bounded audit and recommendation policies. It has
+// no signalling interface; action authority belongs to the daemon gate.
 package policy
 
 import (
@@ -53,7 +54,7 @@ type Decision struct {
 
 // Evaluate returns a decision only after all explicit match conditions hold.
 func Evaluate(def config.Policy, target Target, at, priorCooldownUntil time.Time) (Decision, bool) {
-	if !def.Enabled || def.Mode != config.ModeAudit || !matches(def.States, target.State) ||
+	if !def.Enabled || (def.Mode != config.ModeAudit && def.Mode != config.ModeRecommend) || !matches(def.States, target.State) ||
 		!matches(def.Agents, target.AgentID) || !matches(def.Executables, target.Executable) ||
 		(def.RequireDetached && !target.Detached) || (def.RequireSessionEnded && !target.SessionEnded) ||
 		target.ClassificationTs.IsZero() || target.StableSince.IsZero() ||
@@ -83,9 +84,13 @@ func Evaluate(def config.Policy, target Target, at, priorCooldownUntil time.Time
 		return decision, true
 	}
 	decision.Result = ResultCandidate
-	decision.Reason = "policy matched and no hard protection applies; audit mode grants no action authority"
+	decision.Reason = "policy matched and no hard protection applies"
 	decision.CooldownUntil = at.Add(def.Cooldown.D())
-	decision.Evidence = append(decision.Evidence, Evidence{Rule: "audit-only-v1", Detail: "phase 5 records this candidate but cannot recommend or signal"})
+	if def.Mode == config.ModeRecommend {
+		decision.Evidence = append(decision.Evidence, Evidence{Rule: "manual-approval-v1", Detail: "recommendation requires a separate short-lived approval and full revalidation"})
+	} else {
+		decision.Evidence = append(decision.Evidence, Evidence{Rule: "audit-only-v1", Detail: "audit policy grants no recommendation or signalling authority"})
+	}
 	return decision, true
 }
 

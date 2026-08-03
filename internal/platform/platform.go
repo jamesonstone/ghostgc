@@ -13,21 +13,14 @@ import (
 // Signal is an operating-system signal number.
 type Signal = syscall.Signal
 
-// Signal values ghostgc will ever be permitted to send. SIGKILL is listed so
-// that policy files can be parsed and rejected coherently; it is not sendable.
-const (
-	SIGTERM = syscall.SIGTERM
-	SIGKILL = syscall.SIGKILL
-)
+// SIGTERM is the only signal ghostgc can send.
+const SIGTERM = syscall.SIGTERM
 
-// ErrSignalingDisabled is returned by every SignalProcess implementation.
-//
-// Signalling is introduced in delivery phase 6 (recommended cleanup, SIGTERM
-// only, behind manual approval) and phase 7 (narrow enforcement). Until the
-// policy engine and its safety tests exist, the daemon must have no code path
-// that can signal a process, so the method is present to satisfy the interface
-// and refuses unconditionally.
-var ErrSignalingDisabled = errors.New("platform: process signalling is not implemented in this build; it is introduced in delivery phase 6, behind manual approval and full pre-action revalidation")
+// ErrSignalingDisabled reports that the current platform has no signal support.
+var ErrSignalingDisabled = errors.New("platform: process signalling is not available on this platform")
+
+// ErrSignalNotAllowed rejects every signal except SIGTERM.
+var ErrSignalNotAllowed = errors.New("platform: only SIGTERM is allowed")
 
 // ErrNotSupported is returned for operations the current platform cannot
 // perform.
@@ -85,8 +78,10 @@ type Platform interface {
 	// before and after inspection and return partial availability explicitly.
 	SampleActivity(ctx context.Context, key process.Key, repositoryRoot string) (process.ActivitySample, error)
 
-	// SignalProcess always returns ErrSignalingDisabled in this build.
-	SignalProcess(ctx context.Context, pid int, sig Signal) error
+	// SignalProcess validates the exact key and bound executable image
+	// immediately before sending SIGTERM. The daemon must independently
+	// establish action authority first.
+	SignalProcess(ctx context.Context, key process.Key, executable process.ExecutableIdentity, sig Signal) error
 
 	// InstallService registers the daemon with the platform service manager.
 	InstallService(ctx context.Context, opts ServiceOptions) error

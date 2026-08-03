@@ -33,9 +33,9 @@ superseded decisions live in `docs/specs/<feature>/SPEC.md`.
                                └─────────────────────────────┘
 ```
 
-The deterministic classifier sits after activity collection. The Phase 5
-policy engine combines its current exact-key conclusions with hard protections
-to produce audit-only decisions before the scan transaction is persisted.
+The deterministic classifier sits after activity collection. The policy engine
+combines its current exact-key conclusions with hard protections to produce
+audit or recommendation decisions before the scan transaction is persisted.
 
 ## The observation cycle
 
@@ -195,7 +195,8 @@ HTTP.
 | `process_activity` | bounded phase-3 deltas and availability flags |
 | `process_classifications` | phase-4 state, basis, detachment, stable window and evidence |
 | `policy_evaluations` | unique committed phase-5 projections, including empty results |
-| `policy_decisions` | phase-5 candidates, refusals, cooldowns and evidence |
+| `policy_decisions` | phase-5+ candidates, refusals, cooldowns and evidence |
+| `actions` | phase-6 pre-side-effect attempts and final outcomes with evidence |
 | `scans` | one row per cycle, including failures |
 | `sessions` | one row per detected session |
 | `session_processes` | durable ownership, never downgraded |

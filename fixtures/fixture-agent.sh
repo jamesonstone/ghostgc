@@ -12,8 +12,8 @@
 #   fixtures/fixture-agent.sh stop      remove everything this fixture created
 #
 # The fixture only ever signals processes it started itself, whose pids it
-# recorded at creation. ghostgc does not signal anything, in this delivery
-# phase or in this script.
+# recorded at creation. The one Phase 6 ghostgc action target is likewise a
+# dedicated fixture-owned process with an exact recorded identity.
 
 set -euo pipefail
 
@@ -27,6 +27,32 @@ usage() {
 	exit 2
 }
 
+process_start() {
+	LC_ALL=C ps -p "$1" -o lstart= 2>/dev/null | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+same_process() {
+	local pid=$1 expected=$2 current
+	current=$(process_start "$pid")
+	[[ -n "$current" && "$current" == "$expected" ]]
+}
+
+record_process() {
+	local label=$1 pid=$2 started
+	started=$(process_start "$pid")
+	[[ -n "$started" ]] || return 0
+	printf '%s\t%s\t%s\n' "$label" "$pid" "$started" >>"$PID_FILE"
+}
+
+signal_process() {
+	local label=$1 pid=$2 started=$3
+	if same_process "$pid" "$started"; then
+		kill -TERM "$pid" 2>/dev/null || true
+	elif kill -0 "$pid" 2>/dev/null; then
+		echo "refusing to signal recycled pid $pid (recorded as $label)" >&2
+	fi
+}
+
 make_fake_agent() {
 	mkdir -p "$STATE_DIR/bin" "$STATE_DIR/repo/.git"
 	# Built, not copied, and built to a file named "codex": the kernel records
@@ -34,32 +60,37 @@ make_fake_agent() {
 	# "codex" exactly as the real CLI does. A shebang script would report the
 	# interpreter instead, and a copy of a system binary is SIGKILLed on Apple
 	# Silicon because copying invalidates its code signature.
-	local src
+	local src helper_src
 	src="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fake-agent"
 	go build -o "$BIN" "$src"
-	# The detached helper is built under a different name on purpose. If it
-	# were another copy of "codex" it would be detected as an agent in its own
-	# right, and the fixture would stop exercising the case it exists for: a
-	# process that is only linked to the session by the environment it
-	# inherited.
-	go build -o "$STATE_DIR/bin/fixture-helper" "$src"
+	# A native helper can remain genuinely kernel-blocked for five minutes.
+	# Go runtime housekeeping would create real CPU deltas and correctly reset
+	# the classifier's continuous idle window. The distinct name also prevents
+	# this helper from being detected as an agent root.
+	helper_src="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fixture-helper.c"
+	"${CC:-cc}" -std=c11 -O2 -Wall -Wextra -Werror \
+		-o "$STATE_DIR/bin/fixture-helper" "$helper_src"
 }
 
 start() {
-	if [[ -f "$ROOT_PID_FILE" ]] && kill -0 "$(cat "$ROOT_PID_FILE")" 2>/dev/null; then
-		echo "fixture already running with root pid $(cat "$ROOT_PID_FILE")" >&2
-		exit 1
+	if [[ -f "$ROOT_PID_FILE" ]]; then
+		IFS=$'\t' read -r existing_pid existing_start <"$ROOT_PID_FILE" || true
+		if [[ -n "${existing_pid:-}" && -n "${existing_start:-}" ]] && same_process "$existing_pid" "$existing_start"; then
+			echo "fixture already running with root pid $existing_pid" >&2
+			exit 1
+		fi
 	fi
 	make_fake_agent
 	: >"$PID_FILE"
 
-	# The session root, with five descendants:
+	# The session root, with six descendants:
 	#   crashed-child  intentionally unreaped fixture zombie
 	#   active-child   busy in a loop
 	#   idle-child     sleeping
 	#   detached-child outlives an intermediate shell that exits immediately,
 	#                  so the kernel reparents it to launchd
 	#   candidate-child direct active helper for policy/action fixture tests
+	#   action-child    direct idle helper for manually approved SIGTERM testing
 	cd "$STATE_DIR/repo"
 	# The agent's own session identifier. Children inherit it through the
 	# environment, which is how a process that has since been reparented can
@@ -68,13 +99,17 @@ start() {
 	echo "$CODEX_SESSION_ID" >"$STATE_DIR/session-id"
 	"$BIN" "$STATE_DIR/repo" >>"$STATE_DIR/fixture.out" 2>&1 &
 	root=$!
-	echo "$root" >"$ROOT_PID_FILE"
-	echo "root $root" >>"$PID_FILE"
+	root_start=$(process_start "$root")
+	[[ -n "$root_start" ]] || { echo "could not record fixture root identity" >&2; exit 1; }
+	printf '%s\t%s\n' "$root" "$root_start" >"$ROOT_PID_FILE"
+	record_process root "$root"
 
 	sleep 2
 	# Record the descendants the fake agent reported, so teardown only ever
 	# signals processes this fixture created.
-	awk '/^fixture /{print $2, $3}' "$STATE_DIR/fixture.out" >>"$PID_FILE" 2>/dev/null || true
+	while read -r label pid; do
+		[[ -n "${pid:-}" ]] && record_process "$label" "$pid"
+	done < <(awk '/^fixture /{print $2, $3}' "$STATE_DIR/fixture.out" 2>/dev/null)
 	echo "fixture root pid: $root"
 	echo "repository:       $STATE_DIR/repo"
 	echo "session id:       $CODEX_SESSION_ID"
@@ -86,9 +121,9 @@ start() {
 
 orphan() {
 	[[ -f "$ROOT_PID_FILE" ]] || { echo "no fixture is running" >&2; exit 1; }
-	root=$(cat "$ROOT_PID_FILE")
+	IFS=$'\t' read -r root root_start <"$ROOT_PID_FILE"
 	echo "ending the fixture session root $root; its descendants survive"
-	kill -TERM "$root" 2>/dev/null || true
+	signal_process root "$root" "$root_start"
 	rm -f "$ROOT_PID_FILE"
 	echo
 	echo "After the next scan the session should report state=completed and the"
@@ -99,8 +134,8 @@ orphan() {
 
 stop() {
 	if [[ -f "$PID_FILE" ]]; then
-		while read -r _label pid; do
-			[[ -n "${pid:-}" ]] && kill -TERM "$pid" 2>/dev/null || true
+		while IFS=$'\t' read -r label pid started; do
+			[[ -n "${pid:-}" && -n "${started:-}" ]] && signal_process "$label" "$pid" "$started"
 		done <"$PID_FILE"
 	fi
 	rm -rf "$STATE_DIR"

@@ -48,6 +48,22 @@ func TestEvaluateCandidateRefusalAndCooldown(t *testing.T) {
 	}
 }
 
+func TestEvaluateRecommendCandidate(t *testing.T) {
+	definition := auditPolicy()
+	definition.Mode = config.ModeRecommend
+	got, matched := Evaluate(definition, eligibleTarget(), policyNow, time.Time{})
+	if !matched || got.Result != ResultCandidate || got.Reason == "" {
+		t.Fatalf("Evaluate() = %+v, %t", got, matched)
+	}
+	found := false
+	for _, evidence := range got.Evidence {
+		found = found || evidence.Rule == "manual-approval-v1"
+	}
+	if !found {
+		t.Fatalf("recommendation is missing manual approval evidence: %+v", got.Evidence)
+	}
+}
+
 func TestEvaluateMismatchAndExactIdentityCooldown(t *testing.T) {
 	target := eligibleTarget()
 	target.State = "idle"

@@ -38,14 +38,12 @@ func (p *darwinPlatform) SampleActivity(ctx context.Context, key process.Key, re
 	return p.c.SampleActivity(ctx, key, repositoryRoot)
 }
 
-// SignalProcess is refused by the collector and re-reported with this
-// package's sentinel error so callers can match on it.
-func (p *darwinPlatform) SignalProcess(ctx context.Context, pid int, sig Signal) error {
-	if err := p.c.SignalProcess(ctx, pid, sig); err != nil {
-		return ErrSignalingDisabled
+func (p *darwinPlatform) SignalProcess(ctx context.Context, key process.Key,
+	executable process.ExecutableIdentity, sig Signal) error {
+	if sig != SIGTERM {
+		return ErrSignalNotAllowed
 	}
-	// Unreachable: the collector never returns nil. Fail closed regardless.
-	return ErrSignalingDisabled
+	return p.c.SignalProcess(ctx, key, executable, sig)
 }
 
 func (p *darwinPlatform) InstallService(ctx context.Context, opts ServiceOptions) error {

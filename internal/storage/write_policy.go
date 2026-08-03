@@ -15,7 +15,7 @@ func (t *Tx) InsertPolicyEvaluation(atNs int64) (int64, error) {
 	return id, nil
 }
 
-// InsertPolicyDecision appends one audit-only policy decision.
+// InsertPolicyDecision appends one bounded policy decision.
 func (t *Tx) InsertPolicyDecision(rec PolicyDecisionRecord) error {
 	_, err := t.tx.ExecContext(t.ctx, `INSERT INTO policy_decisions (
 		evaluation_id, policy_id, proc_uid, session_id, ts_ns, classification_ts_ns,

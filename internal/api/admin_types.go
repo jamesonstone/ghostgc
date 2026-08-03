@@ -24,6 +24,7 @@ type CandidateEntry struct {
 // CandidatesResponse backs `ghostgc candidates`.
 type CandidatesResponse struct {
 	Enforceable []CandidateEntry `json:"enforceable"`
+	Recommended []CandidateEntry `json:"recommended"`
 	Audited     []CandidateEntry `json:"audited"`
 	Note        string           `json:"note"`
 }

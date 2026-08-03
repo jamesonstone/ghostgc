@@ -14,6 +14,7 @@ func (d *Daemon) runRetention(ctx context.Context) {
 		Scans:            d.cfg.Retention.RawObservations.D(),
 		Audit:            d.cfg.Retention.Actions.D(),
 		PolicyDecisions:  d.cfg.Retention.Actions.D(),
+		Actions:          d.cfg.Retention.Actions.D(),
 		ExitedProcesses:  d.cfg.Retention.AggregatedObservations.D(),
 		EndedSessions:    d.cfg.Retention.AggregatedObservations.D(),
 		MaxDatabaseBytes: d.cfg.Retention.MaxDatabaseBytes,

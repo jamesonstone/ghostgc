@@ -52,18 +52,14 @@ func TestExampleConfigLoadsAndIsAudit(t *testing.T) {
 	}
 }
 
-func TestActionModesAreRefusedInThisBuild(t *testing.T) {
-	for _, mode := range []string{"enforce", "recommend"} {
-		t.Run(mode, func(t *testing.T) {
-			path := writeConfig(t, "version: 1\nglobalMode: "+mode+"\n")
-			_, err := Load(path)
-			if err == nil {
-				t.Fatalf("globalMode %q must be refused: this build cannot honour it", mode)
-			}
-			if !strings.Contains(err.Error(), "phase") {
-				t.Fatalf("the refusal must name the delivery phase that introduces it, got: %v", err)
-			}
-		})
+func TestRecommendModeIsAcceptedAndEnforceIsRefused(t *testing.T) {
+	path := writeConfig(t, "version: 1\nglobalMode: recommend\n")
+	if _, err := Load(path); err != nil {
+		t.Fatalf("recommend mode must be available in phase 6: %v", err)
+	}
+	path = writeConfig(t, "version: 1\nglobalMode: enforce\n")
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "phase 7") {
+		t.Fatalf("enforce mode must name its later delivery phase, got: %v", err)
 	}
 }
 

@@ -33,7 +33,7 @@ func (d *Daemon) evaluatePolicies(ctx context.Context, snap *process.Snapshot, t
 			batch.at = sampledAt
 		}
 	}
-	if d.cfg.GlobalMode != config.ModeAudit {
+	if d.cfg.GlobalMode != config.ModeAudit && d.cfg.GlobalMode != config.ModeRecommend {
 		return batch, nil
 	}
 	for _, class := range classes.current {

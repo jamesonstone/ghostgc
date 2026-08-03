@@ -15,6 +15,8 @@ import (
 // scan is recorded and observation continues. Stopping on a transient
 // inspection failure would turn a recoverable condition into an outage.
 func (d *Daemon) runScan(ctx context.Context) {
+	d.scanMu.Lock()
+	defer d.scanMu.Unlock()
 	start := time.Now()
 
 	snap, err := d.plat.SnapshotProcesses(ctx)

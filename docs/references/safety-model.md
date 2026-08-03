@@ -10,28 +10,34 @@ mechanism.
 
 ## The one that matters most
 
-**This build cannot terminate a process.**
+**This build can send only one fully gated SIGTERM.**
 
-`Platform.SignalProcess` returns `platform.ErrSignalingDisabled` on every
-platform, unconditionally, for every signal including signal 0. No caller
-exists. This is checked three ways:
+The daemon can reach `Platform.SignalProcess` only after a current exact
+recommendation is manually previewed, a short-lived one-time approval is
+consumed, and every fact is freshly revalidated. This is checked from both
+directions:
 
 | Check | Where |
 | --- | --- |
-| The running implementation refuses | `internal/platform/signal_disabled_test.go:TestPlatformRefusesToSignal` |
-| No source file references a signalling primitive (`syscall.Kill`, `unix.Kill`, `.Process.Kill(`, `.Process.Signal(`, `SYS_KILL`) | `TestNoSourceFileCanSignalAProcess` — walks the whole repository |
+| Non-TERM and changed exact identities are refused | `internal/platform/signal_gate_test.go:TestPlatformRejectsNonTERMAndChangedIdentity` |
+| A changed executable image is refused beside the signal syscall | `internal/platform/darwin/signal_test.go` |
+| Exactly one literal SIGTERM primitive exists; alternatives are forbidden | `TestSignalPrimitiveIsSingleLiteralSIGTERM` — walks the whole repository |
 | No source file shells out to `kill`, `pkill` or `killall` | `TestNoSourceFileShellsOutToATerminator` |
-| The daemon proves it at runtime | `ghostgc doctor`, check `signalling-disabled` — it makes a real call and asserts the refusal, rather than reading a constant |
-| A full observation cycle never even attempts one | `internal/daemon/daemon_test.go:TestObservationLifecycle` asserts the fake platform recorded zero attempts |
+| The daemon proves both refusals at runtime | `ghostgc doctor`, check `signal-safety-gate` |
+| Observation and policy evaluation never signal | daemon policy tests assert zero fake-platform attempts |
+| Manual action is single-use and exact-key | `internal/daemon/action_test.go` covers success, replay and changed identity |
 
-Delivery phase 6 introduces a manually approved SIGTERM. Phase 5 evaluates
-policies, but the source-level no-signal gate remains unchanged.
+The durable action row is committed in `attempting` state before SIGTERM. The
+post-call transaction records `signalled` or `failed`; a preflight refusal
+records `rejected`. `signalled` means the operating system accepted the signal,
+not that ghostgc has fabricated proof of process exit.
 
 ## Configuration cannot widen what the daemon does
 
-`config.Validate` refuses to load a configuration with
-`globalMode: recommend` or `globalMode: enforce`, with an error that names the
-delivery phase which introduces each. `privacy.storeSourceContents: true` and
+`config.Validate` accepts `disabled`, `audit` and `recommend`, but rejects
+`globalMode: enforce` until Phase 7. Global mode is a hard upper bound, so an
+individual recommendation policy is audit-only unless global recommendation
+is also explicit. `privacy.storeSourceContents: true` and
 `privacy.networkTelemetry: true` are likewise startup errors. A misspelled key
 is an error rather than a silently ignored setting.
 
@@ -39,12 +45,12 @@ Tested in `internal/config/config_test.go`.
 
 ## Policies cannot widen authority
 
-Phase 5 policies accept only `audit` or `disabled`. Their schema is strict and
+Policies accept only `audit`, `recommend` or `disabled`. Their schema is strict and
 non-Turing-complete: exact `orphaned`, `hung` or `crashed` states, agent IDs and
 executable basenames, plus explicit booleans and durations. `suspicious` is
 never eligible because it means progress or live resources remain. Validation
 rejects broad protected runtimes, weak/unknown states, unknown agents, unsafe
-windows, duplicates and recommend/enforce modes. Global `disabled` caps every
+windows, duplicates and enforce mode. Global `disabled` caps every
 individual policy. A policy is applied only after hard protections; every
 triggered protection becomes an immutable refusal reason and cannot be
 overridden. Cooldowns are keyed by policy plus `pid:start_time_ns`, so PID reuse
@@ -52,6 +58,15 @@ cannot inherit eligibility or suppression, and active cooldown rows survive
 ordinary and aggressive retention.
 Retention also preserves the latest evaluation as an indivisible projection;
 compaction cannot make only part of a current decision set disappear.
+
+Recommendation still grants no automatic authority. Preview binds the unique
+evaluation and decision IDs, exact process key, executable path and kernel
+name, session, classification evidence and canonical policy. The bearer token
+is random, memory-only, single-use and valid for two minutes. Apply serializes
+with scans and then freshly snapshots, reconciles, samples, classifies,
+protects and evaluates. The platform repeats exact-key and executable-image
+validation immediately beside the sole signal primitive. Any unknown or
+changed fact fails closed.
 
 Tested in `internal/config/policy_test.go`, `internal/policy/policy_test.go` and
 `internal/daemon/policy_test.go`.

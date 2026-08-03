@@ -7,15 +7,14 @@ import "runtime/debug"
 var Version = "dev"
 
 // PhaseNumber is the delivery phase this build implements.
-const PhaseNumber = 5
+const PhaseNumber = 6
 
 // Phase names the delivery phase this build implements. It is displayed
-// wherever the daemon reports what it can and cannot do, so that the audit-only
-// behaviour is never mistaken for a misconfiguration.
+// wherever the daemon reports its action-authority boundary.
 //
 // It is a constant, so it goes stale silently unless something checks it;
 // version_test.go does.
-const Phase = "5 — fail-closed policy audit (no process termination code is present)"
+const Phase = "6 — manually approved cleanup (full revalidation, SIGTERM only)"
 
 // Revision returns the VCS revision recorded by the Go toolchain, if any.
 func Revision() string {

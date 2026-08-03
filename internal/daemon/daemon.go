@@ -1,7 +1,7 @@
 // Package daemon runs the observation loop.
 //
-// Each cycle observes, reconciles, classifies, evaluates audit-only policies
-// and persists one transaction. It cannot act: no signal path exists.
+// Each cycle observes, reconciles, classifies, evaluates bounded policies and
+// persists one transaction. Manual action authority is isolated from scans.
 package daemon
 
 import (
@@ -61,6 +61,8 @@ type Daemon struct {
 	startedAt time.Time
 
 	mu                     sync.RWMutex
+	scanMu                 sync.Mutex
+	actionMu               sync.Mutex
 	snapshot               *process.Snapshot
 	tree                   *process.Tree
 	last                   *sessions.Result
@@ -71,6 +73,7 @@ type Daemon struct {
 	classificationPrevious map[string]classification.Previous
 	lastClassificationAt   time.Time
 	lastPolicyAt           time.Time
+	approvals              map[string]*cleanupApproval
 }
 
 type metrics struct {
@@ -141,6 +144,7 @@ func New(opts Options) (*Daemon, error) {
 		startedAt:              time.Now(),
 		activityBaseline:       make(map[string]process.ActivitySample),
 		classificationPrevious: make(map[string]classification.Previous),
+		approvals:              make(map[string]*cleanupApproval),
 	}
 	d.recon = sessions.New(reg, d.selfPI, opts.Platform.SelfUID(), repos)
 	return d, nil
@@ -174,7 +178,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 		"socket", d.paths.Socket,
 		"database", d.store.Path(),
 		"agents", d.agentIDs(),
-		"signalling_enabled", false,
+		"signalling_enabled", d.manualCleanupEnabled(),
 	)
 
 	var wg sync.WaitGroup

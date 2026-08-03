@@ -12,6 +12,7 @@ type RetentionPolicy struct {
 	Scans           time.Duration
 	Audit           time.Duration
 	PolicyDecisions time.Duration
+	Actions         time.Duration
 	// ExitedProcesses is how long a process row survives after the process
 	// exited. Ownership records for exited processes are removed with them.
 	ExitedProcesses time.Duration
@@ -28,6 +29,7 @@ type RetentionResult struct {
 	Classifications   int64 `json:"classifications_deleted"`
 	PolicyDecisions   int64 `json:"policy_decisions_deleted"`
 	PolicyEvaluations int64 `json:"policy_evaluations_deleted"`
+	Actions           int64 `json:"actions_deleted"`
 	Scans             int64 `json:"scans_deleted"`
 	Audit             int64 `json:"audit_deleted"`
 	Processes         int64 `json:"processes_deleted"`
@@ -42,7 +44,7 @@ type RetentionResult struct {
 
 // Total returns the number of rows removed.
 func (r RetentionResult) Total() int64 {
-	return r.Observations + r.ActivitySamples + r.Classifications + r.PolicyDecisions + r.PolicyEvaluations + r.Scans + r.Audit + r.Processes + r.Ownership + r.Sessions + r.Relationships
+	return r.Observations + r.ActivitySamples + r.Classifications + r.PolicyDecisions + r.PolicyEvaluations + r.Actions + r.Scans + r.Audit + r.Processes + r.Ownership + r.Sessions + r.Relationships
 }
 
 // Compact enforces the retention policy.
@@ -65,6 +67,7 @@ func (s *Store) Compact(ctx context.Context, p RetentionPolicy, now time.Time) (
 		tighter.Scans /= 2
 		tighter.Audit /= 2
 		tighter.PolicyDecisions /= 2
+		tighter.Actions /= 2
 		tighter.ExitedProcesses /= 2
 		tighter.EndedSessions /= 2
 		if err := s.compactOnce(ctx, tighter, now, &res); err != nil {
@@ -110,6 +113,7 @@ func (s *Store) compactOnce(ctx context.Context, p RetentionPolicy, now time.Tim
 			{&res.PolicyEvaluations, `DELETE FROM policy_evaluations WHERE ts_ns < ?
 				AND id <> (SELECT MAX(id) FROM policy_evaluations)
 				AND id NOT IN (SELECT DISTINCT evaluation_id FROM policy_decisions)`, []any{cutoff(p.PolicyDecisions)}},
+			{&res.Actions, `DELETE FROM actions WHERE requested_ns < ?`, []any{cutoff(p.Actions)}},
 			{&res.Scans, `DELETE FROM scans WHERE started_ns < ?`, []any{cutoff(p.Scans)}},
 			{&res.Audit, `DELETE FROM audit_log WHERE ts_ns < ?`, []any{cutoff(p.Audit)}},
 			{&res.Ownership, `DELETE FROM session_processes WHERE proc_uid IN (

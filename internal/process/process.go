@@ -122,11 +122,28 @@ type Process struct {
 	Threads  int
 }
 
+// ExecutableIdentity is the exact observable process image bound to action
+// authority. Both fields are required because a basename alone is not an
+// identity and an unavailable detail pass must fail closed.
+type ExecutableIdentity struct {
+	ExecPath string `json:"exec_path"`
+	Comm     string `json:"comm"`
+}
+
 // Key returns the PID-reuse-safe identity of the process.
 func (p Process) Key() Key { return NewKey(p.PID, p.StartTime) }
 
 // HasTTY reports whether the process has a controlling terminal.
 func (p Process) HasTTY() bool { return p.TTY != NoTTY }
+
+// Executable returns the exact observed image identity when the detail pass
+// supplied both the kernel name and executable path.
+func (p Process) Executable() (ExecutableIdentity, bool) {
+	if !p.Detailed || p.ExecPath == "" || p.Comm == "" {
+		return ExecutableIdentity{}, false
+	}
+	return ExecutableIdentity{ExecPath: p.ExecPath, Comm: p.Comm}, true
+}
 
 // Name returns the best available short name for the process: the executable
 // basename when known, otherwise the kernel-reported comm.

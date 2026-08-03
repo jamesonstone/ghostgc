@@ -97,7 +97,7 @@ type ClassificationRecord struct {
 	EvidenceJSON  string `json:"evidence"`
 }
 
-// PolicyDecisionRecord is one audit-only policy match, refusal or cooldown.
+// PolicyDecisionRecord is one bounded policy match, refusal or cooldown.
 type PolicyDecisionRecord struct {
 	ID                  int64  `json:"id"`
 	EvaluationID        int64  `json:"evaluation_id"`
@@ -111,6 +111,21 @@ type PolicyDecisionRecord struct {
 	Reason              string `json:"reason"`
 	CooldownUntilNs     int64  `json:"cooldown_until_ns,omitempty"`
 	EvidenceJSON        string `json:"-"`
+}
+
+// ActionRecord is one durable manual action request and its latest outcome.
+type ActionRecord struct {
+	ID           int64  `json:"id"`
+	ActionID     string `json:"action_id"`
+	PolicyID     string `json:"policy_id"`
+	ProcUID      string `json:"proc_uid"`
+	SessionID    string `json:"session_id"`
+	RequestedNs  int64  `json:"requested_ns"`
+	UpdatedNs    int64  `json:"updated_ns"`
+	Result       string `json:"result"`
+	Signal       string `json:"signal"`
+	Reason       string `json:"reason"`
+	EvidenceJSON string `json:"evidence"`
 }
 
 // SessionRecord is a persisted session row.

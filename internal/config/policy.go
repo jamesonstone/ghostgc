@@ -12,7 +12,7 @@ import (
 
 var policyIDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
 
-// Policy is one deliberately bounded cleanup audit rule.
+// Policy is one deliberately bounded cleanup rule.
 type Policy struct {
 	ID                  string   `yaml:"id"`
 	Description         string   `yaml:"description"`
@@ -38,11 +38,11 @@ func (c Config) validatePolicies() error {
 			return fmt.Errorf("duplicate policy id %q", policy.ID)
 		}
 		ids[policy.ID] = true
-		if policy.Mode != ModeAudit && policy.Mode != ModeDisabled {
-			return fmt.Errorf("%s.mode %q is unavailable in phase 5; use audit or disabled", prefix, policy.Mode)
+		if policy.Mode != ModeAudit && policy.Mode != ModeRecommend && policy.Mode != ModeDisabled {
+			return fmt.Errorf("%s.mode %q is unavailable in phase 6; use audit, recommend, or disabled", prefix, policy.Mode)
 		}
-		if policy.Enabled && policy.Mode != ModeAudit {
-			return fmt.Errorf("%s is enabled but mode is %q; enabled phase-5 policies must be audit", prefix, policy.Mode)
+		if policy.Enabled && policy.Mode == ModeDisabled {
+			return fmt.Errorf("%s is enabled but mode is disabled", prefix)
 		}
 		if strings.TrimSpace(policy.Description) == "" {
 			return fmt.Errorf("%s.description is required", prefix)

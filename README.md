@@ -17,8 +17,9 @@ the evidence behind it.
 [![Last commit](https://img.shields.io/github/last-commit/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/commits) [![Open issues](https://img.shields.io/github/issues/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/issues) [![Pull requests](https://img.shields.io/github/issues-pr/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/pulls) [![CI](https://github.com/jamesonstone/ghostgc/actions/workflows/ci.yml/badge.svg)](https://github.com/jamesonstone/ghostgc/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/releases)
 <!-- END KIT-MANAGED README BADGES -->
 
-**This build observes only.** It contains no code that can send a signal to a
-process, and a test fails the build if any is added. See
+**Manual cleanup is available only when explicitly configured.** It requires an
+exact recommendation, a short-lived one-time approval and full fresh
+revalidation, and can send only SIGTERM. Audit remains the default. See
 [docs/references/safety-model.md](docs/references/safety-model.md).
 
 ```
@@ -74,8 +75,8 @@ ghostgc solves that part first, and refuses to act until it is solved.
 The full set is in [docs/CONSTITUTION.md](docs/CONSTITUTION.md). The ones that
 shape everything else:
 
-**Observe before acting.** Audit is the default mode, and in this build it is
-the only mode the daemon will accept.
+**Observe before acting.** Audit is the default mode. Recommendation must be
+enabled globally and on one exact policy; it still grants no automatic action.
 
 **Evidence over heuristics.** Every classification carries the observations that
 produced it. "The node process is old" is not a reason. Confidence combines
@@ -131,6 +132,9 @@ foreground instead: `ghostgcd --log-level debug`.
 | `ghostgc explain <pid>` | what was concluded about a PID and why — works for *any* PID |
 | `ghostgc activity` | bounded CPU, disk, file and socket evidence for attributed processes |
 | `ghostgc candidates` | current audit candidates, refusals and cooldowns |
+| `ghostgc cleanup --dry-run ...` | issue an exact, expiring manual cleanup preview |
+| `ghostgc cleanup --apply ...` | consume one approval after full fresh revalidation |
+| `ghostgc actions` | durable attempted, rejected, signalled and failed actions |
 | `ghostgc classifications` | latest deterministic process states and detachment |
 | `ghostgc policies` | loaded YAML policies and their exact scope |
 | `ghostgc logs` | the audit trail |
@@ -154,8 +158,33 @@ ghostgc logs --kind policy.candidate
 ```
 
 Policies can match only exact agent IDs and executable basenames in strong
-states. Hard protections cannot be overridden. A `candidate` is audit evidence,
-not permission: this build still has no recommendation or signal path.
+states. Hard protections cannot be overridden. A `candidate` under an audit
+policy remains evidence only.
+
+### Manually approve one cleanup
+
+Change both `globalMode` and one exact policy to `recommend`, restart the
+daemon, and inspect the recommendation before requesting authority:
+
+```bash
+ghostgc candidates
+ghostgc cleanup --dry-run --process '<pid:start_time_ns>' --policy '<policy-id>'
+```
+
+The preview prints the only apply command, containing a one-time token and
+`--yes`. It expires after two minutes. Apply takes a fresh snapshot, reconciles
+ownership and lifecycle, resamples activity, reclassifies, reruns every hard
+protection and re-evaluates the exact policy. Any changed or unknown fact is a
+durable rejection. A passing request sends one exact-key SIGTERM and never
+escalates:
+
+```bash
+ghostgc actions
+ghostgc logs --kind action.signalled
+```
+
+See [the manual cleanup guide](docs/references/manual-cleanup.md) for a complete
+configuration and fixture walkthrough.
 
 ## Where things live
 
@@ -211,13 +240,13 @@ Each phase is completed, tested and documented before the next begins.
 | 3 | Activity tracking: CPU/IO/network deltas, open files, sockets | **done** |
 | 4 | Classification: active, idle, waiting, detached, suspicious, orphaned, unknown | **done** |
 | 5 | Policy engine: YAML policies, audit evaluation, safety refusals, cooldowns | **done** |
-| 6 | Recommended cleanup: manual approval, exact command preview, pre-action revalidation, SIGTERM only | next |
+| 6 | Recommended cleanup: manual approval, exact command preview, pre-action revalidation, SIGTERM only | **done** |
 | 7 | Narrow enforcement: one or two highly specific process classes, behind every gate | |
 | 8 | Adapters for Claude Code, Cursor, OpenCode | |
 | 9 | Linux: `/proc` collector, user systemd unit, parity tests | |
 
-Termination is introduced in phase 6, behind manual approval, and only after the
-policy engine and its safety tests exist. Nothing before then can send a signal.
+Phase 6 termination is manual, single-use and SIGTERM-only. Phase 7 is the first
+delivery allowed to add a narrowly scoped automatic path.
 
 ## Development
 
@@ -228,14 +257,15 @@ make lint    # golangci-lint
 make run     # daemon in the foreground with debug logging
 ```
 
-The suite includes a source-level check that no package can signal a process,
+The suite includes a source-level check that exactly one literal SIGTERM site exists,
 adversarial detection cases taken from a real machine, and tests for PID reuse,
 reparenting, redaction, schema migration and every relationship kind that must
 not establish ownership. A safety test is never weakened to make it pass.
 
 `fixtures/fixture-agent.sh` builds a real process tree — a session root, a
-worker shell, an idle child, a periodic-work child and a helper orphaned to
-`launchd` — so the collector can be exercised against a known shape:
+worker shell, idle and periodic-work children, a helper orphaned to `launchd`,
+and a native exact action target — so the collector can be exercised against a
+known shape:
 
 ```bash
 fixtures/fixture-agent.sh start

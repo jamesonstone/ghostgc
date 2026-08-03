@@ -166,12 +166,16 @@ func (d *Daemon) Metrics(ctx context.Context) (api.MetricsResponse, error) {
 		RetentionRuns:        m.retentionRuns,
 		LastRetentionDeleted: m.lastRetentionRows,
 	}
+	resp.ActionsAttempted, resp.ActionsRejected, resp.ActionsCompleted, err = d.store.ActionCounts(ctx)
+	if err != nil {
+		return api.MetricsResponse{}, err
+	}
 	decisions, err := d.currentPolicyDecisions(ctx)
 	if err != nil {
 		return api.MetricsResponse{}, err
 	}
 	for _, decision := range decisions {
-		if decision.Result == "candidate" {
+		if d.isRecommendation(decision) {
 			resp.CleanupCandidates++
 		}
 	}

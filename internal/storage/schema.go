@@ -1,7 +1,7 @@
 package storage
 
 // schemaVersion is the newest migration below.
-const schemaVersion = 6
+const schemaVersion = 7
 
 // migration is one forward step. Migrations are applied in order, each in its
 // own transaction, and the version is recorded as each completes.
@@ -21,6 +21,7 @@ var migrations = []migration{
 	{version: 4, stmts: schemaV4},
 	{version: 5, stmts: schemaV5},
 	{version: 6, stmts: schemaV6},
+	{version: 7, stmts: schemaV7},
 }
 
 // schemaV1 is the delivery phase 1 schema.

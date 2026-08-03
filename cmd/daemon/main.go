@@ -1,8 +1,7 @@
 // Command ghostgcd is the ghostgc observation daemon.
 //
-// It runs one persistent process with bounded internal sampling. It does not
-// re-launch itself, and nothing in this build can send a signal to another
-// process.
+// It runs one persistent process with bounded internal sampling. The sole
+// action path is an exact, manually approved and freshly revalidated SIGTERM.
 package main
 
 import (

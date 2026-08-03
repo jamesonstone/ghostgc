@@ -89,8 +89,10 @@ func renderStatus(s api.StatusResponse) {
 	for _, reason := range s.Degraded {
 		fmt.Printf("\nDegraded: %s\n", reason)
 	}
-	if !s.SignallingEnabled {
-		fmt.Printf("\nThis build observes only. No process can be signalled.\nDelivery phase %s\n", s.Phase)
+	if s.SignallingEnabled {
+		fmt.Printf("\nManual cleanup enabled: exact preview, one-time approval, fresh revalidation, SIGTERM only.\nDelivery phase %s\n", s.Phase)
+	} else {
+		fmt.Printf("\nManual cleanup is disabled by configuration. Observation and policy audit remain active.\nDelivery phase %s\n", s.Phase)
 	}
 }
 
