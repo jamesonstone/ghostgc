@@ -165,13 +165,15 @@ action authority.
   protection, exact-key cooldown persistence, current-only projection,
   same-timestamp empty projection, per-process stable windows,
   candidate/cooldown transitions and zero signal attempts.
-- Live fixture run `20260803T165410Z-p5-review` used an exact `codex` /
+- Live fixture run `20260803T170659Z-p5f1` at exact source `e4f1d76` used an exact `codex` /
   `fixture-helper` / `crashed` policy. Seventeen matching samples were durably
   recorded as `policy.refused` because the owning fixture session was active.
   `ghostgc candidates`, `explain`, `logs`, `metrics` and `policies` exposed the
   complete scope, both freshness timestamps and evidence; attempted/rejected/
   completed actions stayed zero. Structured `result.json` and readable
-  `output.txt` record source identity, assertions and successful fixture cleanup.
+  `output.txt` under `tmp/2026-08-03/phase5-policy-live/1/` satisfy the repository
+  evidence schema and record source/deployed identity, assertions, artifacts and
+  successful fixture cleanup.
 
 ## OUTCOME
 
