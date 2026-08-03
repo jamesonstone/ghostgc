@@ -80,7 +80,7 @@ func TestManualCleanupSignalsOnceAndRejectsReplay(t *testing.T) {
 	preview := previewRecommendation(t, h, child)
 
 	result, err := h.d.CleanupApply(context.Background(), api.CleanupApplyRequest{Approval: preview.Approval})
-	if err != nil || result.Result != "signalled" || h.fake.SignalAttempts != 1 {
+	if err != nil || result.Result != "signalled" || result.Authority != "manual" || h.fake.SignalAttempts != 1 {
 		t.Fatalf("apply = %+v, %v; signals=%d", result, err, h.fake.SignalAttempts)
 	}
 	replay, err := h.d.CleanupApply(context.Background(), api.CleanupApplyRequest{Approval: preview.Approval})
@@ -154,7 +154,7 @@ func TestManualCleanupRoundTripsOverOwnerOnlySocket(t *testing.T) {
 		t.Fatalf("socket apply = %+v, %v", result, err)
 	}
 	actions, err := client.Actions(ctx, api.ActionOptions{ProcUID: child.Key().UID()})
-	if err != nil || len(actions.Actions) != 1 || len(actions.Actions[0].Evidence) == 0 {
+	if err != nil || len(actions.Actions) != 1 || actions.Actions[0].Authority != "manual" || len(actions.Actions[0].Evidence) == 0 {
 		t.Fatalf("socket actions = %+v, %v", actions, err)
 	}
 	cancel()

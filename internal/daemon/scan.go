@@ -92,6 +92,8 @@ func (d *Daemon) runScan(ctx context.Context) {
 	d.metrics.attributed = result.AttributedCount
 	d.mu.Unlock()
 
+	d.runAutomaticCleanupLocked(ctx, policies)
+
 	d.log.Debug("scan complete",
 		"visible", snap.TotalCount,
 		"inspected", snap.Len(),

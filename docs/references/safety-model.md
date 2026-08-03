@@ -10,12 +10,12 @@ mechanism.
 
 ## The one that matters most
 
-**This build can send only one fully gated SIGTERM.**
+**Each authorized action can send only one fully gated SIGTERM.**
 
-The daemon can reach `Platform.SignalProcess` only after a current exact
-recommendation is manually previewed, a short-lived one-time approval is
-consumed, and every fact is freshly revalidated. This is checked from both
-directions:
+The daemon can reach `Platform.SignalProcess` only after either a current exact
+recommendation consumes a one-time manual approval or the newest committed
+evaluation contains a candidate under the singular automatic policy. Every
+fact is freshly revalidated in both paths. This is checked from both directions:
 
 | Check | Where |
 | --- | --- |
@@ -26,6 +26,7 @@ directions:
 | The daemon proves both refusals at runtime | `ghostgc doctor`, check `signal-safety-gate` |
 | Observation and policy evaluation never signal | daemon policy tests assert zero fake-platform attempts |
 | Manual action is single-use and exact-key | `internal/daemon/action_test.go` covers success, replay and changed identity |
+| Automatic action is singular, current and globally capped | `internal/daemon/enforcement_test.go` covers one/two candidates, global cap and changed image |
 
 The durable action row is committed in `attempting` state before SIGTERM. The
 post-call transaction records `signalled` or `failed`; a preflight refusal
@@ -34,10 +35,10 @@ not that ghostgc has fabricated proof of process exit.
 
 ## Configuration cannot widen what the daemon does
 
-`config.Validate` accepts `disabled`, `audit` and `recommend`, but rejects
-`globalMode: enforce` until Phase 7. Global mode is a hard upper bound, so an
-individual recommendation policy is audit-only unless global recommendation
-is also explicit. `privacy.storeSourceContents: true` and
+`config.Validate` accepts `disabled`, `audit`, `recommend` and `enforce` while
+keeping audit as the default. Global mode is a hard upper bound, so a policy is
+not manually or automatically actionable without corresponding global consent.
+`privacy.storeSourceContents: true` and
 `privacy.networkTelemetry: true` are likewise startup errors. A misspelled key
 is an error rather than a silently ignored setting.
 
@@ -45,12 +46,15 @@ Tested in `internal/config/config_test.go`.
 
 ## Policies cannot widen authority
 
-Policies accept only `audit`, `recommend` or `disabled`. Their schema is strict and
+Policies accept `disabled`, `audit`, `recommend` or `enforce`. Their schema is strict and
 non-Turing-complete: exact `orphaned`, `hung` or `crashed` states, agent IDs and
 executable basenames, plus explicit booleans and durations. `suspicious` is
 never eligible because it means progress or live resources remain. Validation
 rejects broad protected runtimes, weak/unknown states, unknown agents, unsafe
-windows, duplicates and enforce mode. Global `disabled` caps every
+windows and duplicates. Enforce additionally requires `automatic: true`, one
+enabled enforce policy total, exactly one orphaned state, agent and executable,
+detachment, an ended session, at least five stable minutes and a one-hour
+cooldown. Global `disabled` caps every
 individual policy. A policy is applied only after hard protections; every
 triggered protection becomes an immutable refusal reason and cannot be
 overridden. Cooldowns are keyed by policy plus `pid:start_time_ns`, so PID reuse
@@ -67,6 +71,12 @@ with scans and then freshly snapshots, reconciles, samples, classifies,
 protects and evaluates. The platform repeats exact-key and executable-image
 validation immediately beside the sole signal primitive. Any unknown or
 changed fact fails closed.
+
+Automatic selection uses only `candidate` from the newest committed evaluation,
+never a refusal or cooldown, and returns after the first deterministic match.
+The scan lane remains held through revalidation and both action transactions.
+The same cooldown suppresses a retry after success, refusal or platform failure.
+Durable actions identify `manual` or `automatic` authority.
 
 Tested in `internal/config/policy_test.go`, `internal/policy/policy_test.go` and
 `internal/daemon/policy_test.go`.

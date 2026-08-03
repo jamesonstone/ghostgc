@@ -1,7 +1,7 @@
 // fixture-helper supplies deterministic native process behavior for live
 // collector tests. It is intentionally tiny: --sleep blocks without periodic
-// runtime housekeeping, --tick produces real file activity, and --exit gives
-// the parent a zombie to observe.
+// runtime housekeeping, --tick produces real file activity, --exit gives the
+// parent a zombie, and --session execs the fixture root without a terminal.
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
@@ -29,6 +29,16 @@ static int tick(const char *path) {
 	}
 }
 
+static int session_exec(char **argv) {
+	if (setsid() < 0) {
+		perror("fixture-helper setsid");
+		return 1;
+	}
+	execv(argv[2], &argv[2]);
+	perror("fixture-helper execv");
+	return 1;
+}
+
 int main(int argc, char **argv) {
 	if (argc == 2 && strcmp(argv[1], "--exit") == 0) {
 		return 0;
@@ -41,6 +51,9 @@ int main(int argc, char **argv) {
 	if (argc == 3 && strcmp(argv[1], "--tick") == 0) {
 		return tick(argv[2]);
 	}
-	fprintf(stderr, "usage: fixture-helper --exit | --sleep | --tick <path>\n");
+	if (argc >= 3 && strcmp(argv[1], "--session") == 0) {
+		return session_exec(argv);
+	}
+	fprintf(stderr, "usage: fixture-helper --exit | --sleep | --tick <path> | --session <command> [args]\n");
 	return 2;
 }

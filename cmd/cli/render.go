@@ -89,11 +89,17 @@ func renderStatus(s api.StatusResponse) {
 	for _, reason := range s.Degraded {
 		fmt.Printf("\nDegraded: %s\n", reason)
 	}
-	if s.SignallingEnabled {
-		fmt.Printf("\nManual cleanup enabled: exact preview, one-time approval, fresh revalidation, SIGTERM only.\nDelivery phase %s\n", s.Phase)
+	if s.ManualCleanupEnabled {
+		fmt.Println("\nManual cleanup enabled: exact preview, one-time approval, fresh revalidation, SIGTERM only.")
 	} else {
-		fmt.Printf("\nManual cleanup is disabled by configuration. Observation and policy audit remain active.\nDelivery phase %s\n", s.Phase)
+		fmt.Println("\nManual cleanup disabled: observation and policy audit remain active.")
 	}
+	if s.AutomaticCleanupEnabled {
+		fmt.Println("Automatic cleanup enabled: one exact current orphaned candidate per evaluation, fresh revalidation, SIGTERM only.")
+	} else {
+		fmt.Println("Automatic cleanup disabled.")
+	}
+	fmt.Printf("Delivery phase %s\n", s.Phase)
 }
 
 func renderSessions(r api.SessionsResponse) {

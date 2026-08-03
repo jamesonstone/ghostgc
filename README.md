@@ -17,9 +17,12 @@ the evidence behind it.
 [![Last commit](https://img.shields.io/github/last-commit/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/commits) [![Open issues](https://img.shields.io/github/issues/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/issues) [![Pull requests](https://img.shields.io/github/issues-pr/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/pulls) [![CI](https://github.com/jamesonstone/ghostgc/actions/workflows/ci.yml/badge.svg)](https://github.com/jamesonstone/ghostgc/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/releases)
 <!-- END KIT-MANAGED README BADGES -->
 
-**Manual cleanup is available only when explicitly configured.** It requires an
-exact recommendation, a short-lived one-time approval and full fresh
-revalidation, and can send only SIGTERM. Audit remains the default. See
+**Cleanup is available only when explicitly configured.** Manual cleanup needs
+an exact one-time approval. Automatic cleanup additionally requires global
+enforce plus one singular orphan-only policy and attempts at most one current
+candidate per evaluation. Both fully revalidate, and each authorized action can
+send only one SIGTERM.
+Audit remains the default. See
 [docs/references/safety-model.md](docs/references/safety-model.md).
 
 ```
@@ -76,7 +79,8 @@ The full set is in [docs/CONSTITUTION.md](docs/CONSTITUTION.md). The ones that
 shape everything else:
 
 **Observe before acting.** Audit is the default mode. Recommendation must be
-enabled globally and on one exact policy; it still grants no automatic action.
+enabled globally and on one exact policy; automatic cleanup additionally needs
+global enforce and one explicitly automatic, singular orphan-only policy.
 
 **Evidence over heuristics.** Every classification carries the observations that
 produced it. "The node process is old" is not a reason. Confidence combines
@@ -131,7 +135,7 @@ foreground instead: `ghostgcd --log-level debug`.
 | `ghostgc processes` | processes attributed to a session |
 | `ghostgc explain <pid>` | what was concluded about a PID and why — works for *any* PID |
 | `ghostgc activity` | bounded CPU, disk, file and socket evidence for attributed processes |
-| `ghostgc candidates` | current audit candidates, refusals and cooldowns |
+| `ghostgc candidates` | current enforceable, recommended and audit/refusal/cooldown decisions |
 | `ghostgc cleanup --dry-run ...` | issue an exact, expiring manual cleanup preview |
 | `ghostgc cleanup --apply ...` | consume one approval after full fresh revalidation |
 | `ghostgc actions` | durable attempted, rejected, signalled and failed actions |
@@ -147,8 +151,8 @@ Add `--json` to any command for machine-readable output.
 
 ### Audit a policy
 
-`ghostgc config init` includes a disabled exact-match example. To dogfood Phase
-5, edit the generated policy to `enabled: true` and `mode: audit`, restart the
+`ghostgc config init` includes a disabled exact-match example. To begin
+dogfooding, edit the generated policy to `enabled: true` and `mode: audit`, restart the
 daemon, then use:
 
 ```bash
@@ -185,6 +189,20 @@ ghostgc logs --kind action.signalled
 
 See [the manual cleanup guide](docs/references/manual-cleanup.md) for a complete
 configuration and fixture walkthrough.
+
+### Narrow automatic cleanup
+
+Phase 7 accepts `globalMode: enforce`, but only one enabled enforce policy may
+exist. It must set `automatic: true`, match exactly one agent and executable,
+match only `orphaned`, require detachment plus an ended session, stay stable for
+at least five minutes and cool down for at least one hour. Each committed policy
+evaluation can attempt at most one exact current candidate. Fresh revalidation,
+hard protections, durable pre-action evidence and the final exact-image
+platform gate are identical to the manual path.
+
+Start with [the dogfooding guide](docs/references/dogfooding.md), which moves
+from audit to manual recommendation and then proves enforcement against the
+fixture before suggesting any real policy.
 
 ## Where things live
 
@@ -241,12 +259,13 @@ Each phase is completed, tested and documented before the next begins.
 | 4 | Classification: active, idle, waiting, detached, suspicious, orphaned, unknown | **done** |
 | 5 | Policy engine: YAML policies, audit evaluation, safety refusals, cooldowns | **done** |
 | 6 | Recommended cleanup: manual approval, exact command preview, pre-action revalidation, SIGTERM only | **done** |
-| 7 | Narrow enforcement: one or two highly specific process classes, behind every gate | |
+| 7 | Narrow enforcement: one singular orphan-only automatic policy, one candidate per evaluation | **done** |
 | 8 | Adapters for Claude Code, Cursor, OpenCode | |
 | 9 | Linux: `/proc` collector, user systemd unit, parity tests | |
 
-Phase 6 termination is manual, single-use and SIGTERM-only. Phase 7 is the first
-delivery allowed to add a narrowly scoped automatic path.
+Phase 7 automatic termination is singular-policy, one-candidate-per-evaluation
+and SIGTERM-only. Audit remains the default; manual recommendation remains
+available under global recommend or enforce.
 
 ## Development
 
@@ -280,7 +299,9 @@ ghostgc activity
 - [docs/references/architecture.md](docs/references/architecture.md) — how the pieces fit together
 - [docs/references/safety-model.md](docs/references/safety-model.md) — every guarantee and how it is enforced
 - [docs/references/testing.md](docs/references/testing.md) — commands, suites and evidence expectations
+- [docs/references/dogfooding.md](docs/references/dogfooding.md) — immediate audit, manual and fixture enforcement walkthrough
 - [docs/specs/0001-session-aware-process-observation/SPEC.md](docs/specs/0001-session-aware-process-observation/SPEC.md) — feature rationale, discoveries and deferred risks
+- [docs/specs/0006-phase-7-narrow-enforcement/SPEC.md](docs/specs/0006-phase-7-narrow-enforcement/SPEC.md) — automatic authority contract and acceptance evidence
 
 ## Maintainers
 

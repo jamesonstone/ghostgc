@@ -65,10 +65,10 @@ func renderActions(r api.ActionsResponse) {
 		return
 	}
 	w := newTable()
-	_, _ = fmt.Fprintln(w, "TIME\tACTION\tPROCESS\tPOLICY\tRESULT\tSIGNAL\tREASON")
+	_, _ = fmt.Fprintln(w, "TIME\tACTION\tAUTHORITY\tPROCESS\tPOLICY\tRESULT\tSIGNAL\tREASON")
 	for _, a := range r.Actions {
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			time.Unix(0, a.RequestedNs).Format(time.RFC3339), a.ActionID, a.ProcUID,
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			time.Unix(0, a.RequestedNs).Format(time.RFC3339), a.ActionID, a.Authority, a.ProcUID,
 			a.PolicyID, a.Result, a.Signal, a.Reason)
 	}
 	_ = w.Flush()
@@ -80,10 +80,10 @@ func renderPolicies(r api.PoliciesResponse) {
 		fmt.Println("No policies are loaded.")
 	} else {
 		w := newTable()
-		_, _ = fmt.Fprintln(w, "ID\tENABLED\tMODE\tSTATES\tAGENTS\tEXECUTABLES\tDETACHED\tSESSION ENDED\tMIN STABLE\tCOOLDOWN\tDESCRIPTION")
+		_, _ = fmt.Fprintln(w, "ID\tENABLED\tMODE\tAUTOMATIC\tSTATES\tAGENTS\tEXECUTABLES\tDETACHED\tSESSION ENDED\tMIN STABLE\tCOOLDOWN\tDESCRIPTION")
 		for _, p := range r.Policies {
-			_, _ = fmt.Fprintf(w, "%s\t%t\t%s\t%s\t%s\t%s\t%t\t%t\t%s\t%s\t%s\n",
-				p.ID, p.Enabled, p.Mode, strings.Join(p.States, ","), strings.Join(p.Agents, ","),
+			_, _ = fmt.Fprintf(w, "%s\t%t\t%s\t%t\t%s\t%s\t%s\t%t\t%t\t%s\t%s\t%s\n",
+				p.ID, p.Enabled, p.Mode, p.Automatic, strings.Join(p.States, ","), strings.Join(p.Agents, ","),
 				strings.Join(p.Executables, ","), p.RequireDetached, p.RequireSessionEnded,
 				time.Duration(p.MinStableNs), time.Duration(p.CooldownNs), p.Description)
 		}

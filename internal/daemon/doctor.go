@@ -33,11 +33,10 @@ func (d *Daemon) Doctor(ctx context.Context) (api.DoctorResponse, error) {
 		add("signal-safety-gate", api.CheckOK, "non-TERM signals and changed exact process identities are rejected", "")
 	}
 
-	if d.cfg.GlobalMode != config.ModeEnforce {
-		add("global-mode", api.CheckOK, fmt.Sprintf("global mode is %q", d.cfg.GlobalMode), "")
+	if d.automaticCleanupEnabled() {
+		add("global-mode", api.CheckOK, "global enforce and one narrow automatic policy are enabled", "")
 	} else {
-		add("global-mode", api.CheckError, fmt.Sprintf("global mode is %q, which this build cannot honour", d.cfg.GlobalMode),
-			"set globalMode to disabled, audit, or recommend in "+d.cfg.SourcePath)
+		add("global-mode", api.CheckOK, fmt.Sprintf("global mode is %q; automatic cleanup is disabled", d.cfg.GlobalMode), "")
 	}
 
 	if d.cfg.Defaulted {

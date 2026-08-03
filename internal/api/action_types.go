@@ -30,14 +30,15 @@ type CleanupApplyRequest struct {
 
 // CleanupApplyResponse reports the durable outcome of one request.
 type CleanupApplyResponse struct {
-	ActionID string          `json:"action_id"`
-	PolicyID string          `json:"policy_id"`
-	ProcUID  string          `json:"proc_uid"`
-	Result   string          `json:"result"`
-	Signal   string          `json:"signal"`
-	AtNs     int64           `json:"at_ns"`
-	Reason   string          `json:"reason"`
-	Evidence json.RawMessage `json:"evidence"`
+	ActionID  string          `json:"action_id"`
+	Authority string          `json:"authority"`
+	PolicyID  string          `json:"policy_id"`
+	ProcUID   string          `json:"proc_uid"`
+	Result    string          `json:"result"`
+	Signal    string          `json:"signal"`
+	AtNs      int64           `json:"at_ns"`
+	Reason    string          `json:"reason"`
+	Evidence  json.RawMessage `json:"evidence"`
 }
 
 // ActionOptions narrows durable action history.
@@ -56,6 +57,7 @@ type ActionsResponse struct {
 // ActionView exposes structured action evidence instead of encoded JSON text.
 type ActionView struct {
 	ActionID    string            `json:"action_id"`
+	Authority   string            `json:"authority"`
 	PolicyID    string            `json:"policy_id"`
 	ProcUID     string            `json:"proc_uid"`
 	SessionID   string            `json:"session_id"`

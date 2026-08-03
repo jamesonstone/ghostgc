@@ -128,7 +128,7 @@ type Config struct {
 }
 
 // Default returns the built-in configuration. Audit remains the safe default;
-// recommendation must be selected explicitly in a configuration file.
+// recommendation and enforcement must be selected explicitly.
 func Default() Config {
 	return Config{
 		Version:    1,
@@ -202,11 +202,6 @@ func (c Config) Validate() error {
 	}
 	if !c.GlobalMode.Valid() {
 		return fmt.Errorf("globalMode %q is not one of disabled, audit, recommend, enforce", c.GlobalMode)
-	}
-	if c.GlobalMode == ModeEnforce {
-		return fmt.Errorf(
-			"globalMode %q is not available in this build: enforcement arrives in delivery phase 7; phase 6 permits only disabled, audit, or manually approved recommendation",
-			c.GlobalMode)
 	}
 	if c.Privacy.StoreSourceContents {
 		return errors.New("privacy.storeSourceContents must be false: ghostgc never reads or stores source-code contents")

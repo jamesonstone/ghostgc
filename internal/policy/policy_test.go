@@ -64,6 +64,21 @@ func TestEvaluateRecommendCandidate(t *testing.T) {
 	}
 }
 
+func TestEvaluateEnforceCandidateCarriesAutomaticEvidence(t *testing.T) {
+	definition := auditPolicy()
+	definition.Mode, definition.Automatic = config.ModeEnforce, true
+	got, matched := Evaluate(definition, eligibleTarget(), policyNow, time.Time{})
+	if !matched || got.Result != ResultCandidate {
+		t.Fatalf("Evaluate() = %+v, %t", got, matched)
+	}
+	for _, evidence := range got.Evidence {
+		if evidence.Rule == "automatic-enforcement-v1" {
+			return
+		}
+	}
+	t.Fatalf("enforce candidate lacks automatic evidence: %+v", got.Evidence)
+}
+
 func TestEvaluateMismatchAndExactIdentityCooldown(t *testing.T) {
 	target := eligibleTarget()
 	target.State = "idle"

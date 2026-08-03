@@ -36,9 +36,12 @@ type StatusResponse struct {
 	ClassificationsByState map[string]int `json:"classifications_by_state"`
 	Sessions               int            `json:"sessions"`
 	CleanupCandidates      int            `json:"cleanup_candidates"`
-	SignallingEnabled      bool           `json:"signalling_enabled"`
-	LastScan               *ScanSummary   `json:"last_scan,omitempty"`
-	Degraded               []string       `json:"degraded_reasons,omitempty"`
+	// SignallingEnabled is the Phase 6 compatibility alias for manual cleanup.
+	SignallingEnabled       bool         `json:"signalling_enabled"`
+	ManualCleanupEnabled    bool         `json:"manual_cleanup_enabled"`
+	AutomaticCleanupEnabled bool         `json:"automatic_cleanup_enabled"`
+	LastScan                *ScanSummary `json:"last_scan,omitempty"`
+	Degraded                []string     `json:"degraded_reasons,omitempty"`
 }
 
 // ScanSummary describes the most recent observation cycle.

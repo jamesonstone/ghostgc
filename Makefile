@@ -47,7 +47,8 @@ lint: ## run golangci-lint
 # files at 300 physical lines. Enforcing it here keeps the gate observable
 # rather than something a reviewer has to remember.
 size: ## fail if any source or test file exceeds the 300-line limit
-	@over=$$(find $(SIZE_DIRS) -name '*.go' | xargs wc -l | grep -v ' total$$' \
+	@over=$$(find $(SIZE_DIRS) -type f \( -name '*.go' -o -name '*.c' -o -name '*.sh' \) \
+		| xargs wc -l | grep -v ' total$$' \
 		| awk '$$1 > $(MAX_LINES) {print $$1 " " $$2}'); \
 	if [ -n "$$over" ]; then \
 		echo "files above the $(MAX_LINES) line limit:"; echo "$$over"; exit 1; \

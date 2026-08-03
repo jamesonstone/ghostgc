@@ -113,13 +113,14 @@ type PolicyDecisionRecord struct {
 	EvidenceJSON        string `json:"-"`
 }
 
-// ActionRecord is one durable manual action request and its latest outcome.
+// ActionRecord is one durable action request and its latest outcome.
 type ActionRecord struct {
 	ID           int64  `json:"id"`
 	ActionID     string `json:"action_id"`
 	PolicyID     string `json:"policy_id"`
 	ProcUID      string `json:"proc_uid"`
 	SessionID    string `json:"session_id"`
+	Authority    string `json:"authority"`
 	RequestedNs  int64  `json:"requested_ns"`
 	UpdatedNs    int64  `json:"updated_ns"`
 	Result       string `json:"result"`

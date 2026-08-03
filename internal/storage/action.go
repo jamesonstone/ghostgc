@@ -16,11 +16,14 @@ type ActionFilter struct {
 
 // InsertAction writes the pre-side-effect row.
 func (t *Tx) InsertAction(rec ActionRecord) error {
+	if rec.Authority == "" {
+		rec.Authority = "manual"
+	}
 	_, err := t.tx.ExecContext(t.ctx, `INSERT INTO actions (
-		action_id, policy_id, proc_uid, session_id, requested_ns, updated_ns,
+		action_id, policy_id, proc_uid, session_id, authority, requested_ns, updated_ns,
 		result, signal, reason, evidence
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, rec.ActionID, rec.PolicyID,
-		rec.ProcUID, rec.SessionID, rec.RequestedNs, rec.UpdatedNs, rec.Result,
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, rec.ActionID, rec.PolicyID,
+		rec.ProcUID, rec.SessionID, rec.Authority, rec.RequestedNs, rec.UpdatedNs, rec.Result,
 		rec.Signal, rec.Reason, jsonOrEmpty(rec.EvidenceJSON))
 	if err != nil {
 		return fmt.Errorf("storage: inserting action %s: %w", rec.ActionID, err)
@@ -45,7 +48,7 @@ func (t *Tx) UpdateAction(actionID, result, reason, evidence string, atNs int64)
 // ListActions returns action history newest first.
 func (s *Store) ListActions(ctx context.Context, f ActionFilter) ([]ActionRecord, error) {
 	q := `SELECT id, action_id, policy_id, proc_uid, session_id, requested_ns,
-		updated_ns, result, signal, reason, evidence FROM actions`
+		updated_ns, result, signal, reason, evidence, authority FROM actions`
 	var where []string
 	var args []any
 	for _, filter := range []struct{ value, column string }{
@@ -74,7 +77,7 @@ func (s *Store) ListActions(ctx context.Context, f ActionFilter) ([]ActionRecord
 		var rec ActionRecord
 		if err := rows.Scan(&rec.ID, &rec.ActionID, &rec.PolicyID, &rec.ProcUID,
 			&rec.SessionID, &rec.RequestedNs, &rec.UpdatedNs, &rec.Result,
-			&rec.Signal, &rec.Reason, &rec.EvidenceJSON); err != nil {
+			&rec.Signal, &rec.Reason, &rec.EvidenceJSON, &rec.Authority); err != nil {
 			return nil, err
 		}
 		out = append(out, rec)

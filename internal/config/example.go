@@ -1,12 +1,12 @@
 package config
 
 // exampleConfig is written by `ghostgc config init`. Audit mode remains the
-// default; recommend must be explicitly selected at both levels.
+// default; recommend or enforce must be explicitly selected at both levels.
 const exampleConfig = `# ghostgc configuration
 #
-# Every generated configuration ships in audit mode. Phase 6 also accepts
-# recommend for exact, manually approved SIGTERM. Enforcement remains rejected
-# until delivery phase 7.
+# Every generated configuration ships in audit mode. Recommend enables exact,
+# manually approved SIGTERM. Enforce is intentionally omitted from this safe
+# starter policy; see docs/references/dogfooding.md before enabling it.
 version: 1
 globalMode: audit
 
@@ -60,6 +60,7 @@ policies:
     description: audit an orphaned Codex headless browser
     enabled: false
     mode: disabled
+    automatic: false
     states: [orphaned]
     agents: [codex]
     executables: [chrome-headless-shell]

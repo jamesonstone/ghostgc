@@ -25,6 +25,7 @@
 | Deterministic classification | integration + live | local macOS | wait for two activity cadences, then `ghostgc classifications` | manual | active periodic worker, known-idle worker, independent detachment, freshness and evidence |
 | Policy audit | integration + live | local macOS | enable a fixture-scoped audit policy and wait through its stable window | manual | `ghostgc policies`, `ghostgc candidates`, policy audit log; zero enforceable entries and signals |
 | Manual cleanup | live-integration | local macOS | orphan the fixture, wait for `action-child` to be classified orphaned, preview and apply its exact recommendation | manual | one SIGTERM, exact target exits, durable action evidence, all other fixture pids survive until teardown |
+| Narrow enforcement | live-integration | local macOS | enable the singular fixture-only enforce policy, orphan the fixture and wait through the stable window | automatic by daemon | one automatic action per evaluation, exact target exits, durable authority/evidence, all non-target fixture processes survive |
 | Resource budget | live-integration | local macOS | run `ghostgcd`, then `ghostgc metrics` | manual | scan duration, CPU, RSS, database size |
 
 ## Environment Preflights
@@ -37,9 +38,10 @@
   processes. They never require `sudo`.
 - Linux is not applicable until delivery phase 9; the `/proc` collector is a
   compiling stub that returns `ErrNotImplemented`.
-- The fixture signals only processes it started itself, whose pids it recorded
-  at creation. Phase 6 validation may direct ghostgc only at the dedicated
-  recorded `action-child`; every other process is out of scope.
+- The fixture starts in its own POSIX session and signals only processes it
+  started itself after matching each PID to its recorded start time. Action
+  validation may direct ghostgc only at the dedicated recorded `action-child`;
+  every other process is out of scope.
 
 ## Safety Evidence
 

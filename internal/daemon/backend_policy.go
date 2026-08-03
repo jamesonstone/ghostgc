@@ -11,7 +11,7 @@ import (
 	"github.com/jamesonstone/ghostgc/internal/storage"
 )
 
-// Candidates implements api.Backend. Phase 6 has no automatic lane.
+// Candidates implements api.Backend with separate authority projections.
 func (d *Daemon) Candidates(ctx context.Context) (api.CandidatesResponse, error) {
 	records, err := d.currentPolicyDecisions(ctx)
 	if err != nil {
@@ -31,6 +31,9 @@ func (d *Daemon) Candidates(ctx context.Context) (api.CandidatesResponse, error)
 		if d.isRecommendation(rec) {
 			entry.Command = "ghostgc cleanup --dry-run --process " + rec.ProcUID + " --policy " + rec.PolicyID
 			resp.Recommended = append(resp.Recommended, entry)
+		} else if d.isEnforceable(rec) {
+			entry.Command = "automatic exact-key SIGTERM after full revalidation"
+			resp.Enforceable = append(resp.Enforceable, entry)
 		} else {
 			resp.Audited = append(resp.Audited, entry)
 		}
@@ -63,7 +66,7 @@ func (d *Daemon) policyDefinition(id string) (config.Policy, bool) {
 }
 
 func (d *Daemon) manualCleanupEnabled() bool {
-	if d.cfg.GlobalMode != config.ModeRecommend {
+	if d.cfg.GlobalMode != config.ModeRecommend && d.cfg.GlobalMode != config.ModeEnforce {
 		return false
 	}
 	for _, definition := range d.cfg.Policies {
@@ -74,10 +77,29 @@ func (d *Daemon) manualCleanupEnabled() bool {
 	return false
 }
 
+func (d *Daemon) automaticCleanupEnabled() bool {
+	if d.cfg.GlobalMode != config.ModeEnforce {
+		return false
+	}
+	for _, definition := range d.cfg.Policies {
+		if definition.Enabled && definition.Mode == config.ModeEnforce && definition.Automatic {
+			return true
+		}
+	}
+	return false
+}
+
 func (d *Daemon) isRecommendation(rec storage.PolicyDecisionRecord) bool {
 	definition, ok := d.policyDefinition(rec.PolicyID)
 	eligible := rec.Result == string(policy.ResultCandidate) || rec.Result == string(policy.ResultCooldown)
-	return ok && eligible && d.cfg.GlobalMode == config.ModeRecommend && definition.Enabled && definition.Mode == config.ModeRecommend
+	global := d.cfg.GlobalMode == config.ModeRecommend || d.cfg.GlobalMode == config.ModeEnforce
+	return ok && eligible && global && definition.Enabled && definition.Mode == config.ModeRecommend
+}
+
+func (d *Daemon) isEnforceable(rec storage.PolicyDecisionRecord) bool {
+	definition, ok := d.policyDefinition(rec.PolicyID)
+	return ok && rec.Result == string(policy.ResultCandidate) && d.cfg.GlobalMode == config.ModeEnforce &&
+		definition.Enabled && definition.Mode == config.ModeEnforce && definition.Automatic
 }
 
 func (d *Daemon) currentPolicyDecisions(ctx context.Context) ([]storage.PolicyDecisionRecord, error) {
@@ -109,7 +131,7 @@ func (d *Daemon) Policies(ctx context.Context) (api.PoliciesResponse, error) {
 	resp := api.PoliciesResponse{GlobalMode: string(d.cfg.GlobalMode), Note: phaseNote}
 	for _, def := range d.cfg.Policies {
 		resp.Policies = append(resp.Policies, api.PolicySummary{
-			ID: def.ID, Description: def.Description, Enabled: def.Enabled, Mode: string(def.Mode),
+			ID: def.ID, Description: def.Description, Enabled: def.Enabled, Mode: string(def.Mode), Automatic: def.Automatic,
 			States: def.States, Agents: def.Agents, Executables: def.Executables,
 			RequireDetached: def.RequireDetached, RequireSessionEnded: def.RequireSessionEnded,
 			MinStableNs: int64(def.MinStable.D()), CooldownNs: int64(def.Cooldown.D()),

@@ -71,10 +71,11 @@ SIGKILL or escalation path.
 
 The fixture creates a dedicated direct `action-child` using the exact basename
 `fixture-helper`. It is the only process intended for live action validation.
-Run it from a persistent non-TTY command runner for the positive action suite;
-a normal interactive terminal deliberately makes the target hard-protected and
-is useful as a refusal test. Fixture teardown records and verifies each process
-start time before signalling, so an exited target's recycled PID is refused:
+The fixture root creates its own POSIX session, so its processes do not inherit
+the operator's terminal even when started from an interactive shell. Production
+processes with a terminal remain hard-protected. Fixture teardown records and
+verifies each process start time before signalling, so an exited target's
+recycled PID is refused:
 
 ```bash
 fixtures/fixture-agent.sh start
