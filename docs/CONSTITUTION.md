@@ -4,8 +4,8 @@
 
 - Observe before acting. Audit is the default. Recommendation grants only a
   short-lived, single-use manual approval. Enforcement requires global consent
-  plus one singular orphan-only automatic policy. Both paths fully revalidate
-  and can send only one exact-key SIGTERM.
+  plus one singular orphan-only automatic policy. Both paths fully revalidate,
+  and each authorized action can send only one exact-key SIGTERM.
 - Every classification carries the observations that produced it. A conclusion
   without evidence is a defect, not a shortcut.
 - Fail closed. Where ownership or safety cannot be established, nothing happens.

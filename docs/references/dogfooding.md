@@ -70,7 +70,8 @@ sleep 20
 fixtures/fixture-agent.sh orphan
 ```
 
-Use a dedicated temporary configuration policy:
+In the active configuration shown by `ghostgc config path`, temporarily add
+this dedicated fixture policy and remove or disable every other enforce policy:
 
 ```yaml
 globalMode: enforce
@@ -89,10 +90,16 @@ policies:
     cooldown: 1h
 ```
 
-Restart the daemon and watch:
+Restart the daemon and watch with a portable shell loop (stop it with Ctrl-C):
 
 ```bash
-watch -n 5 'ghostgc candidates; ghostgc actions'
+while :; do
+  clear
+  date
+  ghostgc candidates
+  ghostgc actions
+  sleep 5
+done
 ```
 
 After at least five continuous known-idle minutes, ghostgc may attempt one

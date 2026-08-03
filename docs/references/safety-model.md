@@ -10,7 +10,7 @@ mechanism.
 
 ## The one that matters most
 
-**This build can send only one fully gated SIGTERM.**
+**Each authorized action can send only one fully gated SIGTERM.**
 
 The daemon can reach `Platform.SignalProcess` only after either a current exact
 recommendation consumes a one-time manual approval or the newest committed

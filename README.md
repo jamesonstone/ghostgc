@@ -20,7 +20,8 @@ the evidence behind it.
 **Cleanup is available only when explicitly configured.** Manual cleanup needs
 an exact one-time approval. Automatic cleanup additionally requires global
 enforce plus one singular orphan-only policy and attempts at most one current
-candidate per evaluation. Both fully revalidate and can send only SIGTERM.
+candidate per evaluation. Both fully revalidate, and each authorized action can
+send only one SIGTERM.
 Audit remains the default. See
 [docs/references/safety-model.md](docs/references/safety-model.md).
 
@@ -300,6 +301,7 @@ ghostgc activity
 - [docs/references/testing.md](docs/references/testing.md) — commands, suites and evidence expectations
 - [docs/references/dogfooding.md](docs/references/dogfooding.md) — immediate audit, manual and fixture enforcement walkthrough
 - [docs/specs/0001-session-aware-process-observation/SPEC.md](docs/specs/0001-session-aware-process-observation/SPEC.md) — feature rationale, discoveries and deferred risks
+- [docs/specs/0006-phase-7-narrow-enforcement/SPEC.md](docs/specs/0006-phase-7-narrow-enforcement/SPEC.md) — automatic authority contract and acceptance evidence
 
 ## Maintainers
 
