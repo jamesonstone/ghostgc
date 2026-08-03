@@ -11,7 +11,7 @@ import (
 	"github.com/jamesonstone/ghostgc/internal/storage"
 )
 
-func enforcementHarness(t *testing.T, global config.Mode, targets int, finalPath string) (*harness, []process.Process) {
+func enforcementHarness(t *testing.T, global config.Mode, targets int, finalPath string, manual bool) (*harness, []process.Process) {
 	t.Helper()
 	init := mk(1, 0, "/sbin/launchd", 0)
 	root := codexRoot(100, 1, time.Second)
@@ -51,6 +51,15 @@ func enforcementHarness(t *testing.T, global config.Mode, targets int, finalPath
 		RequireDetached: true, RequireSessionEnded: true,
 		MinStable: config.Duration(5 * time.Minute), Cooldown: config.Duration(time.Hour),
 	}}
+	if manual {
+		cfg.Policies = append(cfg.Policies, config.Policy{
+			ID: "manual-safe-helper", Description: "recommend orphaned fixture helper",
+			Enabled: true, Mode: config.ModeRecommend,
+			States: []string{"orphaned"}, Agents: []string{"codex"}, Executables: []string{"safe-helper"},
+			RequireDetached: true, RequireSessionEnded: true,
+			MinStable: config.Duration(5 * time.Minute), Cooldown: config.Duration(time.Hour),
+		})
+	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("enforcement config: %v", err)
 	}
@@ -72,7 +81,7 @@ func enforcementHarness(t *testing.T, global config.Mode, targets int, finalPath
 }
 
 func TestAutomaticCleanupSignalsOneExactCurrentCandidate(t *testing.T) {
-	h, children := enforcementHarness(t, config.ModeEnforce, 1, "")
+	h, children := enforcementHarness(t, config.ModeEnforce, 1, "", false)
 	for range 8 {
 		h.d.ScanNow(context.Background())
 	}
@@ -91,7 +100,8 @@ func TestAutomaticCleanupSignalsOneExactCurrentCandidate(t *testing.T) {
 		t.Fatalf("enforceable projection = %+v, %v", candidates, err)
 	}
 	status, err := h.d.Status(context.Background())
-	if err != nil || !status.SignallingEnabled || !status.AutomaticCleanupEnabled || status.CleanupCandidates != 1 {
+	if err != nil || status.SignallingEnabled || status.ManualCleanupEnabled ||
+		!status.AutomaticCleanupEnabled || status.CleanupCandidates != 1 {
 		t.Fatalf("enforcement status = %+v, %v", status, err)
 	}
 	policies, err := h.d.Policies(context.Background())
@@ -100,8 +110,24 @@ func TestAutomaticCleanupSignalsOneExactCurrentCandidate(t *testing.T) {
 	}
 }
 
+func TestStatusSeparatesManualAndAutomaticAuthority(t *testing.T) {
+	autoOnly, _ := enforcementHarness(t, config.ModeEnforce, 1, "", false)
+	autoStatus, err := autoOnly.d.Status(context.Background())
+	if err != nil || autoStatus.SignallingEnabled || autoStatus.ManualCleanupEnabled ||
+		!autoStatus.AutomaticCleanupEnabled {
+		t.Fatalf("automatic-only status = %+v, %v", autoStatus, err)
+	}
+
+	mixed, _ := enforcementHarness(t, config.ModeEnforce, 1, "", true)
+	mixedStatus, err := mixed.d.Status(context.Background())
+	if err != nil || !mixedStatus.SignallingEnabled || !mixedStatus.ManualCleanupEnabled ||
+		!mixedStatus.AutomaticCleanupEnabled {
+		t.Fatalf("mixed status = %+v, %v", mixedStatus, err)
+	}
+}
+
 func TestAutomaticCleanupAttemptsAtMostOneCandidatePerEvaluation(t *testing.T) {
-	h, _ := enforcementHarness(t, config.ModeEnforce, 2, "")
+	h, _ := enforcementHarness(t, config.ModeEnforce, 2, "", false)
 	for range 8 {
 		h.d.ScanNow(context.Background())
 	}
@@ -112,7 +138,7 @@ func TestAutomaticCleanupAttemptsAtMostOneCandidatePerEvaluation(t *testing.T) {
 }
 
 func TestGlobalRecommendCapsEnforcePolicyAtAudit(t *testing.T) {
-	h, _ := enforcementHarness(t, config.ModeRecommend, 1, "")
+	h, _ := enforcementHarness(t, config.ModeRecommend, 1, "", false)
 	for range 8 {
 		h.d.ScanNow(context.Background())
 	}
@@ -123,7 +149,7 @@ func TestGlobalRecommendCapsEnforcePolicyAtAudit(t *testing.T) {
 }
 
 func TestAutomaticCleanupRejectsChangedExecutable(t *testing.T) {
-	h, _ := enforcementHarness(t, config.ModeEnforce, 1, "/different/safe-helper")
+	h, _ := enforcementHarness(t, config.ModeEnforce, 1, "/different/safe-helper", false)
 	for range 8 {
 		h.d.ScanNow(context.Background())
 	}

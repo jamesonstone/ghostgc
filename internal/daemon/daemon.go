@@ -181,7 +181,8 @@ func (d *Daemon) Run(ctx context.Context) error {
 		"socket", d.paths.Socket,
 		"database", d.store.Path(),
 		"agents", d.agentIDs(),
-		"signalling_enabled", d.manualCleanupEnabled() || d.automaticCleanupEnabled(),
+		"signalling_enabled", d.manualCleanupEnabled(),
+		"manual_cleanup_enabled", d.manualCleanupEnabled(),
 		"automatic_cleanup_enabled", d.automaticCleanupEnabled(),
 	)
 
