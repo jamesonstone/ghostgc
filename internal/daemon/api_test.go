@@ -59,6 +59,13 @@ func TestAPIRoundTripOverUnixSocket(t *testing.T) {
 	if len(activity.Samples) != 1 {
 		t.Fatalf("got %d activity samples over the socket, want 1", len(activity.Samples))
 	}
+	classifications, err := client.Classifications(ctx, api.ClassificationOptions{Latest: true, Limit: 10})
+	if err != nil {
+		t.Fatalf("Classifications over the socket: %v", err)
+	}
+	if len(classifications.Classifications) != 1 || classifications.Classifications[0].State != "unknown" {
+		t.Fatalf("initial classification = %+v, want one baseline-unknown result", classifications.Classifications)
+	}
 	if _, err := client.Session(ctx, "does-not-exist"); err == nil {
 		t.Fatal("an unknown session must be an error")
 	}

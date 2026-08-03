@@ -81,6 +81,22 @@ type ActivityRecord struct {
 	Note              string `json:"note,omitempty"`
 }
 
+// ClassificationRecord is one deterministic conclusion over an activity
+// sample. State is intentionally independent of session lifecycle state.
+type ClassificationRecord struct {
+	ID            int64  `json:"id"`
+	ProcUID       string `json:"proc_uid"`
+	SessionID     string `json:"session_id"`
+	TsNs          int64  `json:"ts_ns"`
+	ActivityTsNs  int64  `json:"activity_ts_ns"`
+	State         string `json:"state"`
+	BasisState    string `json:"basis_state"`
+	Detached      bool   `json:"detached"`
+	SessionEnded  bool   `json:"session_ended"`
+	StableSinceNs int64  `json:"stable_since_ns"`
+	EvidenceJSON  string `json:"evidence"`
+}
+
 // SessionRecord is a persisted session row.
 type SessionRecord struct {
 	SessionID      string  `json:"session_id"`

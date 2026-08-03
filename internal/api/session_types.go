@@ -2,28 +2,30 @@ package api
 
 import (
 	"github.com/jamesonstone/ghostgc/internal/adapters"
+	"github.com/jamesonstone/ghostgc/internal/classification"
 	"github.com/jamesonstone/ghostgc/internal/protection"
 	"github.com/jamesonstone/ghostgc/internal/storage"
 )
 
 // SessionSummary is one row of `ghostgc sessions`.
 type SessionSummary struct {
-	SessionID      string  `json:"session_id"`
-	ShortID        string  `json:"short_id"`
-	AgentID        string  `json:"agent_id"`
-	Repository     string  `json:"repository"`
-	RepositoryPath string  `json:"repository_path,omitempty"`
-	WorkingDir     string  `json:"working_dir,omitempty"`
-	State          string  `json:"state"`
-	Confidence     float64 `json:"confidence"`
-	RootPID        int     `json:"root_pid"`
-	TTY            string  `json:"tty,omitempty"`
-	AgeSeconds     float64 `json:"age_seconds"`
-	Processes      int     `json:"processes"`
-	LiveProcesses  int     `json:"live_processes"`
-	StartedNs      int64   `json:"started_ns"`
-	LastSeenNs     int64   `json:"last_seen_ns"`
-	EndedNs        *int64  `json:"ended_ns,omitempty"`
+	SessionID       string         `json:"session_id"`
+	ShortID         string         `json:"short_id"`
+	AgentID         string         `json:"agent_id"`
+	Repository      string         `json:"repository"`
+	RepositoryPath  string         `json:"repository_path,omitempty"`
+	WorkingDir      string         `json:"working_dir,omitempty"`
+	State           string         `json:"state"`
+	Confidence      float64        `json:"confidence"`
+	RootPID         int            `json:"root_pid"`
+	TTY             string         `json:"tty,omitempty"`
+	AgeSeconds      float64        `json:"age_seconds"`
+	Processes       int            `json:"processes"`
+	LiveProcesses   int            `json:"live_processes"`
+	Classifications map[string]int `json:"classifications"`
+	StartedNs       int64          `json:"started_ns"`
+	LastSeenNs      int64          `json:"last_seen_ns"`
+	EndedNs         *int64         `json:"ended_ns,omitempty"`
 
 	NativeSessionID string `json:"native_session_id,omitempty"`
 	PreviousState   string `json:"previous_state,omitempty"`
@@ -85,6 +87,9 @@ type ProcessSummary struct {
 	CPUSeconds             float64 `json:"cpu_seconds,omitempty"`
 	Threads                int     `json:"threads,omitempty"`
 	Live                   bool    `json:"live"`
+	ActivityState          string  `json:"activity_state,omitempty"`
+	Detached               bool    `json:"detached"`
+	ClassificationTsNs     int64   `json:"classification_ts_ns,omitempty"`
 }
 
 // ProcessesResponse backs `ghostgc processes`.
@@ -104,20 +109,23 @@ type SessionDetail struct {
 
 // ExplainResponse backs `ghostgc explain`.
 type ExplainResponse struct {
-	Found          bool     `json:"found"`
-	PID            int      `json:"pid"`
-	ProcUID        string   `json:"proc_uid,omitempty"`
-	Name           string   `json:"name,omitempty"`
-	ExecPath       string   `json:"exec_path,omitempty"`
-	Cmdline        []string `json:"cmdline,omitempty"`
-	Classification string   `json:"classification"`
-	AgentID        string   `json:"agent_id,omitempty"`
-	SessionID      string   `json:"session_id,omitempty"`
-	SessionState   string   `json:"session_state,omitempty"`
-	Relation       string   `json:"relation,omitempty"`
-	Confidence     float64  `json:"confidence"`
-	ParentLink     string   `json:"parent_link"`
-	OriginalPPID   int      `json:"original_ppid,omitempty"`
+	Found            bool                      `json:"found"`
+	PID              int                       `json:"pid"`
+	ProcUID          string                    `json:"proc_uid,omitempty"`
+	Name             string                    `json:"name,omitempty"`
+	ExecPath         string                    `json:"exec_path,omitempty"`
+	Cmdline          []string                  `json:"cmdline,omitempty"`
+	Classification   string                    `json:"classification"`
+	ActivityState    string                    `json:"activity_state,omitempty"`
+	Detached         bool                      `json:"detached"`
+	ActivityEvidence []classification.Evidence `json:"activity_evidence,omitempty"`
+	AgentID          string                    `json:"agent_id,omitempty"`
+	SessionID        string                    `json:"session_id,omitempty"`
+	SessionState     string                    `json:"session_state,omitempty"`
+	Relation         string                    `json:"relation,omitempty"`
+	Confidence       float64                   `json:"confidence"`
+	ParentLink       string                    `json:"parent_link"`
+	OriginalPPID     int                       `json:"original_ppid,omitempty"`
 	// OriginalParentObserved reports whether the creator was actually seen. When
 	// false, OriginalPPID says nothing about who created the process.
 	OriginalParentObserved bool   `json:"original_parent_observed"`

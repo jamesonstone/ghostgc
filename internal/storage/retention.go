@@ -24,6 +24,7 @@ type RetentionPolicy struct {
 type RetentionResult struct {
 	Observations     int64 `json:"observations_deleted"`
 	ActivitySamples  int64 `json:"activity_samples_deleted"`
+	Classifications  int64 `json:"classifications_deleted"`
 	Scans            int64 `json:"scans_deleted"`
 	Audit            int64 `json:"audit_deleted"`
 	Processes        int64 `json:"processes_deleted"`
@@ -38,7 +39,7 @@ type RetentionResult struct {
 
 // Total returns the number of rows removed.
 func (r RetentionResult) Total() int64 {
-	return r.Observations + r.ActivitySamples + r.Scans + r.Audit + r.Processes + r.Ownership + r.Sessions + r.Relationships
+	return r.Observations + r.ActivitySamples + r.Classifications + r.Scans + r.Audit + r.Processes + r.Ownership + r.Sessions + r.Relationships
 }
 
 // Compact enforces the retention policy.
@@ -98,6 +99,7 @@ func (s *Store) compactOnce(ctx context.Context, p RetentionPolicy, now time.Tim
 		}{
 			{&res.Observations, `DELETE FROM process_observations WHERE ts_ns < ?`, cutoff(p.RawObservations)},
 			{&res.ActivitySamples, `DELETE FROM process_activity WHERE ts_ns < ?`, cutoff(p.RawObservations)},
+			{&res.Classifications, `DELETE FROM process_classifications WHERE ts_ns < ?`, cutoff(p.RawObservations)},
 			{&res.Scans, `DELETE FROM scans WHERE started_ns < ?`, cutoff(p.Scans)},
 			{&res.Audit, `DELETE FROM audit_log WHERE ts_ns < ?`, cutoff(p.Audit)},
 			{&res.Ownership, `DELETE FROM session_processes WHERE proc_uid IN (
@@ -139,6 +141,17 @@ func (s *Store) compactOnce(ctx context.Context, p RetentionPolicy, now time.Tim
 			return err
 		}
 		res.ActivitySamples += n
+
+		r, err = t.tx.ExecContext(ctx,
+			`DELETE FROM process_classifications WHERE proc_uid NOT IN (SELECT proc_uid FROM processes)`)
+		if err != nil {
+			return fmt.Errorf("storage: pruning orphaned classifications: %w", err)
+		}
+		n, err = r.RowsAffected()
+		if err != nil {
+			return err
+		}
+		res.Classifications += n
 
 		// Edges whose session is gone are unreachable.
 		r, err = t.tx.ExecContext(ctx,

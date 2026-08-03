@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"runtime"
 	"time"
@@ -89,6 +90,11 @@ func (d *Daemon) Explain(ctx context.Context, pid int) (api.ExplainResponse, err
 			sessionLive = rec.EndedNs == nil
 		}
 	}
+	if classes, err := d.store.ListClassifications(ctx, storage.ClassificationFilter{ProcUID: resp.ProcUID, Latest: true, Limit: 1}); err == nil && len(classes) == 1 {
+		resp.ActivityState = classes[0].State
+		resp.Detached = classes[0].Detached
+		_ = json.Unmarshal([]byte(classes[0].EvidenceJSON), &resp.ActivityEvidence)
+	}
 
 	var adapterRules []adapters.ProtectionRule
 	for _, a := range d.reg.All() {
@@ -168,6 +174,7 @@ func (d *Daemon) Metrics(ctx context.Context) (api.MetricsResponse, error) {
 		LastPersistMs:        float64(m.lastPersist.Microseconds()) / 1000,
 		LastActivityMs:       float64(m.lastActivity.Microseconds()) / 1000,
 		ActivitySamples:      m.activitySamples,
+		Classifications:      m.classifications,
 		VisibleProcesses:     m.visibleProcesses,
 		InspectedProcesses:   m.inspectedProcesses,
 		AttributedProcesses:  m.attributed,

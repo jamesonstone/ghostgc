@@ -133,6 +133,12 @@ func renderProcesses(r api.ProcessesResponse) {
 
 func renderExplain(r api.ExplainResponse) {
 	fmt.Printf("Classification: %s\n", r.Classification)
+	if r.ActivityState != "" {
+		fmt.Printf("Activity: %s (detached: %t)\n", r.ActivityState, r.Detached)
+		for _, evidence := range r.ActivityEvidence {
+			fmt.Printf("Activity evidence: %s (%s)\n", evidence.Detail, evidence.Rule)
+		}
+	}
 	if r.Found {
 		fmt.Printf("Process: pid %d (%s)\n", r.PID, r.Name)
 		if r.ExecPath != "" {

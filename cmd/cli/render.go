@@ -65,6 +65,16 @@ func renderStatus(s api.StatusResponse) {
 	for _, state := range states {
 		fmt.Printf("%s: %d\n", strings.ToUpper(state[:1])+state[1:], s.SessionsByState[state])
 	}
+	if len(s.ClassificationsByState) > 0 {
+		classifications := make([]string, 0, len(s.ClassificationsByState))
+		for state := range s.ClassificationsByState {
+			classifications = append(classifications, state)
+		}
+		sort.Strings(classifications)
+		for _, state := range classifications {
+			fmt.Printf("Classified %s: %d\n", state, s.ClassificationsByState[state])
+		}
+	}
 
 	fmt.Printf("Cleanup candidates: %d\n", s.CleanupCandidates)
 	if s.LastScan != nil {

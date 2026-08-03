@@ -64,6 +64,7 @@ type MetricsResponse struct {
 	LastPersistMs        float64        `json:"last_persist_ms"`
 	LastActivityMs       float64        `json:"last_activity_ms"`
 	ActivitySamples      int64          `json:"activity_samples"`
+	Classifications      int64          `json:"classifications"`
 	VisibleProcesses     int            `json:"visible_processes"`
 	InspectedProcesses   int            `json:"inspected_processes"`
 	AttributedProcesses  int            `json:"attributed_processes"`

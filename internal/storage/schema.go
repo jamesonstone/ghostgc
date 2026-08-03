@@ -1,7 +1,7 @@
 package storage
 
 // schemaVersion is the newest migration below.
-const schemaVersion = 3
+const schemaVersion = 4
 
 // migration is one forward step. Migrations are applied in order, each in its
 // own transaction, and the version is recorded as each completes.
@@ -18,6 +18,7 @@ var migrations = []migration{
 	{version: 1, stmts: schemaV1},
 	{version: 2, stmts: schemaV2},
 	{version: 3, stmts: schemaV3},
+	{version: 4, stmts: schemaV4},
 }
 
 // schemaV1 is the delivery phase 1 schema.
@@ -232,4 +233,26 @@ CREATE TABLE process_activity (
 CREATE INDEX process_activity_ts_idx ON process_activity(ts_ns);
 CREATE INDEX process_activity_proc_idx ON process_activity(proc_uid, ts_ns);
 CREATE INDEX process_activity_session_idx ON process_activity(session_id, ts_ns);
+`
+
+// schemaV4 records deterministic process classifications separately from
+// session lifecycle state. Evidence remains append-only within retention.
+const schemaV4 = `
+CREATE TABLE process_classifications (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	proc_uid TEXT NOT NULL,
+	session_id TEXT NOT NULL,
+	ts_ns INTEGER NOT NULL,
+	activity_ts_ns INTEGER NOT NULL,
+	state TEXT NOT NULL,
+	basis_state TEXT NOT NULL,
+	detached INTEGER NOT NULL DEFAULT 0,
+	session_ended INTEGER NOT NULL DEFAULT 0,
+	stable_since_ns INTEGER NOT NULL,
+	evidence TEXT NOT NULL DEFAULT '[]'
+) STRICT;
+CREATE INDEX process_classifications_ts_idx ON process_classifications(ts_ns);
+CREATE INDEX process_classifications_proc_idx ON process_classifications(proc_uid, ts_ns);
+CREATE INDEX process_classifications_session_idx ON process_classifications(session_id, ts_ns);
+CREATE INDEX process_classifications_state_idx ON process_classifications(state, ts_ns);
 `

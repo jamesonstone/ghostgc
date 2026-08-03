@@ -22,12 +22,24 @@ func (d *Daemon) Processes(ctx context.Context, opts api.ListOptions) (api.Proce
 	if err != nil {
 		return api.ProcessesResponse{}, err
 	}
+	classes, err := d.store.ListClassifications(ctx, storage.ClassificationFilter{Latest: true, Limit: 1000})
+	if err != nil {
+		return api.ProcessesResponse{}, err
+	}
+	byProcess := make(map[string]storage.ClassificationRecord, len(classes))
+	for _, class := range classes {
+		byProcess[class.ProcUID] = class
+	}
 	resp := api.ProcessesResponse{
 		Processes: make([]api.ProcessSummary, 0, len(recs)),
 		Note:      "Only processes attributed to an agent session are recorded. Everything else on the machine is counted during each scan and then forgotten, because monitoring activity outside coding-agent sessions is a non-goal.",
 	}
 	for _, rec := range recs {
-		resp.Processes = append(resp.Processes, d.processSummary(rec))
+		summary := d.processSummary(rec)
+		if class, ok := byProcess[rec.ProcUID]; ok {
+			summary.ActivityState, summary.Detached, summary.ClassificationTsNs = class.State, class.Detached, class.TsNs
+		}
+		resp.Processes = append(resp.Processes, summary)
 	}
 	return resp, nil
 }
