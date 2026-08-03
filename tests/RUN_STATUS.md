@@ -1,23 +1,11 @@
 # Validation Run Status
 
-Durable evidence for meaningful repository validation milestones. Feature
-rationale and detailed acceptance remain in each feature's `SPEC.md`.
+Curated current-state map. Immutable high-level run evidence stays under
+ignored `tmp/<UTC-date>/<stable-test-id>/<run-number>/`; feature rationale and
+acceptance evidence live in the corresponding `SPEC.md`.
 
-## 2026-08-03 — Phase 3 activity tracking
-
-| Check | Result | Evidence |
-| --- | --- | --- |
-| `make check` | PASS | format, vet, unit/integration and source-size gates |
-| `make race` | PASS | whole module; non-fatal Apple linker warnings recorded in the phase spec |
-| `make lint` | PASS | golangci-lint 2.11.2, zero issues |
-| `make build` | PASS | macOS CLI and daemon binaries |
-| Linux compile | PASS | `GOOS=linux CGO_ENABLED=0 go build ./...`; runtime collector remains deferred |
-| live process/activity fixture | PASS | periodic writer produced 4 KiB deltas; idle workers produced known zero; targeted pass 0.6 ms |
-| cleanup | PASS | fixture removed owned PIDs; scratch state moved to Trash |
-
-Runtime safety evidence: audit mode, signalling disabled, zero attempted or
-completed actions.
-
-The first CI run exposed a stale Unix-socket shutdown race. After synchronizing
-server shutdown, the focused test passed 100 ordinary and 20 race-detector
-iterations before the full gates were repeated.
+| Suite | Environment | Current status | Latest attempt | Latest pass | Source/deployment | Run ID | Evidence | Active finding |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| repository code gates | local macOS | PASS | 2026-08-03T15:45:05Z | 2026-08-03T15:45:05Z | `6ab8520` plus evidence/docs curation | not applicable | `make check`; `make race`; `make lint`; Linux cross-build; Phase 3 spec validation | none |
+| Phase 3 live process activity | local macOS | PASS | 2026-08-03T15:43:39Z | 2026-08-03T15:43:39Z | `ghostgc` 6ab8520 | 20260803T154208Z-e90043 | `tmp/2026-08-03/fixture-agent.sh/1/` | none; fixture-owned PIDs removed and scratch state moved to Trash |
+| pull-request CI | GitHub `macos-15` | PARTIAL | 2026-08-03T15:40:10Z | 2026-08-03T15:40:10Z | `db36006` | not applicable | Actions run `30828473194` | independent-review fixes at `6ab8520` have not yet run in CI |

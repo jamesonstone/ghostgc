@@ -118,6 +118,12 @@ useful work from inactivity without guessing or inspecting unrelated processes.
   later policy conditions need activity and safety state, not private inventory.
 - Run the expensive pass only after session attribution. This avoids monitoring
   unrelated user activity and bounds work to the product's ownership domain.
+- Replace the in-memory baseline set on each committed due pass. A process that
+  exits, becomes unreadable or loses attribution cannot leak a cache entry or
+  regain a stale baseline after the evidence gap.
+- Treat the platform-returned exact key and collection time as evidence: the
+  daemon validates both and preserves the actual sample time rather than
+  silently substituting its earlier selecting snapshot.
 - Keep activity separate from classification. Phase 3 records evidence; phase 4
   makes deterministic state conclusions from it.
 - Treat socket and file-lock evidence as context-only regardless of confidence.
@@ -148,12 +154,17 @@ useful work from inactivity without guessing or inspecting unrelated processes.
 - `make build` — passed for both `ghostgc` and `ghostgcd` on macOS.
 - `GOOS=linux CGO_ENABLED=0 go build ./...` — passed; the phase-9 Linux
   collector remains an explicit not-implemented stub.
-- Live macOS fixture with one-second sampling — passed. Six attributed fixture
-  processes were sampled in 0.6 ms; the periodic writer repeatedly reported a
-  4 KiB write delta while idle processes reported known zero after a baseline.
-  The daemon remained audit-only and recorded zero attempted actions.
+- Live macOS fixture with one-second sampling — passed on source `6ab8520`.
+  The periodic writer reported a known 4 KiB write delta while an idle worker
+  reported known zero after a baseline. The daemon remained audit-only and
+  recorded zero attempted actions. Immutable local evidence: run
+  `20260803T154208Z-e90043` at
+  `tmp/2026-08-03/fixture-agent.sh/1/`.
 - Live resources were removed after validation; the scratch database was moved
   to Trash and the fixture removed every PID it created.
+- Independent PR review found and prompted fixes for baseline pruning,
+  collector identity/time preservation and the test-evidence status schema.
+  Focused regression coverage and the immutable run above verify the fixes.
 
 ## OUTCOME
 

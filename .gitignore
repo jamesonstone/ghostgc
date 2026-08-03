@@ -42,6 +42,9 @@ go.work.sum
 .kit/*.tmp
 .kit/*.lock
 
+# Immutable local high-level test evidence (see tests/RUN_STATUS.md).
+/tmp/
+
 # Go build output
 /bin/
 coverage.out
