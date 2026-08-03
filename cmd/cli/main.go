@@ -1,9 +1,8 @@
 // Command ghostgc inspects and controls the ghostgc daemon.
 //
-// Every command in this build reads. The commands that would act — cleanup,
-// policy enable — exist so that their absence is explicit rather than
-// mysterious, and they refuse with a message naming the delivery phase that
-// will introduce them.
+// Most commands read. Cleanup is the sole action command and requires a
+// short-lived approval emitted by an exact preview; runtime policy mutation
+// remains unavailable.
 package main
 
 import (
@@ -169,9 +168,15 @@ func init() {
 		},
 		{
 			name:    "cleanup",
-			summary: "evaluate and apply cleanup policies",
-			usage:   "--dry-run | --apply",
+			summary: "preview or apply one manually approved cleanup",
+			usage:   "--dry-run --process <pid:start> --policy <id> | --apply --approval <token> --yes",
 			run:     cmdCleanup,
+		},
+		{
+			name:    "actions",
+			summary: "show durable cleanup action history",
+			usage:   "[--process <pid:start>] [--policy <id>] [--result <result>] [--limit <n>]",
+			run:     cmdActions,
 		},
 		{
 			name:    "logs",

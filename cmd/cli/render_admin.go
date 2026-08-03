@@ -19,6 +19,15 @@ func renderCandidates(r api.CandidatesResponse) {
 		}
 		_ = w.Flush()
 	}
+	if len(r.Recommended) > 0 {
+		fmt.Printf("\n%d manually actionable recommendation(s):\n", len(r.Recommended))
+		w := newTable()
+		_, _ = fmt.Fprintln(w, "PID\tPROCESS\tPOLICY\tSTATE\tPREVIEW")
+		for _, c := range r.Recommended {
+			_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n", c.PID, c.ProcUID, c.PolicyID, c.State, c.Command)
+		}
+		_ = w.Flush()
+	}
 	if len(r.Audited) > 0 {
 		fmt.Printf("\n%d current audit decision(s):\n", len(r.Audited))
 		for _, c := range r.Audited {
@@ -33,6 +42,36 @@ func renderCandidates(r api.CandidatesResponse) {
 	if r.Note != "" {
 		fmt.Printf("\n%s\n", r.Note)
 	}
+}
+
+func renderCleanupPreview(r api.CleanupPreviewResponse) {
+	fmt.Printf("Exact target: %s (pid %d)\nPolicy: %s\nSignal: %s\nExpires: %s\n",
+		r.Candidate.ProcUID, r.Candidate.PID, r.Candidate.PolicyID, r.Signal,
+		time.Unix(0, r.ExpiresNs).Format(time.RFC3339))
+	for _, gate := range r.Revalidation {
+		fmt.Printf("Revalidate: %s\n", gate)
+	}
+	fmt.Printf("\nNo signal sent. To approve exactly this preview:\n%s\n\n%s\n", r.Command, r.Note)
+}
+
+func renderCleanupResult(r api.CleanupApplyResponse) {
+	fmt.Printf("Action %s: %s\nProcess: %s\nPolicy: %s\nSignal: %s\nReason: %s\n",
+		r.ActionID, r.Result, r.ProcUID, r.PolicyID, r.Signal, r.Reason)
+}
+
+func renderActions(r api.ActionsResponse) {
+	if len(r.Actions) == 0 {
+		fmt.Println("No cleanup actions recorded.")
+		return
+	}
+	w := newTable()
+	_, _ = fmt.Fprintln(w, "TIME\tACTION\tPROCESS\tPOLICY\tRESULT\tSIGNAL\tREASON")
+	for _, a := range r.Actions {
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			time.Unix(0, a.RequestedNs).Format(time.RFC3339), a.ActionID, a.ProcUID,
+			a.PolicyID, a.Result, a.Signal, a.Reason)
+	}
+	_ = w.Flush()
 }
 
 func renderPolicies(r api.PoliciesResponse) {

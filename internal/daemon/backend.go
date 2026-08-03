@@ -18,8 +18,8 @@ import (
 // silently resolved.
 const shortIDLength = 8
 
-// phaseNote is repeated wherever a command exists but its subject does not yet.
-const phaseNote = "Policies are evaluated in audit mode only. Phase 5 records candidates, refusals and cooldowns but cannot recommend or signal. Manual recommendation arrives in phase 6 and narrow enforcement in phase 7."
+// phaseNote states the current action-authority boundary.
+const phaseNote = "Phase 6 can recommend an exact candidate and send one manually approved, fully revalidated SIGTERM. No decision is automatically enforceable; narrow enforcement arrives in phase 7."
 
 func shortID(id string) string {
 	if len(id) <= shortIDLength {
@@ -48,7 +48,7 @@ func (d *Daemon) Status(ctx context.Context) (api.StatusResponse, error) {
 		SessionsByState:        map[string]int{},
 		ClassificationsByState: map[string]int{},
 		CleanupCandidates:      0,
-		SignallingEnabled:      false,
+		SignallingEnabled:      d.manualCleanupEnabled(),
 		Degraded:               degraded,
 	}
 	switch {
@@ -76,7 +76,7 @@ func (d *Daemon) Status(ctx context.Context) (api.StatusResponse, error) {
 		return api.StatusResponse{}, err
 	}
 	for _, decision := range decisions {
-		if decision.Result == "candidate" {
+		if d.isRecommendation(decision) {
 			resp.CleanupCandidates++
 		}
 	}

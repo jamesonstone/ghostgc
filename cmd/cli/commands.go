@@ -129,31 +129,69 @@ func cmdPolicy(ctx context.Context, e *env, args []string) error {
 	if len(args) < 1 {
 		return errors.New("usage: ghostgc policy enable|disable <policy-id>")
 	}
-	return fmt.Errorf("policies are configuration-managed in phase 5: set enabled and mode in %s, then restart the daemon; runtime %s is not supported", e.paths.Config, args[0])
+	return fmt.Errorf("policies are configuration-managed: set enabled and mode in %s, then restart the daemon; runtime %s is not supported", e.paths.Config, args[0])
 }
 
 func cmdCleanup(ctx context.Context, e *env, args []string) error {
-	fs := newFlagSet(e, "cleanup", "--dry-run | --apply")
-	dryRun := fs.Bool("dry-run", false, "show what would be done")
-	apply := fs.Bool("apply", false, "perform the cleanup")
+	fs := newFlagSet(e, "cleanup", "--dry-run --process <pid:start> --policy <id> | --apply --approval <token> --yes")
+	dryRun := fs.Bool("dry-run", false, "issue an exact short-lived cleanup preview")
+	apply := fs.Bool("apply", false, "consume a preview approval")
+	procUID := fs.String("process", "", "exact process identity pid:start_time_ns")
+	policyID := fs.String("policy", "", "exact policy id")
+	approval := fs.String("approval", "", "single-use approval from --dry-run")
+	yes := fs.Bool("yes", false, "confirm the approved SIGTERM")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if *apply {
-		return errors.New(
-			"refusing: phase 5 policy decisions are audit-only. Cleanup is introduced in phase 6 as manually approved SIGTERM behind full pre-action revalidation")
+	if *dryRun == *apply {
+		return errors.New("choose exactly one of --dry-run or --apply")
 	}
-	if !*dryRun {
-		return errors.New("specify --dry-run; --apply is not available in this build")
+	if *dryRun {
+		if *procUID == "" || *policyID == "" || *approval != "" || *yes {
+			return errors.New("--dry-run requires --process and --policy only")
+		}
+		resp, err := e.api().CleanupPreview(ctx, api.CleanupPreviewRequest{PolicyID: *policyID, ProcUID: *procUID})
+		if err != nil {
+			return err
+		}
+		if e.jsonOut {
+			return emitJSON(resp)
+		}
+		renderCleanupPreview(resp)
+		return nil
 	}
-	resp, err := e.api().Candidates(ctx)
+	if *approval == "" || !*yes || *procUID != "" || *policyID != "" {
+		return errors.New("--apply requires only --approval and --yes")
+	}
+	resp, err := e.api().CleanupApply(ctx, api.CleanupApplyRequest{Approval: *approval})
 	if err != nil {
 		return err
 	}
 	if e.jsonOut {
 		return emitJSON(resp)
 	}
-	renderCandidates(resp)
+	renderCleanupResult(resp)
+	return nil
+}
+
+func cmdActions(ctx context.Context, e *env, args []string) error {
+	fs := newFlagSet(e, "actions", "[flags]")
+	var opts api.ActionOptions
+	fs.StringVar(&opts.ProcUID, "process", "", "filter by exact process identity")
+	fs.StringVar(&opts.PolicyID, "policy", "", "filter by policy id")
+	fs.StringVar(&opts.Result, "result", "", "filter by result")
+	fs.IntVar(&opts.Limit, "limit", 50, "maximum actions")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	resp, err := e.api().Actions(ctx, opts)
+	if err != nil {
+		return err
+	}
+	if e.jsonOut {
+		return emitJSON(resp)
+	}
+	renderActions(resp)
 	return nil
 }
 

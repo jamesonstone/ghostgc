@@ -5,7 +5,7 @@
 // the process image and proc_pidpath reports a basename of "codex", which is
 // what the adapter's identity evidence keys on. A shell script with a shebang
 // would report the interpreter instead, and a copy of a system binary is
-// SIGKILLed on Apple Silicon because copying invalidates its code signature —
+// forcibly terminated on Apple Silicon because copying invalidates its code signature —
 // hence a real, locally built executable.
 //
 // It spawns a small tree and then waits. It signals nothing, ever.
@@ -76,6 +76,18 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf("fixture candidate-child %d\n", candidate.Process.Pid)
+
+	// A direct known-idle helper is the sole live action target. Because the
+	// root is observed as its parent before the root exits, later reparenting is
+	// evidence-backed; after five idle minutes it can become orphaned.
+	action := exec.Command(helper, "--sleep")
+	action.Dir = repo
+	action.Stdout, action.Stderr = os.Stdout, os.Stderr
+	if err := action.Start(); err != nil {
+		fmt.Fprintln(os.Stderr, "fake-agent action target:", err)
+		os.Exit(1)
+	}
+	fmt.Printf("fixture action-child %d\n", action.Process.Pid)
 
 	// A child shell that owns the rest of the tree, mirroring how an agent
 	// shells out to do work.

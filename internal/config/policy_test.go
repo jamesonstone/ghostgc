@@ -21,7 +21,8 @@ func TestPolicyValidationFailsClosed(t *testing.T) {
 		change func(*Config, *Policy)
 		want   string
 	}{
-		{name: "recommend mode", change: func(_ *Config, p *Policy) { p.Mode = ModeRecommend }, want: "unavailable"},
+		{name: "enforce mode", change: func(_ *Config, p *Policy) { p.Mode = ModeEnforce }, want: "unavailable"},
+		{name: "enabled disabled mode", change: func(_ *Config, p *Policy) { p.Mode = ModeDisabled }, want: "enabled but mode is disabled"},
 		{name: "weak state", change: func(_ *Config, p *Policy) { p.States = []string{"idle"} }, want: "not policy-eligible"},
 		{name: "working state", change: func(_ *Config, p *Policy) { p.States = []string{"suspicious"} }, want: "not policy-eligible"},
 		{name: "broad runtime", change: func(_ *Config, p *Policy) { p.Executables = []string{"node"} }, want: "protected broad class"},

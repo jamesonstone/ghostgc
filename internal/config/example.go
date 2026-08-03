@@ -1,14 +1,12 @@
 package config
 
-// exampleConfig is written by `ghostgc config init`. Audit mode is the only
-// value this build accepts; the comments say so explicitly so that nobody has
-// to discover it from an error message.
+// exampleConfig is written by `ghostgc config init`. Audit mode remains the
+// default; recommend must be explicitly selected at both levels.
 const exampleConfig = `# ghostgc configuration
 #
-# Every generated configuration ships in audit mode. In this build audit is
-# also the only accepted mode: recommendation arrives in delivery phase 6 and
-# enforcement in phase 7, and neither exists yet, so the daemon refuses to
-# start rather than pretend a wider mode is in effect.
+# Every generated configuration ships in audit mode. Phase 6 also accepts
+# recommend for exact, manually approved SIGTERM. Enforcement remains rejected
+# until delivery phase 7.
 version: 1
 globalMode: audit
 
@@ -54,8 +52,9 @@ agents:
   codex:
     enabled: true
 
-# Phase 5 policies are audit-only. Enable this example to dogfood candidate
-# and refusal evidence; it still cannot recommend or signal anything.
+# Keep this example disabled until its exact executable scope fits your local
+# workload. To dogfood manual cleanup, set globalMode and this policy mode to
+# recommend, enable it, inspect ghostgc candidates, then request a preview.
 policies:
   - id: completed-headless-browser
     description: audit an orphaned Codex headless browser

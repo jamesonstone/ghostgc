@@ -8,6 +8,7 @@ import (
 	"github.com/jamesonstone/ghostgc/internal/api"
 	"github.com/jamesonstone/ghostgc/internal/config"
 	"github.com/jamesonstone/ghostgc/internal/platform"
+	"github.com/jamesonstone/ghostgc/internal/process"
 )
 
 // cmdDoctor runs the checks that do not need a daemon, then merges in the
@@ -96,12 +97,11 @@ func localChecks(ctx context.Context, e *env) []api.DoctorCheck {
 	}
 
 	if plat, err := platform.New(platform.Options{}); err == nil {
-		if err := plat.SignalProcess(ctx, os.Getpid(), 0); err == platform.ErrSignalingDisabled {
-			add("signalling-disabled", api.CheckOK, "the platform layer in this build refuses to signal any process", "")
+		invalid := process.Key{PID: os.Getpid(), StartTimeNs: 1}
+		if err := plat.SignalProcess(ctx, invalid, platform.Signal(-1)); err != nil {
+			add("signal-safety-gate", api.CheckOK, "non-TERM signals are rejected before any system call", "")
 		} else {
-			add("signalling-disabled", api.CheckError,
-				fmt.Sprintf("the platform layer did not refuse a signal request (got %v)", err),
-				"do not use this build; rebuild from a source tree where signalling is disabled")
+			add("signal-safety-gate", api.CheckError, "the platform accepted a non-TERM signal", "do not use this build; rebuild from a trusted source tree")
 		}
 	}
 

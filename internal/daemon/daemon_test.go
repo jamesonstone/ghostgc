@@ -198,7 +198,7 @@ func TestStatusReportsSignallingDisabled(t *testing.T) {
 	}
 }
 
-func TestDoctorProvesSignallingIsRefused(t *testing.T) {
+func TestDoctorProvesSignalSafetyGate(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t, snapshot(time.Minute, mk(1, 0, "/sbin/launchd", 0)))
 	h.d.ScanNow(ctx)
@@ -209,19 +209,19 @@ func TestDoctorProvesSignallingIsRefused(t *testing.T) {
 	}
 	var found bool
 	for _, c := range doc.Checks {
-		if c.Name != "signalling-disabled" {
+		if c.Name != "signal-safety-gate" {
 			continue
 		}
 		found = true
 		if c.Status != api.CheckOK {
-			t.Fatalf("signalling-disabled check = %q: %s", c.Status, c.Detail)
+			t.Fatalf("signal-safety-gate check = %q: %s", c.Status, c.Detail)
 		}
 	}
 	if !found {
-		t.Fatal("doctor must verify at runtime that signalling is refused")
+		t.Fatal("doctor must verify the runtime signal safety gate")
 	}
 	if h.fake.SignalAttempts == 0 {
-		t.Fatal("the doctor check should actually exercise the refusal, not read a constant")
+		t.Fatal("the doctor check should actually exercise the safety gate, not read a constant")
 	}
 }
 

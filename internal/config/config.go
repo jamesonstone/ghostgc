@@ -127,8 +127,8 @@ type Config struct {
 	Defaulted bool `yaml:"-"`
 }
 
-// Default returns the built-in configuration. Audit mode is not merely the
-// default; in this delivery phase it is the only accepted value.
+// Default returns the built-in configuration. Audit remains the safe default;
+// recommendation must be selected explicitly in a configuration file.
 func Default() Config {
 	return Config{
 		Version:    1,
@@ -203,9 +203,9 @@ func (c Config) Validate() error {
 	if !c.GlobalMode.Valid() {
 		return fmt.Errorf("globalMode %q is not one of disabled, audit, recommend, enforce", c.GlobalMode)
 	}
-	if c.GlobalMode != ModeAudit && c.GlobalMode != ModeDisabled {
+	if c.GlobalMode == ModeEnforce {
 		return fmt.Errorf(
-			"globalMode %q is not available in this build: recommendation mode arrives in delivery phase 6 and enforcement in phase 7; this build observes only, so audit is the only mode that can be honoured",
+			"globalMode %q is not available in this build: enforcement arrives in delivery phase 7; phase 6 permits only disabled, audit, or manually approved recommendation",
 			c.GlobalMode)
 	}
 	if c.Privacy.StoreSourceContents {

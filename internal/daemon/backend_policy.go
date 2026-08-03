@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 
 	"github.com/jamesonstone/ghostgc/internal/api"
+	"github.com/jamesonstone/ghostgc/internal/config"
+	"github.com/jamesonstone/ghostgc/internal/policy"
 	"github.com/jamesonstone/ghostgc/internal/process"
 	"github.com/jamesonstone/ghostgc/internal/storage"
 )
 
-// Candidates implements api.Backend. Phase 5 has no enforceable lane.
+// Candidates implements api.Backend. Phase 6 has no automatic lane.
 func (d *Daemon) Candidates(ctx context.Context) (api.CandidatesResponse, error) {
 	records, err := d.currentPolicyDecisions(ctx)
 	if err != nil {
@@ -17,24 +19,65 @@ func (d *Daemon) Candidates(ctx context.Context) (api.CandidatesResponse, error)
 	}
 	resp := api.CandidatesResponse{
 		Enforceable: make([]api.CandidateEntry, 0),
+		Recommended: make([]api.CandidateEntry, 0),
 		Audited:     make([]api.CandidateEntry, 0, len(records)),
 		Note:        phaseNote,
 	}
 	for _, rec := range records {
-		key, err := process.ParseKey(rec.ProcUID)
-		if err != nil {
+		entry := candidateEntry(rec)
+		if entry.PID == 0 {
 			continue
 		}
-		entry := api.CandidateEntry{
-			PID: key.PID, ProcUID: rec.ProcUID, SessionID: rec.SessionID,
-			PolicyID: rec.PolicyID, State: rec.ClassificationState,
-			DecisionTsNs: rec.TsNs, ClassificationTsNs: rec.ClassificationTsNs, Result: rec.Result,
-			Reason: rec.Reason, CooldownUntilNs: rec.CooldownUntilNs,
+		if d.isRecommendation(rec) {
+			entry.Command = "ghostgc cleanup --dry-run --process " + rec.ProcUID + " --policy " + rec.PolicyID
+			resp.Recommended = append(resp.Recommended, entry)
+		} else {
+			resp.Audited = append(resp.Audited, entry)
 		}
-		_ = json.Unmarshal([]byte(rec.EvidenceJSON), &entry.Evidence)
-		resp.Audited = append(resp.Audited, entry)
 	}
 	return resp, nil
+}
+
+func candidateEntry(rec storage.PolicyDecisionRecord) api.CandidateEntry {
+	key, err := process.ParseKey(rec.ProcUID)
+	if err != nil {
+		return api.CandidateEntry{}
+	}
+	entry := api.CandidateEntry{
+		PID: key.PID, ProcUID: rec.ProcUID, SessionID: rec.SessionID,
+		PolicyID: rec.PolicyID, State: rec.ClassificationState,
+		DecisionTsNs: rec.TsNs, ClassificationTsNs: rec.ClassificationTsNs, Result: rec.Result,
+		Reason: rec.Reason, CooldownUntilNs: rec.CooldownUntilNs,
+	}
+	_ = json.Unmarshal([]byte(rec.EvidenceJSON), &entry.Evidence)
+	return entry
+}
+
+func (d *Daemon) policyDefinition(id string) (config.Policy, bool) {
+	for _, definition := range d.cfg.Policies {
+		if definition.ID == id {
+			return definition, true
+		}
+	}
+	return config.Policy{}, false
+}
+
+func (d *Daemon) manualCleanupEnabled() bool {
+	if d.cfg.GlobalMode != config.ModeRecommend {
+		return false
+	}
+	for _, definition := range d.cfg.Policies {
+		if definition.Enabled && definition.Mode == config.ModeRecommend {
+			return true
+		}
+	}
+	return false
+}
+
+func (d *Daemon) isRecommendation(rec storage.PolicyDecisionRecord) bool {
+	definition, ok := d.policyDefinition(rec.PolicyID)
+	eligible := rec.Result == string(policy.ResultCandidate) || rec.Result == string(policy.ResultCooldown)
+	return ok && eligible && d.cfg.GlobalMode == config.ModeRecommend && definition.Enabled && definition.Mode == config.ModeRecommend
 }
 
 func (d *Daemon) currentPolicyDecisions(ctx context.Context) ([]storage.PolicyDecisionRecord, error) {

@@ -32,7 +32,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 	"unsafe"
 
@@ -54,11 +53,6 @@ const (
 	maxDetailJobs = 8
 	noDev         = -1
 )
-
-// errSignalingDisabled mirrors platform.ErrSignalingDisabled. It is declared
-// here rather than imported to keep this package free of any dependency on the
-// interface package, which is what allows the factory to live there.
-var errSignalingDisabled = fmt.Errorf("platform: process signalling is not implemented in this build; it is introduced in delivery phase 6, behind manual approval and full pre-action revalidation")
 
 // Options configures the collector.
 type Options struct {
@@ -96,14 +90,6 @@ func (c *Collector) Name() string { return "darwin" }
 
 // SelfUID implements platform.Platform.
 func (c *Collector) SelfUID() uint32 { return c.uid }
-
-// SignalProcess implements platform.Platform and always refuses.
-//
-// Do not implement this before the policy engine, its safety gates and its
-// safety tests exist. See docs/safety.md.
-func (c *Collector) SignalProcess(ctx context.Context, pid int, sig syscall.Signal) error {
-	return errSignalingDisabled
-}
 
 // SnapshotProcesses implements platform.Platform.
 func (c *Collector) SnapshotProcesses(ctx context.Context) (*process.Snapshot, error) {

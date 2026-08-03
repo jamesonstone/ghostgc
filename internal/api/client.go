@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -74,6 +75,41 @@ func get[T any](ctx context.Context, c *Client, path string, query url.Values) (
 	return out, nil
 }
 
+func post[Req, Resp any](ctx context.Context, c *Client, path string, body Req) (Resp, error) {
+	var zero Resp
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return zero, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		"http://ghostgc/"+APIVersion+path, bytes.NewReader(raw))
+	if err != nil {
+		return zero, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		var opErr *net.OpError
+		if errors.As(err, &opErr) {
+			return zero, fmt.Errorf("%w (socket %s)", ErrDaemonUnreachable, c.socket)
+		}
+		return zero, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		var e ErrorResponse
+		if json.NewDecoder(resp.Body).Decode(&e) == nil && e.Error != "" {
+			return zero, errors.New(e.Error)
+		}
+		return zero, fmt.Errorf("daemon returned %s", resp.Status)
+	}
+	var out Resp
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return zero, fmt.Errorf("decoding response from %s: %w", path, err)
+	}
+	return out, nil
+}
+
 // Status fetches daemon status.
 func (c *Client) Status(ctx context.Context) (StatusResponse, error) {
 	return get[StatusResponse](ctx, c, "/status", nil)
@@ -107,6 +143,34 @@ func (c *Client) Candidates(ctx context.Context) (CandidatesResponse, error) {
 // Policies lists loaded policies.
 func (c *Client) Policies(ctx context.Context) (PoliciesResponse, error) {
 	return get[PoliciesResponse](ctx, c, "/policies", nil)
+}
+
+// CleanupPreview issues a short-lived approval for one exact recommendation.
+func (c *Client) CleanupPreview(ctx context.Context, req CleanupPreviewRequest) (CleanupPreviewResponse, error) {
+	return post[CleanupPreviewRequest, CleanupPreviewResponse](ctx, c, "/cleanup/preview", req)
+}
+
+// CleanupApply consumes one manual approval.
+func (c *Client) CleanupApply(ctx context.Context, req CleanupApplyRequest) (CleanupApplyResponse, error) {
+	return post[CleanupApplyRequest, CleanupApplyResponse](ctx, c, "/cleanup/apply", req)
+}
+
+// Actions lists durable action history.
+func (c *Client) Actions(ctx context.Context, opts ActionOptions) (ActionsResponse, error) {
+	q := url.Values{}
+	if opts.ProcUID != "" {
+		q.Set("process", opts.ProcUID)
+	}
+	if opts.PolicyID != "" {
+		q.Set("policy", opts.PolicyID)
+	}
+	if opts.Result != "" {
+		q.Set("result", opts.Result)
+	}
+	if opts.Limit > 0 {
+		q.Set("limit", strconv.Itoa(opts.Limit))
+	}
+	return get[ActionsResponse](ctx, c, "/actions", q)
 }
 
 // Logs fetches audit entries.

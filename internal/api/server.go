@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -142,6 +143,26 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET "+p+"/policies", s.handle(func(r *http.Request) (any, error) {
 		return s.Backend.Policies(r.Context())
 	}))
+	mux.HandleFunc("POST "+p+"/cleanup/preview", s.handle(func(r *http.Request) (any, error) {
+		var req CleanupPreviewRequest
+		if err := decodeRequest(r, &req); err != nil {
+			return nil, err
+		}
+		return s.Backend.CleanupPreview(r.Context(), req)
+	}))
+	mux.HandleFunc("POST "+p+"/cleanup/apply", s.handle(func(r *http.Request) (any, error) {
+		var req CleanupApplyRequest
+		if err := decodeRequest(r, &req); err != nil {
+			return nil, err
+		}
+		return s.Backend.CleanupApply(r.Context(), req)
+	}))
+	mux.HandleFunc("GET "+p+"/actions", s.handle(func(r *http.Request) (any, error) {
+		q := r.URL.Query()
+		opts := ActionOptions{ProcUID: q.Get("process"), PolicyID: q.Get("policy"), Result: q.Get("result")}
+		opts.Limit, _ = strconv.Atoi(q.Get("limit"))
+		return s.Backend.Actions(r.Context(), opts)
+	}))
 	mux.HandleFunc("GET "+p+"/logs", s.handle(func(r *http.Request) (any, error) {
 		q := r.URL.Query()
 		opts := LogOptions{Kind: q.Get("kind"), Subject: q.Get("subject")}
@@ -193,6 +214,19 @@ type statusError struct {
 func (e *statusError) Error() string { return e.msg }
 
 func badRequest(msg string) error { return &statusError{code: http.StatusBadRequest, msg: msg} }
+
+func decodeRequest(r *http.Request, dst any) error {
+	r.Body = http.MaxBytesReader(nil, r.Body, 64<<10)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
+		return badRequest("invalid JSON request: " + err.Error())
+	}
+	if dec.Decode(&struct{}{}) != io.EOF {
+		return badRequest("request body must contain exactly one JSON object")
+	}
+	return nil
+}
 
 func (s *Server) handle(fn func(*http.Request) (any, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

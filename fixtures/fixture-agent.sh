@@ -12,8 +12,8 @@
 #   fixtures/fixture-agent.sh stop      remove everything this fixture created
 #
 # The fixture only ever signals processes it started itself, whose pids it
-# recorded at creation. ghostgc does not signal anything, in this delivery
-# phase or in this script.
+# recorded at creation. The one Phase 6 ghostgc action target is likewise a
+# dedicated fixture-owned process with an exact recorded identity.
 
 set -euo pipefail
 
@@ -53,13 +53,14 @@ start() {
 	make_fake_agent
 	: >"$PID_FILE"
 
-	# The session root, with five descendants:
+	# The session root, with six descendants:
 	#   crashed-child  intentionally unreaped fixture zombie
 	#   active-child   busy in a loop
 	#   idle-child     sleeping
 	#   detached-child outlives an intermediate shell that exits immediately,
 	#                  so the kernel reparents it to launchd
 	#   candidate-child direct active helper for policy/action fixture tests
+	#   action-child    direct idle helper for manually approved SIGTERM testing
 	cd "$STATE_DIR/repo"
 	# The agent's own session identifier. Children inherit it through the
 	# environment, which is how a process that has since been reparented can

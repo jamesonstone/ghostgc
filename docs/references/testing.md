@@ -24,6 +24,7 @@
 | Activity evidence | live-integration | local macOS | start fixture and daemon, wait for two activity cadences | manual | `ghostgc activity`; periodic worker has positive delta, idle worker has known zero |
 | Deterministic classification | integration + live | local macOS | wait for two activity cadences, then `ghostgc classifications` | manual | active periodic worker, known-idle worker, independent detachment, freshness and evidence |
 | Policy audit | integration + live | local macOS | enable a fixture-scoped audit policy and wait through its stable window | manual | `ghostgc policies`, `ghostgc candidates`, policy audit log; zero enforceable entries and signals |
+| Manual cleanup | live-integration | local macOS | orphan the fixture, wait for `action-child` to be classified orphaned, preview and apply its exact recommendation | manual | one SIGTERM, exact target exits, durable action evidence, all other fixture pids survive until teardown |
 | Resource budget | live-integration | local macOS | run `ghostgcd`, then `ghostgc metrics` | manual | scan duration, CPU, RSS, database size |
 
 ## Environment Preflights
@@ -37,13 +38,14 @@
 - Linux is not applicable until delivery phase 9; the `/proc` collector is a
   compiling stub that returns `ErrNotImplemented`.
 - The fixture signals only processes it started itself, whose pids it recorded
-  at creation. ghostgc itself cannot signal anything in this build.
+  at creation. Phase 6 validation may direct ghostgc only at the dedicated
+  recorded `action-child`; every other process is out of scope.
 
 ## Safety Evidence
 
-- `internal/platform/signal_disabled_test.go` walks the whole repository and
-  fails if any package references a signalling primitive or shells out to a
-  terminator. Treat it as a delivery gate, not an ordinary test.
+- `internal/platform/signal_gate_test.go` walks the whole repository and fails
+  unless there is exactly one authorized literal SIGTERM system-call site; it
+  also rejects alternate primitives and shell terminators.
 - Never weaken a safety test to make it pass. If a safety condition blocks a
   change, the change is wrong.
 

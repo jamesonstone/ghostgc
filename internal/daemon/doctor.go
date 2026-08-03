@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/jamesonstone/ghostgc/internal/api"
 	"github.com/jamesonstone/ghostgc/internal/config"
 	"github.com/jamesonstone/ghostgc/internal/platform"
+	"github.com/jamesonstone/ghostgc/internal/process"
 )
 
 // knownAdapters is the set of adapter identifiers this build can construct.
@@ -23,27 +23,20 @@ func (d *Daemon) Doctor(ctx context.Context) (api.DoctorResponse, error) {
 		checks = append(checks, api.DoctorCheck{Name: name, Status: status, Detail: detail, Remedy: remedy})
 	}
 
-	// The most important check in this build: prove at runtime that the
-	// platform refuses to signal. A doctor that only reads a constant would
-	// not notice a regression in the implementation.
-	switch err := d.plat.SignalProcess(ctx, d.selfPI, 0); {
-	case errors.Is(err, platform.ErrSignalingDisabled):
-		add("signalling-disabled", api.CheckOK,
-			"the platform layer refused a signal request, as it must in this delivery phase", "")
-	case err == nil:
-		add("signalling-disabled", api.CheckError,
-			"the platform layer accepted a signal request; this build must not be able to signal any process",
-			"stop the daemon and rebuild from a source tree in which platform.SignalProcess refuses unconditionally")
-	default:
-		add("signalling-disabled", api.CheckWarn,
-			fmt.Sprintf("the platform layer refused a signal request with an unexpected error: %v", err), "")
+	invalid := process.Key{PID: d.selfPI, StartTimeNs: 1}
+	if err := d.plat.SignalProcess(ctx, invalid, platform.Signal(-1)); err == nil {
+		add("signal-safety-gate", api.CheckError, "the platform accepted a non-TERM signal", "stop the daemon and rebuild from a trusted source tree")
+	} else if err := d.plat.SignalProcess(ctx, invalid, platform.SIGTERM); err == nil {
+		add("signal-safety-gate", api.CheckError, "the platform accepted a changed exact process identity", "stop the daemon and rebuild from a trusted source tree")
+	} else {
+		add("signal-safety-gate", api.CheckOK, "non-TERM signals and changed exact process identities are rejected", "")
 	}
 
-	if d.cfg.GlobalMode == config.ModeAudit || d.cfg.GlobalMode == config.ModeDisabled {
+	if d.cfg.GlobalMode != config.ModeEnforce {
 		add("global-mode", api.CheckOK, fmt.Sprintf("global mode is %q", d.cfg.GlobalMode), "")
 	} else {
 		add("global-mode", api.CheckError, fmt.Sprintf("global mode is %q, which this build cannot honour", d.cfg.GlobalMode),
-			"set globalMode to audit in "+d.cfg.SourcePath)
+			"set globalMode to disabled, audit, or recommend in "+d.cfg.SourcePath)
 	}
 
 	if d.cfg.Defaulted {

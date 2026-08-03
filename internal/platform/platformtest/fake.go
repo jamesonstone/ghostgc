@@ -32,6 +32,8 @@ type Fake struct {
 	// A passing test suite must leave this at whatever the test itself did, and
 	// no signal is ever actually delivered.
 	SignalAttempts int
+	Signals        []SignalAttempt
+	SignalErr      error
 
 	installed bool
 	running   bool
@@ -140,13 +142,28 @@ func (f *Fake) SampleActivity(ctx context.Context, key process.Key, repositoryRo
 	}, nil
 }
 
-// SignalProcess implements platform.Platform and always refuses, exactly as
-// the real implementations do in this delivery phase.
-func (f *Fake) SignalProcess(ctx context.Context, pid int, sig syscall.Signal) error {
+// SignalAttempt records a test-only exact-key signal request.
+type SignalAttempt struct {
+	Key process.Key
+	Sig syscall.Signal
+}
+
+// SignalProcess validates the scripted exact key and accepts SIGTERM only.
+func (f *Fake) SignalProcess(ctx context.Context, key process.Key, sig syscall.Signal) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.SignalAttempts++
-	return platform.ErrSignalingDisabled
+	if sig != platform.SIGTERM {
+		return platform.ErrSignalNotAllowed
+	}
+	if f.last == nil {
+		return errors.New("platformtest: no process snapshot has been observed")
+	}
+	if _, ok := f.last.ByKey(key); !ok {
+		return errors.New("platformtest: signal target changed or exited")
+	}
+	f.Signals = append(f.Signals, SignalAttempt{Key: key, Sig: sig})
+	return f.SignalErr
 }
 
 // InstallService implements platform.Platform.
