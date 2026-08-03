@@ -17,3 +17,7 @@ rationale and detailed acceptance remain in each feature's `SPEC.md`.
 
 Runtime safety evidence: audit mode, signalling disabled, zero attempted or
 completed actions.
+
+The first CI run exposed a stale Unix-socket shutdown race. After synchronizing
+server shutdown, the focused test passed 100 ordinary and 20 race-detector
+iterations before the full gates were repeated.

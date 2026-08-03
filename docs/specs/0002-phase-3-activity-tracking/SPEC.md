@@ -141,6 +141,10 @@ useful work from inactivity without guessing or inspecting unrelated processes.
 - `make race` — passed; Apple linker emitted malformed
   `LC_DYSYMTAB` warnings while all packages passed.
 - `make lint` — passed with golangci-lint 2.11.2, zero issues.
+- CI's first macOS run exposed a stale-socket shutdown race in an existing API
+  lifecycle test. The server now waits for its serving goroutine to finish
+  closing and unlinking before it returns. The focused test passed 100 normal
+  iterations and 20 race-detector iterations; the full local gates passed again.
 - `make build` — passed for both `ghostgc` and `ghostgcd` on macOS.
 - `GOOS=linux CGO_ENABLED=0 go build ./...` — passed; the phase-9 Linux
   collector remains an explicit not-implemented stub.
