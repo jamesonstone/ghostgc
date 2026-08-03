@@ -1,9 +1,7 @@
 // Package daemon runs the observation loop.
 //
-// The loop does three things per cycle: take a snapshot, reconcile it into
-// sessions and attributions, and persist the result with its audit trail. It
-// does not classify beyond liveness and it cannot act — there is no code path
-// from this package to a signal.
+// Each cycle observes, reconciles, classifies, evaluates audit-only policies
+// and persists one transaction. It cannot act: no signal path exists.
 package daemon
 
 import (
@@ -72,6 +70,7 @@ type Daemon struct {
 	activityBaseline       map[string]process.ActivitySample
 	classificationPrevious map[string]classification.Previous
 	lastClassificationAt   time.Time
+	lastPolicyAt           time.Time
 }
 
 type metrics struct {
@@ -85,6 +84,7 @@ type metrics struct {
 	lastActivity       time.Duration
 	activitySamples    int64
 	classifications    int64
+	policyDecisions    int64
 	retentionRuns      int64
 	lastRetentionRows  int64
 	visibleProcesses   int

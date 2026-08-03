@@ -129,9 +129,7 @@ func cmdPolicy(ctx context.Context, e *env, args []string) error {
 	if len(args) < 1 {
 		return errors.New("usage: ghostgc policy enable|disable <policy-id>")
 	}
-	return fmt.Errorf(
-		"there are no cleanup policies to %s: the policy engine arrives in delivery phase 5, and this build has no policy storage, no evaluation and no action path",
-		args[0])
+	return fmt.Errorf("policies are configuration-managed in phase 5: set enabled and mode in %s, then restart the daemon; runtime %s is not supported", e.paths.Config, args[0])
 }
 
 func cmdCleanup(ctx context.Context, e *env, args []string) error {
@@ -143,7 +141,7 @@ func cmdCleanup(ctx context.Context, e *env, args []string) error {
 	}
 	if *apply {
 		return errors.New(
-			"refusing: this build cannot terminate a process. Cleanup is introduced in delivery phase 6 as a manually approved SIGTERM behind full pre-action revalidation, and phase 7 adds narrow enforcement. Neither the policy engine nor the safety gates exist yet")
+			"refusing: phase 5 policy decisions are audit-only. Cleanup is introduced in phase 6 as manually approved SIGTERM behind full pre-action revalidation")
 	}
 	if !*dryRun {
 		return errors.New("specify --dry-run; --apply is not available in this build")

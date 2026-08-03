@@ -1,16 +1,24 @@
 package api
 
 import (
+	"github.com/jamesonstone/ghostgc/internal/policy"
 	"github.com/jamesonstone/ghostgc/internal/storage"
 )
 
-// CandidateEntry is one policy match. None can exist in this delivery phase.
+// CandidateEntry is one current policy decision for an exact live process.
 type CandidateEntry struct {
-	PID      int    `json:"pid"`
-	PolicyID string `json:"policy_id"`
-	Result   string `json:"result"`
-	Reason   string `json:"reason"`
-	Command  string `json:"would_execute,omitempty"`
+	PID                int               `json:"pid"`
+	ProcUID            string            `json:"proc_uid"`
+	SessionID          string            `json:"session_id"`
+	PolicyID           string            `json:"policy_id"`
+	State              string            `json:"classification_state"`
+	DecisionTsNs       int64             `json:"decision_ts_ns"`
+	ClassificationTsNs int64             `json:"classification_ts_ns"`
+	Result             string            `json:"result"`
+	Reason             string            `json:"reason"`
+	CooldownUntilNs    int64             `json:"cooldown_until_ns,omitempty"`
+	Evidence           []policy.Evidence `json:"evidence"`
+	Command            string            `json:"would_execute,omitempty"`
 }
 
 // CandidatesResponse backs `ghostgc candidates`.
@@ -22,9 +30,17 @@ type CandidatesResponse struct {
 
 // PolicySummary describes a loaded policy.
 type PolicySummary struct {
-	ID          string `json:"id"`
-	Description string `json:"description"`
-	Mode        string `json:"mode"`
+	ID                  string   `json:"id"`
+	Description         string   `json:"description"`
+	Enabled             bool     `json:"enabled"`
+	Mode                string   `json:"mode"`
+	States              []string `json:"states"`
+	Agents              []string `json:"agents"`
+	Executables         []string `json:"executables"`
+	RequireDetached     bool     `json:"require_detached"`
+	RequireSessionEnded bool     `json:"require_session_ended"`
+	MinStableNs         int64    `json:"min_stable_ns"`
+	CooldownNs          int64    `json:"cooldown_ns"`
 }
 
 // PoliciesResponse backs `ghostgc policies`.
@@ -65,6 +81,7 @@ type MetricsResponse struct {
 	LastActivityMs       float64        `json:"last_activity_ms"`
 	ActivitySamples      int64          `json:"activity_samples"`
 	Classifications      int64          `json:"classifications"`
+	PolicyDecisions      int64          `json:"policy_decisions"`
 	VisibleProcesses     int            `json:"visible_processes"`
 	InspectedProcesses   int            `json:"inspected_processes"`
 	AttributedProcesses  int            `json:"attributed_processes"`

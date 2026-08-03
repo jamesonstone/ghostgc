@@ -140,5 +140,6 @@ type ExplainResponse struct {
 	Conflicts           []adapters.Evidence `json:"conflicts,omitempty"`
 	Protection          protection.Result   `json:"protection"`
 	PolicyNote          string              `json:"policy_note"`
+	PolicyDecisions     []CandidateEntry    `json:"policy_decisions,omitempty"`
 	Message             string              `json:"message,omitempty"`
 }

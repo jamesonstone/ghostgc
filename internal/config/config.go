@@ -116,6 +116,7 @@ type Config struct {
 	Notifications Notifications    `yaml:"notifications"`
 	Privacy       Privacy          `yaml:"privacy"`
 	Agents        map[string]Agent `yaml:"agents"`
+	Policies      []Policy         `yaml:"policies"`
 	Paths         PathOverrides    `yaml:"paths"`
 
 	// SourcePath records where the configuration was loaded from. It is not a
@@ -236,7 +237,7 @@ func (c Config) Validate() error {
 	if c.Retention.MaxDatabaseBytes < 1<<20 {
 		return fmt.Errorf("retention.maxDatabaseBytes is %d, which is below the 1 MiB minimum", c.Retention.MaxDatabaseBytes)
 	}
-	return nil
+	return c.validatePolicies()
 }
 
 // EnabledAgents returns the identifiers of enabled agent adapters.

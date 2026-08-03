@@ -11,6 +11,7 @@ type RetentionPolicy struct {
 	RawObservations time.Duration
 	Scans           time.Duration
 	Audit           time.Duration
+	PolicyDecisions time.Duration
 	// ExitedProcesses is how long a process row survives after the process
 	// exited. Ownership records for exited processes are removed with them.
 	ExitedProcesses time.Duration
@@ -22,24 +23,26 @@ type RetentionPolicy struct {
 
 // RetentionResult reports what a compaction pass removed.
 type RetentionResult struct {
-	Observations     int64 `json:"observations_deleted"`
-	ActivitySamples  int64 `json:"activity_samples_deleted"`
-	Classifications  int64 `json:"classifications_deleted"`
-	Scans            int64 `json:"scans_deleted"`
-	Audit            int64 `json:"audit_deleted"`
-	Processes        int64 `json:"processes_deleted"`
-	Ownership        int64 `json:"ownership_deleted"`
-	Sessions         int64 `json:"sessions_deleted"`
-	Relationships    int64 `json:"relationships_deleted"`
-	Aggressive       bool  `json:"aggressive"`
-	SizeBeforeBytes  int64 `json:"size_before_bytes"`
-	SizeAfterBytes   int64 `json:"size_after_bytes"`
-	OverBudgetBefore bool  `json:"over_budget_before"`
+	Observations      int64 `json:"observations_deleted"`
+	ActivitySamples   int64 `json:"activity_samples_deleted"`
+	Classifications   int64 `json:"classifications_deleted"`
+	PolicyDecisions   int64 `json:"policy_decisions_deleted"`
+	PolicyEvaluations int64 `json:"policy_evaluations_deleted"`
+	Scans             int64 `json:"scans_deleted"`
+	Audit             int64 `json:"audit_deleted"`
+	Processes         int64 `json:"processes_deleted"`
+	Ownership         int64 `json:"ownership_deleted"`
+	Sessions          int64 `json:"sessions_deleted"`
+	Relationships     int64 `json:"relationships_deleted"`
+	Aggressive        bool  `json:"aggressive"`
+	SizeBeforeBytes   int64 `json:"size_before_bytes"`
+	SizeAfterBytes    int64 `json:"size_after_bytes"`
+	OverBudgetBefore  bool  `json:"over_budget_before"`
 }
 
 // Total returns the number of rows removed.
 func (r RetentionResult) Total() int64 {
-	return r.Observations + r.ActivitySamples + r.Classifications + r.Scans + r.Audit + r.Processes + r.Ownership + r.Sessions + r.Relationships
+	return r.Observations + r.ActivitySamples + r.Classifications + r.PolicyDecisions + r.PolicyEvaluations + r.Scans + r.Audit + r.Processes + r.Ownership + r.Sessions + r.Relationships
 }
 
 // Compact enforces the retention policy.
@@ -61,6 +64,7 @@ func (s *Store) Compact(ctx context.Context, p RetentionPolicy, now time.Time) (
 		tighter.RawObservations /= 2
 		tighter.Scans /= 2
 		tighter.Audit /= 2
+		tighter.PolicyDecisions /= 2
 		tighter.ExitedProcesses /= 2
 		tighter.EndedSessions /= 2
 		if err := s.compactOnce(ctx, tighter, now, &res); err != nil {
@@ -93,22 +97,28 @@ func (s *Store) compactOnce(ctx context.Context, p RetentionPolicy, now time.Tim
 
 	return s.WithTx(ctx, func(t *Tx) error {
 		steps := []struct {
-			dst *int64
-			q   string
-			arg int64
+			dst  *int64
+			q    string
+			args []any
 		}{
-			{&res.Observations, `DELETE FROM process_observations WHERE ts_ns < ?`, cutoff(p.RawObservations)},
-			{&res.ActivitySamples, `DELETE FROM process_activity WHERE ts_ns < ?`, cutoff(p.RawObservations)},
-			{&res.Classifications, `DELETE FROM process_classifications WHERE ts_ns < ?`, cutoff(p.RawObservations)},
-			{&res.Scans, `DELETE FROM scans WHERE started_ns < ?`, cutoff(p.Scans)},
-			{&res.Audit, `DELETE FROM audit_log WHERE ts_ns < ?`, cutoff(p.Audit)},
+			{&res.Observations, `DELETE FROM process_observations WHERE ts_ns < ?`, []any{cutoff(p.RawObservations)}},
+			{&res.ActivitySamples, `DELETE FROM process_activity WHERE ts_ns < ?`, []any{cutoff(p.RawObservations)}},
+			{&res.Classifications, `DELETE FROM process_classifications WHERE ts_ns < ?`, []any{cutoff(p.RawObservations)}},
+			{&res.PolicyDecisions, `DELETE FROM policy_decisions WHERE ts_ns < ?
+				AND evaluation_id <> (SELECT MAX(id) FROM policy_evaluations)
+				AND (result <> 'candidate' OR cooldown_until_ns <= ?)`, []any{cutoff(p.PolicyDecisions), now.UnixNano()}},
+			{&res.PolicyEvaluations, `DELETE FROM policy_evaluations WHERE ts_ns < ?
+				AND id <> (SELECT MAX(id) FROM policy_evaluations)
+				AND id NOT IN (SELECT DISTINCT evaluation_id FROM policy_decisions)`, []any{cutoff(p.PolicyDecisions)}},
+			{&res.Scans, `DELETE FROM scans WHERE started_ns < ?`, []any{cutoff(p.Scans)}},
+			{&res.Audit, `DELETE FROM audit_log WHERE ts_ns < ?`, []any{cutoff(p.Audit)}},
 			{&res.Ownership, `DELETE FROM session_processes WHERE proc_uid IN (
-				SELECT proc_uid FROM processes WHERE exited_at_ns IS NOT NULL AND exited_at_ns < ?)`, cutoff(p.ExitedProcesses)},
-			{&res.Processes, `DELETE FROM processes WHERE exited_at_ns IS NOT NULL AND exited_at_ns < ?`, cutoff(p.ExitedProcesses)},
-			{&res.Sessions, `DELETE FROM sessions WHERE ended_ns IS NOT NULL AND ended_ns < ?`, cutoff(p.EndedSessions)},
+				SELECT proc_uid FROM processes WHERE exited_at_ns IS NOT NULL AND exited_at_ns < ?)`, []any{cutoff(p.ExitedProcesses)}},
+			{&res.Processes, `DELETE FROM processes WHERE exited_at_ns IS NOT NULL AND exited_at_ns < ?`, []any{cutoff(p.ExitedProcesses)}},
+			{&res.Sessions, `DELETE FROM sessions WHERE ended_ns IS NOT NULL AND ended_ns < ?`, []any{cutoff(p.EndedSessions)}},
 		}
 		for _, step := range steps {
-			r, err := t.tx.ExecContext(ctx, step.q, step.arg)
+			r, err := t.tx.ExecContext(ctx, step.q, step.args...)
 			if err != nil {
 				return fmt.Errorf("storage: retention step failed: %w", err)
 			}

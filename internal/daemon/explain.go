@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/jamesonstone/ghostgc/internal/adapters"
 	"github.com/jamesonstone/ghostgc/internal/api"
 	"github.com/jamesonstone/ghostgc/internal/process"
 	"github.com/jamesonstone/ghostgc/internal/protection"
@@ -95,21 +94,11 @@ func (d *Daemon) Explain(ctx context.Context, pid int) (api.ExplainResponse, err
 		resp.Detached = classes[0].Detached
 		_ = json.Unmarshal([]byte(classes[0].EvidenceJSON), &resp.ActivityEvidence)
 	}
-
-	var adapterRules []adapters.ProtectionRule
-	for _, a := range d.reg.All() {
-		adapterRules = append(adapterRules, a.ProtectedPatterns()...)
+	if candidates, err := d.Candidates(ctx); err == nil {
+		resp.PolicyDecisions = policyEntriesForProcess(candidates.Audited, resp.ProcUID)
 	}
-	resp.Protection = protection.Evaluate(protection.Input{
-		Process:               p,
-		SelfPID:               d.selfPI,
-		SelfUID:               d.plat.SelfUID(),
-		IsAgentRoot:           isRoot,
-		SessionActive:         sessionLive,
-		AttributionConfidence: attr.Confidence,
-		DescendantCount:       len(resp.Descendants),
-		AdapterRules:          adapterRules,
-	})
+
+	resp.Protection = d.protectionFor(p, tree, attr.Confidence, isRoot, sessionLive)
 
 	switch {
 	case resp.Protection.Protected:
@@ -129,16 +118,6 @@ func (d *Daemon) Explain(ctx context.Context, pid int) (api.ExplainResponse, err
 		}
 	}
 	return resp, nil
-}
-
-// Candidates implements api.Backend.
-func (d *Daemon) Candidates(ctx context.Context) (api.CandidatesResponse, error) {
-	return api.CandidatesResponse{Note: phaseNote}, nil
-}
-
-// Policies implements api.Backend.
-func (d *Daemon) Policies(ctx context.Context) (api.PoliciesResponse, error) {
-	return api.PoliciesResponse{GlobalMode: string(d.cfg.GlobalMode), Note: phaseNote}, nil
 }
 
 // Logs implements api.Backend.
@@ -175,6 +154,7 @@ func (d *Daemon) Metrics(ctx context.Context) (api.MetricsResponse, error) {
 		LastActivityMs:       float64(m.lastActivity.Microseconds()) / 1000,
 		ActivitySamples:      m.activitySamples,
 		Classifications:      m.classifications,
+		PolicyDecisions:      m.policyDecisions,
 		VisibleProcesses:     m.visibleProcesses,
 		InspectedProcesses:   m.inspectedProcesses,
 		AttributedProcesses:  m.attributed,
@@ -185,6 +165,15 @@ func (d *Daemon) Metrics(ctx context.Context) (api.MetricsResponse, error) {
 		Goroutines:           runtime.NumGoroutine(),
 		RetentionRuns:        m.retentionRuns,
 		LastRetentionDeleted: m.lastRetentionRows,
+	}
+	decisions, err := d.currentPolicyDecisions(ctx)
+	if err != nil {
+		return api.MetricsResponse{}, err
+	}
+	for _, decision := range decisions {
+		if decision.Result == "candidate" {
+			resp.CleanupCandidates++
+		}
 	}
 	if m.scanCount > 0 {
 		resp.MeanScanDurationMs = float64(m.totalScanDuration.Microseconds()) / 1000 / float64(m.scanCount)

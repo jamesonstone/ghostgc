@@ -97,6 +97,22 @@ type ClassificationRecord struct {
 	EvidenceJSON  string `json:"evidence"`
 }
 
+// PolicyDecisionRecord is one audit-only policy match, refusal or cooldown.
+type PolicyDecisionRecord struct {
+	ID                  int64  `json:"id"`
+	EvaluationID        int64  `json:"evaluation_id"`
+	PolicyID            string `json:"policy_id"`
+	ProcUID             string `json:"proc_uid"`
+	SessionID           string `json:"session_id"`
+	TsNs                int64  `json:"ts_ns"`
+	ClassificationTsNs  int64  `json:"classification_ts_ns"`
+	ClassificationState string `json:"classification_state"`
+	Result              string `json:"result"`
+	Reason              string `json:"reason"`
+	CooldownUntilNs     int64  `json:"cooldown_until_ns,omitempty"`
+	EvidenceJSON        string `json:"-"`
+}
+
 // SessionRecord is a persisted session row.
 type SessionRecord struct {
 	SessionID      string  `json:"session_id"`

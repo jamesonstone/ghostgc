@@ -24,8 +24,8 @@ exists. This is checked three ways:
 | The daemon proves it at runtime | `ghostgc doctor`, check `signalling-disabled` — it makes a real call and asserts the refusal, rather than reading a constant |
 | A full observation cycle never even attempts one | `internal/daemon/daemon_test.go:TestObservationLifecycle` asserts the fake platform recorded zero attempts |
 
-Delivery phase 6 introduces a manually approved SIGTERM. Until the policy
-engine, the safety gates and their tests exist, the capability does not.
+Delivery phase 6 introduces a manually approved SIGTERM. Phase 5 evaluates
+policies, but the source-level no-signal gate remains unchanged.
 
 ## Configuration cannot widen what the daemon does
 
@@ -36,6 +36,25 @@ delivery phase which introduces each. `privacy.storeSourceContents: true` and
 is an error rather than a silently ignored setting.
 
 Tested in `internal/config/config_test.go`.
+
+## Policies cannot widen authority
+
+Phase 5 policies accept only `audit` or `disabled`. Their schema is strict and
+non-Turing-complete: exact `orphaned`, `hung` or `crashed` states, agent IDs and
+executable basenames, plus explicit booleans and durations. `suspicious` is
+never eligible because it means progress or live resources remain. Validation
+rejects broad protected runtimes, weak/unknown states, unknown agents, unsafe
+windows, duplicates and recommend/enforce modes. Global `disabled` caps every
+individual policy. A policy is applied only after hard protections; every
+triggered protection becomes an immutable refusal reason and cannot be
+overridden. Cooldowns are keyed by policy plus `pid:start_time_ns`, so PID reuse
+cannot inherit eligibility or suppression, and active cooldown rows survive
+ordinary and aggressive retention.
+Retention also preserves the latest evaluation as an indivisible projection;
+compaction cannot make only part of a current decision set disappear.
+
+Tested in `internal/config/policy_test.go`, `internal/policy/policy_test.go` and
+`internal/daemon/policy_test.go`.
 
 ## A process is never identified by PID alone
 

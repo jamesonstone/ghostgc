@@ -130,9 +130,9 @@ foreground instead: `ghostgcd --log-level debug`.
 | `ghostgc processes` | processes attributed to a session |
 | `ghostgc explain <pid>` | what was concluded about a PID and why — works for *any* PID |
 | `ghostgc activity` | bounded CPU, disk, file and socket evidence for attributed processes |
-| `ghostgc candidates` | cleanup candidates (none can exist in this build) |
+| `ghostgc candidates` | current audit candidates, refusals and cooldowns |
 | `ghostgc classifications` | latest deterministic process states and detachment |
-| `ghostgc policies` | loaded cleanup policies (none can exist in this build) |
+| `ghostgc policies` | loaded YAML policies and their exact scope |
 | `ghostgc logs` | the audit trail |
 | `ghostgc metrics` | scan timings, counts, database size, daemon memory |
 | `ghostgc doctor` | diagnose the installation; works when the daemon is down |
@@ -140,6 +140,22 @@ foreground instead: `ghostgcd --log-level debug`.
 | `ghostgc service install\|uninstall\|status` | manage the LaunchAgent |
 
 Add `--json` to any command for machine-readable output.
+
+### Audit a policy
+
+`ghostgc config init` includes a disabled exact-match example. To dogfood Phase
+5, edit the generated policy to `enabled: true` and `mode: audit`, restart the
+daemon, then use:
+
+```bash
+ghostgc policies
+ghostgc candidates
+ghostgc logs --kind policy.candidate
+```
+
+Policies can match only exact agent IDs and executable basenames in strong
+states. Hard protections cannot be overridden. A `candidate` is audit evidence,
+not permission: this build still has no recommendation or signal path.
 
 ## Where things live
 
@@ -194,8 +210,8 @@ Each phase is completed, tested and documented before the next begins.
 | 2 | Session graph: typed relationships, launch context, environment membership, repository and terminal association, session state machine | **done** |
 | 3 | Activity tracking: CPU/IO/network deltas, open files, sockets | **done** |
 | 4 | Classification: active, idle, waiting, detached, suspicious, orphaned, unknown | **done** |
-| 5 | Policy engine: YAML policies, audit evaluation, safety refusals, cooldowns | next |
-| 6 | Recommended cleanup: manual approval, exact command preview, pre-action revalidation, SIGTERM only | |
+| 5 | Policy engine: YAML policies, audit evaluation, safety refusals, cooldowns | **done** |
+| 6 | Recommended cleanup: manual approval, exact command preview, pre-action revalidation, SIGTERM only | next |
 | 7 | Narrow enforcement: one or two highly specific process classes, behind every gate | |
 | 8 | Adapters for Claude Code, Cursor, OpenCode | |
 | 9 | Linux: `/proc` collector, user systemd unit, parity tests | |

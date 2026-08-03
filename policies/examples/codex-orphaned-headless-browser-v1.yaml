@@ -1,64 +1,13 @@
-# REFERENCE ONLY — this file is not loaded by any build.
-#
-# The policy engine arrives in delivery phase 5 and enforcement in phase 7. This
-# document exists so the format is settled before it is implemented.
-#
-# Read the `require` block as a conjunction: every condition must hold, and any
-# condition that cannot be evaluated counts as not holding. That is what "fail
-# closed" means in practice — a policy cannot match because the daemon failed to
-# look.
-apiVersion: guardian/v1
-kind: ProcessCleanupPolicy
-metadata:
-  id: codex-orphaned-headless-browser-v1
-  description: terminate an abandoned headless browser created by a completed Codex session
-
-# Even in phase 7, a policy ships in audit mode. Enabling it is a separate,
-# explicit act, and the global mode must also permit action.
-mode: audit
-
-match:
-  agent: codex
-  process:
-    executable:
-      # Matched against the executable basename, never a command-line substring.
-      anyOf:
-        - chromium
-        - chrome-headless-shell
-    attributionConfidence:
-      minimum: 0.95
-
-require:
-  owningSession:
-    state:
-      anyOf:
-        - completed
-        - crashed
-    # The session must have been finished for long enough that a slow shutdown
-    # is not mistaken for abandonment.
-    endedFor: 60m
-  process:
-    detached: true
-    hasControllingTerminal: false
-    descendantCount: 0
-    activeFileWrites: false
-    openWritableRepositoryFiles: false
-    activeNetworkConnections: false
-    cpuBelowPercent: 0.1
-    cpuBelowFor: 30m
-    diskActivityBelowBytes: 4096
-    diskActivityBelowFor: 30m
-
-action:
-  type: terminate
-  signal: TERM
-  gracePeriod: 20s
-  forceSignal: KILL
-  # SIGKILL is described so the format is complete, and refused so the format is
-  # safe. A process that ignores SIGTERM is a process worth looking at, not one
-  # worth escalating against automatically.
-  allowForce: false
-
-limits:
-  maximumProcessesPerRun: 2
-  cooldownPerProcessClass: 1h
+# REFERENCE ONLY — copy this entry under the main config's `policies:` key.
+# Every list is exact-match and every boolean/duration is a conjunction.
+- id: codex-orphaned-headless-browser-v1
+  description: audit an orphaned headless browser from a completed Codex session
+  enabled: false
+  mode: disabled
+  states: [orphaned]
+  agents: [codex]
+  executables: [chrome-headless-shell]
+  requireDetached: true
+  requireSessionEnded: true
+  minStable: 30m
+  cooldown: 1h

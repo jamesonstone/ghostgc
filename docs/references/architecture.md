@@ -33,9 +33,9 @@ superseded decisions live in `docs/specs/<feature>/SPEC.md`.
                                └─────────────────────────────┘
 ```
 
-The deterministic classifier sits after activity collection and before
-persistence. The policy engine will sit between classification, protections and
-the daemon in delivery phase 5.
+The deterministic classifier sits after activity collection. The Phase 5
+policy engine combines its current exact-key conclusions with hard protections
+to produce audit-only decisions before the scan transaction is persisted.
 
 ## The observation cycle
 
@@ -55,10 +55,13 @@ Every 15 seconds by default:
    ownership recorded at an earlier observation.
 6. **Classify.** Complete exact-key activity evidence becomes an activity state;
    missing evidence remains unknown and detachment remains an independent fact.
-7. **Persist.** Sessions, processes, ownership, observations, classifications, exits and audit
+7. **Evaluate policy.** Strict exact-match policies produce candidates,
+   non-overridable refusals or cooldowns; none grants action authority.
+8. **Persist.** Sessions, processes, ownership, observations, classifications,
+   policy decisions, exits and audit
    entries are written in **one transaction**, so a crash mid-cycle cannot leave
    a session recorded without its processes.
-8. **Commit.** Only after that transaction succeeds do the reconciler and
+9. **Commit.** Only after that transaction succeeds do the reconciler and
    bounded classification windows advance their in-memory views.
 
 On the separate 60-second activity cadence, the daemon adds a targeted pass
@@ -169,6 +172,7 @@ pre-action revalidation will depend on it too.
 | `internal/sessions` | reconciliation, durable ownership, audit emission | `adapters`, `process`, `storage` |
 | `internal/protection` | hard protections | `adapters`, `process` |
 | `internal/classification` | deterministic evidence-to-state rules; no policy or action | `process` |
+| `internal/policy` | bounded YAML policy matching, hard refusals and cooldown decisions | `config`, `protection` |
 | `internal/config` | configuration, paths, phase guards | nothing |
 | `internal/api` | socket transport, request and response types | `adapters`, `protection`, `storage` |
 | `internal/daemon` | the loop, the API backend, diagnostics | everything above |
@@ -190,6 +194,8 @@ HTTP.
 | `process_observations` | lightweight time series from every process scan |
 | `process_activity` | bounded phase-3 deltas and availability flags |
 | `process_classifications` | phase-4 state, basis, detachment, stable window and evidence |
+| `policy_evaluations` | unique committed phase-5 projections, including empty results |
+| `policy_decisions` | phase-5 candidates, refusals, cooldowns and evidence |
 | `scans` | one row per cycle, including failures |
 | `sessions` | one row per detected session |
 | `session_processes` | durable ownership, never downgraded |

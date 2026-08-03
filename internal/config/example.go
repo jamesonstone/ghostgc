@@ -54,6 +54,21 @@ agents:
   codex:
     enabled: true
 
+# Phase 5 policies are audit-only. Enable this example to dogfood candidate
+# and refusal evidence; it still cannot recommend or signal anything.
+policies:
+  - id: completed-headless-browser
+    description: audit an orphaned Codex headless browser
+    enabled: false
+    mode: disabled
+    states: [orphaned]
+    agents: [codex]
+    executables: [chrome-headless-shell]
+    requireDetached: true
+    requireSessionEnded: true
+    minStable: 5m
+    cooldown: 1h
+
 # paths:
 #   stateDir: ~/Library/Application Support/ghostgc
 #   logDir: ~/Library/Logs/ghostgc

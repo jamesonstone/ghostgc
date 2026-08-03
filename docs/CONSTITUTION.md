@@ -112,9 +112,8 @@
 - **Detached** — a process no longer attached to its original parent or
   terminal. Detached does not imply orphaned.
 - **Orphaned** — a process whose session has ended *and* for which strong
-  evidence indicates no useful work remains. Reserved; not yet produced.
+  evidence indicates no useful work remains.
 - **Hung** — a process unable to make progress while its session is active.
-  Reserved; not yet produced.
 - **Protected** — a process that must never be terminated automatically.
 - **Cleanup candidate** — a process matching an enabled cleanup policy, which
   is not the same as a process that will be acted on.

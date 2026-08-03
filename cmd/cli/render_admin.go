@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jamesonstone/ghostgc/internal/api"
@@ -19,9 +20,14 @@ func renderCandidates(r api.CandidatesResponse) {
 		_ = w.Flush()
 	}
 	if len(r.Audited) > 0 {
-		fmt.Printf("\n%d audit match(es):\n", len(r.Audited))
+		fmt.Printf("\n%d current audit decision(s):\n", len(r.Audited))
 		for _, c := range r.Audited {
-			fmt.Printf("PID %d\n  Policy: %s\n  Result: %s\n  Reason: %s\n", c.PID, c.PolicyID, c.Result, c.Reason)
+			fmt.Printf("PID %d (%s)\n  Policy: %s\n  State: %s\n  Decision: %s\n  Classification: %s\n  Result: %s\n  Reason: %s\n",
+				c.PID, c.ProcUID, c.PolicyID, c.State, time.Unix(0, c.DecisionTsNs).Format(time.RFC3339),
+				time.Unix(0, c.ClassificationTsNs).Format(time.RFC3339), c.Result, c.Reason)
+			for _, evidence := range c.Evidence {
+				fmt.Printf("  Evidence: %s (%s)\n", evidence.Detail, evidence.Rule)
+			}
 		}
 	}
 	if r.Note != "" {
@@ -35,9 +41,12 @@ func renderPolicies(r api.PoliciesResponse) {
 		fmt.Println("No policies are loaded.")
 	} else {
 		w := newTable()
-		_, _ = fmt.Fprintln(w, "ID\tMODE\tDESCRIPTION")
+		_, _ = fmt.Fprintln(w, "ID\tENABLED\tMODE\tSTATES\tAGENTS\tEXECUTABLES\tDETACHED\tSESSION ENDED\tMIN STABLE\tCOOLDOWN\tDESCRIPTION")
 		for _, p := range r.Policies {
-			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", p.ID, p.Mode, p.Description)
+			_, _ = fmt.Fprintf(w, "%s\t%t\t%s\t%s\t%s\t%s\t%t\t%t\t%s\t%s\t%s\n",
+				p.ID, p.Enabled, p.Mode, strings.Join(p.States, ","), strings.Join(p.Agents, ","),
+				strings.Join(p.Executables, ","), p.RequireDetached, p.RequireSessionEnded,
+				time.Duration(p.MinStableNs), time.Duration(p.CooldownNs), p.Description)
 		}
 		_ = w.Flush()
 	}
@@ -66,13 +75,14 @@ func renderMetrics(m api.MetricsResponse) {
 		{"reconcile / persist", fmt.Sprintf("%.1f ms / %.1f ms", m.LastReconcileMs, m.LastPersistMs)},
 		{"activity", fmt.Sprintf("%.1f ms last pass, %d samples", m.LastActivityMs, m.ActivitySamples)},
 		{"classifications", fmt.Sprintf("%d conclusions", m.Classifications)},
+		{"policy decisions", fmt.Sprintf("%d decisions", m.PolicyDecisions)},
 		{"processes", fmt.Sprintf("%d visible, %d inspected, %d attributed", m.VisibleProcesses, m.InspectedProcesses, m.AttributedProcesses)},
 		{"sessions", fmt.Sprintf("%d active", m.ActiveSessions)},
 		{"cleanup candidates", fmt.Sprintf("%d", m.CleanupCandidates)},
 		{"actions", fmt.Sprintf("%d attempted, %d rejected, %d completed", m.ActionsAttempted, m.ActionsRejected, m.ActionsCompleted)},
-		{"database", fmt.Sprintf("%s (%d sessions, %d processes, %d observations, %d activity, %d classifications, %d edges, %d audit)",
+		{"database", fmt.Sprintf("%s (%d sessions, %d processes, %d observations, %d activity, %d classifications, %d policy decisions, %d edges, %d audit)",
 			humanBytes(uint64(m.DatabaseBytes)), m.DatabaseCounts.Sessions, m.DatabaseCounts.Processes,
-			m.DatabaseCounts.Observations, m.DatabaseCounts.ActivitySamples, m.DatabaseCounts.Classifications, m.DatabaseCounts.Relationships, m.DatabaseCounts.AuditEntries)},
+			m.DatabaseCounts.Observations, m.DatabaseCounts.ActivitySamples, m.DatabaseCounts.Classifications, m.DatabaseCounts.PolicyDecisions, m.DatabaseCounts.Relationships, m.DatabaseCounts.AuditEntries)},
 		{"retention", fmt.Sprintf("%d runs, %d rows removed last pass", m.RetentionRuns, m.LastRetentionDeleted)},
 		{"daemon memory", humanBytes(m.RSSBytes)},
 		{"goroutines", fmt.Sprintf("%d", m.Goroutines)},

@@ -137,6 +137,19 @@ var execClasses = []struct {
 	},
 }
 
+// ExecutableProtection reports the hard class protection for an exact basename.
+func ExecutableProtection(name string) (Rule, bool) {
+	name = strings.ToLower(name)
+	for _, class := range execClasses {
+		for _, protected := range class.names {
+			if name == protected {
+				return Rule{ID: class.id, Reason: class.reason}, true
+			}
+		}
+	}
+	return Rule{}, false
+}
+
 // Evaluate runs every hard protection against a process.
 func Evaluate(in Input) Result {
 	var rules []Rule

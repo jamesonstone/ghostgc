@@ -136,6 +136,7 @@ type Counts struct {
 	Observations    int64 `json:"observations"`
 	ActivitySamples int64 `json:"activity_samples"`
 	Classifications int64 `json:"classifications"`
+	PolicyDecisions int64 `json:"policy_decisions"`
 	Scans           int64 `json:"scans"`
 	AuditEntries    int64 `json:"audit_entries"`
 	Relationships   int64 `json:"relationships"`
@@ -155,6 +156,7 @@ func (s *Store) Counts(ctx context.Context) (Counts, error) {
 		{&c.Observations, `SELECT COUNT(*) FROM process_observations`},
 		{&c.ActivitySamples, `SELECT COUNT(*) FROM process_activity`},
 		{&c.Classifications, `SELECT COUNT(*) FROM process_classifications`},
+		{&c.PolicyDecisions, `SELECT COUNT(*) FROM policy_decisions`},
 		{&c.Scans, `SELECT COUNT(*) FROM scans`},
 		{&c.AuditEntries, `SELECT COUNT(*) FROM audit_log`},
 		{&c.Relationships, `SELECT COUNT(*) FROM session_relationships`},
