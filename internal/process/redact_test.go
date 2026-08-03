@@ -23,6 +23,16 @@ func TestRedactArgsRemovesCredentials(t *testing.T) {
 			want: []string{"tool", "--token", "[redacted]", "--port", "8080"},
 		},
 		{
+			name: "separated cleanup approval",
+			in:   []string{"ghostgc", "cleanup", "--apply", "--approval", "opaque-bearer", "--yes"},
+			want: []string{"ghostgc", "cleanup", "--apply", "--approval", "[redacted]", "--yes"},
+		},
+		{
+			name: "inline cleanup approval",
+			in:   []string{"ghostgc", "cleanup", "--approval=opaque-bearer", "--yes"},
+			want: []string{"ghostgc", "cleanup", "--approval=[redacted]", "--yes"},
+		},
+		{
 			name: "sensitive flag with no value does not eat the next flag",
 			in:   []string{"tool", "--password", "--dry-run"},
 			want: []string{"tool", "--password", "--dry-run"},

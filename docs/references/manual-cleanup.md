@@ -72,7 +72,8 @@ The fixture creates a dedicated direct `action-child` using the exact basename
 `fixture-helper`. It is the only process intended for live action validation.
 Run it from a persistent non-TTY command runner for the positive action suite;
 a normal interactive terminal deliberately makes the target hard-protected and
-is useful as a refusal test:
+is useful as a refusal test. Fixture teardown records and verifies each process
+start time before signalling, so an exited target's recycled PID is refused:
 
 ```bash
 fixtures/fixture-agent.sh start

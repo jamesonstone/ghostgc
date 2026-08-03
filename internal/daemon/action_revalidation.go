@@ -38,7 +38,7 @@ func (d *Daemon) revalidateCleanup(ctx context.Context, approval *cleanupApprova
 	if current.ID == 0 || !d.isRecommendation(current) {
 		return cleanupTarget{}, errors.New("the approved recommendation is no longer current")
 	}
-	binding, err := approvalBinding(current, definition)
+	binding, err := approvalBinding(current, definition, approval.executable)
 	if err != nil {
 		return cleanupTarget{}, err
 	}
@@ -57,6 +57,13 @@ func (d *Daemon) revalidateCleanup(ctx context.Context, approval *cleanupApprova
 	proc, ok := snap.ByKey(key)
 	if !ok {
 		return cleanupTarget{}, errors.New("exact process identity exited or changed")
+	}
+	executable, err := exactExecutable(proc, true)
+	if err != nil {
+		return cleanupTarget{}, err
+	}
+	if executable != approval.executable {
+		return cleanupTarget{}, errors.New("exact executable identity changed after preview")
 	}
 	tree := process.BuildTree(snap)
 	res, err := d.recon.Reconcile(ctx, snap, tree, d.cfg.Privacy.StoreCommandLines)
@@ -99,6 +106,7 @@ func (d *Daemon) revalidateCleanup(ctx context.Context, approval *cleanupApprova
 	})
 	evidence := []policy.Evidence{
 		{Rule: "approval-binding-v1", Detail: "the exact committed evaluation, decision and canonical policy still match the preview"},
+		{Rule: "exact-executable-v1", Detail: "the fresh executable path and kernel name still match the preview"},
 		{Rule: "exact-process-key-v1", Detail: "fresh snapshot contains " + key.UID()},
 		{Rule: "fresh-ownership-v1", Detail: fmt.Sprintf("fresh reconciliation retained session %s with confidence %.2f", attr.SessionID, attr.Confidence)},
 	}

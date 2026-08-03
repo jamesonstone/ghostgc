@@ -24,8 +24,14 @@ type cleanupApproval struct {
 	bindingDigest string
 	decision      storage.PolicyDecisionRecord
 	policy        config.Policy
+	executable    executableIdentity
 	expires       time.Time
 	used          bool
+}
+
+type executableIdentity struct {
+	ExecPath string `json:"exec_path"`
+	Comm     string `json:"comm"`
 }
 
 // CleanupPreview issues one ephemeral approval for an exact recommendation.
@@ -36,6 +42,10 @@ func (d *Daemon) CleanupPreview(ctx context.Context, req api.CleanupPreviewReque
 	if _, err := process.ParseKey(req.ProcUID); err != nil {
 		return api.CleanupPreviewResponse{}, err
 	}
+	// A preview must bind one coherent committed scan. Otherwise a scan could
+	// advance the decision or executable observation between the two reads.
+	d.scanMu.Lock()
+	defer d.scanMu.Unlock()
 	if !d.manualCleanupEnabled() {
 		return api.CleanupPreviewResponse{}, errors.New("manual cleanup is disabled: globalMode and the selected policy must both be recommend")
 	}
@@ -53,18 +63,29 @@ func (d *Daemon) CleanupPreview(ctx context.Context, req api.CleanupPreviewReque
 	if decision.ID == 0 {
 		return api.CleanupPreviewResponse{}, errors.New("no current recommendation matches that exact policy and process")
 	}
+	key, _ := process.ParseKey(decision.ProcUID)
+	d.mu.RLock()
+	observed, present := d.snapshot.ByKey(key)
+	d.mu.RUnlock()
+	identity, err := exactExecutable(observed, present)
+	if err != nil {
+		return api.CleanupPreviewResponse{}, err
+	}
 	definition, _ := d.policyDefinition(decision.PolicyID)
 	token, digest, err := newSecret(32)
 	if err != nil {
 		return api.CleanupPreviewResponse{}, err
 	}
-	binding, err := approvalBinding(decision, definition)
+	binding, err := approvalBinding(decision, definition, identity)
 	if err != nil {
 		return api.CleanupPreviewResponse{}, err
 	}
 	now := time.Now()
 	expires := now.Add(approvalLifetime)
-	approval := &cleanupApproval{bindingDigest: binding, decision: decision, policy: definition, expires: expires}
+	approval := &cleanupApproval{
+		bindingDigest: binding, decision: decision, policy: definition,
+		executable: identity, expires: expires,
+	}
 	d.actionMu.Lock()
 	d.pruneApprovals(now)
 	if len(d.approvals) >= maxApprovals {
@@ -143,15 +164,24 @@ func secretDigest(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func approvalBinding(decision storage.PolicyDecisionRecord, definition config.Policy) (string, error) {
+func approvalBinding(decision storage.PolicyDecisionRecord, definition config.Policy,
+	executable executableIdentity) (string, error) {
 	raw, err := json.Marshal(struct {
-		Decision storage.PolicyDecisionRecord `json:"decision"`
-		Evidence string                       `json:"decision_evidence"`
-		Policy   config.Policy                `json:"policy"`
-	}{decision, decision.EvidenceJSON, definition})
+		Decision   storage.PolicyDecisionRecord `json:"decision"`
+		Evidence   string                       `json:"decision_evidence"`
+		Policy     config.Policy                `json:"policy"`
+		Executable executableIdentity           `json:"executable"`
+	}{decision, decision.EvidenceJSON, definition, executable})
 	if err != nil {
 		return "", err
 	}
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:]), nil
+}
+
+func exactExecutable(observed process.Process, present bool) (executableIdentity, error) {
+	if !present || !observed.Detailed || observed.ExecPath == "" || observed.Comm == "" {
+		return executableIdentity{}, errors.New("exact executable identity is unavailable")
+	}
+	return executableIdentity{ExecPath: observed.ExecPath, Comm: observed.Comm}, nil
 }

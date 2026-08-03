@@ -13,6 +13,10 @@ import (
 )
 
 func recommendHarness(t *testing.T, targetPresent bool) (*harness, process.Process) {
+	return recommendHarnessWithFinalPath(t, targetPresent, "")
+}
+
+func recommendHarnessWithFinalPath(t *testing.T, targetPresent bool, finalPath string) (*harness, process.Process) {
 	t.Helper()
 	init := mk(1, 0, "/sbin/launchd", 0)
 	root := codexRoot(100, 1, time.Second)
@@ -20,9 +24,13 @@ func recommendHarness(t *testing.T, targetPresent bool) (*harness, process.Proce
 	child.PGID, child.SID = root.PGID, root.SID
 	zombie := withParent(child, 1)
 	zombie.Status = process.StatusZombie
+	finalTarget := zombie
+	if finalPath != "" {
+		finalTarget.ExecPath = finalPath
+	}
 	actionSnapshot := snapshot(3*time.Minute, init)
 	if targetPresent {
-		actionSnapshot = snapshot(3*time.Minute, init, zombie)
+		actionSnapshot = snapshot(3*time.Minute, init, finalTarget)
 	}
 	cfg := config.Default()
 	cfg.GlobalMode = config.ModeRecommend
@@ -107,6 +115,19 @@ func TestManualCleanupRejectsChangedExactIdentity(t *testing.T) {
 	}
 	if result.Reason == "" {
 		t.Fatal("rejection lacks a reason")
+	}
+}
+
+func TestManualCleanupRejectsChangedExecutableAtSameExactKey(t *testing.T) {
+	h, child := recommendHarnessWithFinalPath(t, true, "/another/location/safe-helper")
+	preview := previewRecommendation(t, h, child)
+
+	result, err := h.d.CleanupApply(context.Background(), api.CleanupApplyRequest{Approval: preview.Approval})
+	if err != nil || result.Result != "rejected" || h.fake.SignalAttempts != 0 {
+		t.Fatalf("changed executable apply = %+v, %v; signals=%d", result, err, h.fake.SignalAttempts)
+	}
+	if !strings.Contains(result.Reason, "executable identity changed") {
+		t.Fatalf("rejection reason = %q", result.Reason)
 	}
 }
 

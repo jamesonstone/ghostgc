@@ -64,8 +64,9 @@ at every unknown, stale or changed fact.
 - Preview one exact policy/process recommendation. Return a single-use,
   short-lived approval plus the exact CLI command and the revalidation contract.
 - Bind approval to the current committed decision, exact process identity,
-  session, classification evidence and canonical policy definition. Keep the
-  bearer token only in daemon memory and never persist it.
+  observed executable path and kernel name, session, classification evidence
+  and canonical policy definition. Keep the bearer token only in daemon memory,
+  redact its CLI flag from observed command lines, and never persist it.
 - Consume approval once. Reject expired, replayed, stale, malformed or changed
   approvals without signalling.
 - Serialize action revalidation with scans. Take a new process snapshot,
@@ -137,8 +138,9 @@ at every unknown, stale or changed fact.
 - All handwritten Go source and test files remain at or below 300 lines; the
   largest remains 296 lines.
 - Action unit and socket tests prove exact recommendation projection, preview,
-  single use, expiry, replay rejection, changed-key refusal, token
-  non-persistence, pre-side-effect durability, metrics and structured history.
+  single use, expiry, replay rejection, changed-key and changed-image refusal,
+  token redaction/non-persistence, pre-side-effect durability, metrics and
+  structured history.
 - Platform source tests prove exactly one literal SIGTERM system-call site,
   reject alternate signalling primitives, SIGKILL and shell terminators, and
   exercise non-TERM plus changed-key refusal against the running collector.

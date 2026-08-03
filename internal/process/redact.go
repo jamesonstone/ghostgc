@@ -39,6 +39,7 @@ var sensitiveNameParts = map[string]bool{
 	"privatekey":     true,
 	"jwt":            true,
 	"authentication": true,
+	"approval":       true,
 }
 
 // sensitiveNameSubstrings catch names that do not split cleanly, such as
