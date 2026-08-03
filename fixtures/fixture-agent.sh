@@ -34,15 +34,16 @@ make_fake_agent() {
 	# "codex" exactly as the real CLI does. A shebang script would report the
 	# interpreter instead, and a copy of a system binary is SIGKILLed on Apple
 	# Silicon because copying invalidates its code signature.
-	local src
+	local src helper_src
 	src="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fake-agent"
 	go build -o "$BIN" "$src"
-	# The detached helper is built under a different name on purpose. If it
-	# were another copy of "codex" it would be detected as an agent in its own
-	# right, and the fixture would stop exercising the case it exists for: a
-	# process that is only linked to the session by the environment it
-	# inherited.
-	go build -o "$STATE_DIR/bin/fixture-helper" "$src"
+	# A native helper can remain genuinely kernel-blocked for five minutes.
+	# Go runtime housekeeping would create real CPU deltas and correctly reset
+	# the classifier's continuous idle window. The distinct name also prevents
+	# this helper from being detected as an agent root.
+	helper_src="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fixture-helper.c"
+	"${CC:-cc}" -std=c11 -O2 -Wall -Wextra -Werror \
+		-o "$STATE_DIR/bin/fixture-helper" "$helper_src"
 }
 
 start() {
