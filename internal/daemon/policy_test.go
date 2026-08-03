@@ -11,6 +11,7 @@ import (
 	"github.com/jamesonstone/ghostgc/internal/daemon"
 	"github.com/jamesonstone/ghostgc/internal/platform/platformtest"
 	"github.com/jamesonstone/ghostgc/internal/process"
+	"github.com/jamesonstone/ghostgc/internal/storage"
 )
 
 func TestPolicyCandidateCooldownAndLiveProjection(t *testing.T) {
@@ -18,13 +19,15 @@ func TestPolicyCandidateCooldownAndLiveProjection(t *testing.T) {
 	init := mk(1, 0, "/sbin/launchd", 0)
 	root := codexRoot(100, 1, time.Second)
 	child := mk(200, 100, "/opt/ghostgc-fixtures/safe-helper", 2*time.Second)
+	other := mk(201, 100, "/opt/ghostgc-fixtures/other-helper", 3*time.Second)
 	child.PGID, child.SID = root.PGID, root.SID
+	other.PGID, other.SID = root.PGID, root.SID
 	var snaps []*process.Snapshot
-	snaps = append(snaps, snapshot(time.Minute, init, root, child))
-	for minute := 2; minute <= 8; minute++ {
-		snaps = append(snaps, snapshot(time.Duration(minute)*time.Minute, init, withParent(child, 1)))
+	snaps = append(snaps, snapshot(time.Minute, init, root, child, other))
+	for minute := 2; minute <= 9; minute++ {
+		snaps = append(snaps, snapshot(time.Duration(minute)*time.Minute, init, withParent(child, 1), withParent(other, 1)))
 	}
-	snaps = append(snaps, snapshot(9*time.Minute, init))
+	snaps = append(snaps, snapshot(10*time.Minute, init))
 
 	cfg := config.Default()
 	cfg.Sampling.ActivitySample = config.Duration(time.Minute)
@@ -38,16 +41,31 @@ func TestPolicyCandidateCooldownAndLiveProjection(t *testing.T) {
 	}}
 	h := newHarnessConfig(t, cfg, snaps...)
 	h.fake.SetActivity(root.Key(), completeSample(root.Key(), time.Minute, time.Second))
-	var samples []process.ActivitySample
-	for minute := 1; minute <= 8; minute++ {
-		samples = append(samples, completeSample(child.Key(), time.Duration(minute)*time.Minute+time.Second, time.Second))
+	var childSamples, otherSamples []process.ActivitySample
+	for minute := 1; minute <= 9; minute++ {
+		childAt := time.Duration(minute)*time.Minute + time.Second
+		if minute == 7 {
+			childAt = 7 * time.Minute
+		}
+		childSamples = append(childSamples, completeSample(child.Key(), childAt, time.Second))
+		otherSamples = append(otherSamples, completeSample(other.Key(), time.Duration(minute)*time.Minute+2*time.Second, time.Second))
 	}
-	h.fake.SetActivity(child.Key(), samples...)
+	h.fake.SetActivity(child.Key(), childSamples...)
+	h.fake.SetActivity(other.Key(), otherSamples...)
 
 	for range 7 {
 		h.d.ScanNow(ctx)
 	}
 	resp, err := h.d.Candidates(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Audited) != 0 {
+		t.Fatalf("process borrowed another process's later sample time: %+v", resp.Audited)
+	}
+
+	h.d.ScanNow(ctx)
+	resp, err = h.d.Candidates(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,6 +122,7 @@ func TestGlobalDisabledAdvancesEmptyPolicyProjection(t *testing.T) {
 	zombie.Status = process.StatusZombie
 	cfg := config.Default()
 	cfg.GlobalMode = config.ModeDisabled
+	cfg.Sampling.PolicyEvaluation = config.Duration(time.Minute)
 	cfg.Policies = []config.Policy{{
 		ID: "safe-helper", Description: "audit crashed fixture helper", Enabled: true, Mode: config.ModeAudit,
 		States: []string{"crashed"}, Agents: []string{"codex"}, Executables: []string{"safe-helper"},
@@ -114,16 +133,36 @@ func TestGlobalDisabledAdvancesEmptyPolicyProjection(t *testing.T) {
 		snapshot(2*time.Minute, init, zombie),
 	)
 	h.d.ScanNow(ctx)
+	if err := h.store.WithTx(ctx, func(tx *storage.Tx) error {
+		evaluationID, err := tx.InsertPolicyEvaluation(t0.Add(90 * time.Second).UnixNano())
+		if err != nil {
+			return err
+		}
+		return tx.InsertPolicyDecision(storage.PolicyDecisionRecord{
+			EvaluationID: evaluationID, PolicyID: "safe-helper", ProcUID: child.Key().UID(),
+			SessionID: "seeded", TsNs: t0.Add(90 * time.Second).UnixNano(),
+			ClassificationTsNs: t0.Add(90 * time.Second).UnixNano(), ClassificationState: "crashed",
+			Result: "candidate", Reason: "seeded prior candidate", CooldownUntilNs: t0.Add(time.Hour).UnixNano(),
+			EvidenceJSON: "[]",
+		})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := h.d.Candidates(ctx)
+	if err != nil || len(before.Audited) != 1 {
+		t.Fatalf("failed to seed a current prior candidate: %+v, %v", before.Audited, err)
+	}
 	h.d.ScanNow(ctx)
 	resp, err := h.d.Candidates(ctx)
 	if err != nil || len(resp.Audited) != 0 {
 		t.Fatalf("disabled global mode produced decisions: %+v, %v", resp.Audited, err)
 	}
 	counts, err := h.store.Counts(ctx)
-	if err != nil || counts.PolicyDecisions != 0 {
+	if err != nil || counts.PolicyDecisions != 1 {
 		t.Fatalf("disabled global mode persisted decisions: %+v, %v", counts, err)
 	}
-	if _, err := h.store.GetMeta(ctx, "last_policy_eval_ns"); err != nil {
-		t.Fatalf("disabled evaluation did not commit an empty watermark: %v", err)
+	current, err := h.store.CurrentPolicyDecisions(ctx)
+	if err != nil || len(current) != 0 {
+		t.Fatalf("disabled evaluation did not clear the prior projection: %+v, %v", current, err)
 	}
 }

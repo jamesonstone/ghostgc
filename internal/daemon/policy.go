@@ -52,6 +52,7 @@ func (d *Daemon) evaluatePolicies(ctx context.Context, snap *process.Snapshot, t
 		root, isRoot := res.Roots[proc.PID]
 		isRoot = isRoot && root.Key == key
 		protectionResult := d.protectionFor(proc, tree, attr.Confidence, isRoot, !class.SessionEnded)
+		evaluatedAt := time.Unix(0, class.TsNs)
 		for _, definition := range d.cfg.Policies {
 			untilNs, err := d.store.LastCandidateCooldown(ctx, definition.ID, class.ProcUID)
 			if err != nil {
@@ -63,7 +64,7 @@ func (d *Daemon) evaluatePolicies(ctx context.Context, snap *process.Snapshot, t
 				StableSince: time.Unix(0, class.StableSinceNs), AgentID: attr.AgentID,
 				Executable: proc.Name(), Detached: class.Detached, SessionEnded: class.SessionEnded,
 				Protection: protectionResult,
-			}, batch.at, time.Unix(0, untilNs))
+			}, evaluatedAt, time.Unix(0, untilNs))
 			if !matched {
 				continue
 			}
@@ -77,7 +78,7 @@ func (d *Daemon) evaluatePolicies(ctx context.Context, snap *process.Snapshot, t
 			}
 			record := storage.PolicyDecisionRecord{
 				PolicyID: decision.PolicyID, ProcUID: decision.ProcUID, SessionID: decision.SessionID,
-				TsNs: batch.at.UnixNano(), ClassificationTsNs: class.TsNs,
+				TsNs: evaluatedAt.UnixNano(), ClassificationTsNs: class.TsNs,
 				ClassificationState: decision.State, Result: string(decision.Result),
 				Reason: decision.Reason, CooldownUntilNs: cooldownUntilNs, EvidenceJSON: string(evidence),
 			}
@@ -86,7 +87,7 @@ func (d *Daemon) evaluatePolicies(ctx context.Context, snap *process.Snapshot, t
 				batch.candidates++
 			}
 			batch.audit = append(batch.audit, storage.AuditRecord{
-				TsNs: batch.at.UnixNano(), Kind: "policy." + string(decision.Result), Subject: class.ProcUID,
+				TsNs: evaluatedAt.UnixNano(), Kind: "policy." + string(decision.Result), Subject: class.ProcUID,
 				Summary: fmt.Sprintf("policy %s: %s", decision.PolicyID, decision.Reason), EvidenceJSON: string(evidence),
 			})
 		}

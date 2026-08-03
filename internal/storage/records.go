@@ -100,6 +100,7 @@ type ClassificationRecord struct {
 // PolicyDecisionRecord is one audit-only policy match, refusal or cooldown.
 type PolicyDecisionRecord struct {
 	ID                  int64  `json:"id"`
+	EvaluationID        int64  `json:"evaluation_id"`
 	PolicyID            string `json:"policy_id"`
 	ProcUID             string `json:"proc_uid"`
 	SessionID           string `json:"session_id"`

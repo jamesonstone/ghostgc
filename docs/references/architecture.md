@@ -194,6 +194,7 @@ HTTP.
 | `process_observations` | lightweight time series from every process scan |
 | `process_activity` | bounded phase-3 deltas and availability flags |
 | `process_classifications` | phase-4 state, basis, detachment, stable window and evidence |
+| `policy_evaluations` | unique committed phase-5 projections, including empty results |
 | `policy_decisions` | phase-5 candidates, refusals, cooldowns and evidence |
 | `scans` | one row per cycle, including failures |
 | `sessions` | one row per detected session |

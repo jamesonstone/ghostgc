@@ -155,18 +155,21 @@ func (d *Daemon) persist(ctx context.Context, snap *process.Snapshot, res *sessi
 				return err
 			}
 		}
+		var evaluationID int64
+		if policies.due {
+			evaluationID, err = tx.InsertPolicyEvaluation(policies.at.UnixNano())
+			if err != nil {
+				return err
+			}
+		}
 		for _, decision := range policies.records {
+			decision.EvaluationID = evaluationID
 			if err := tx.InsertPolicyDecision(decision); err != nil {
 				return err
 			}
 		}
 		for _, audit := range policies.audit {
 			if err := tx.AppendAudit(audit); err != nil {
-				return err
-			}
-		}
-		if policies.due {
-			if err := tx.SetMeta("last_policy_eval_ns", fmt.Sprint(policies.at.UnixNano())); err != nil {
 				return err
 			}
 		}
@@ -212,7 +215,8 @@ func (d *Daemon) recordScanFailure(ctx context.Context, start time.Time, cause e
 		}); err != nil {
 			return err
 		}
-		return tx.SetMeta("last_policy_eval_ns", fmt.Sprint(start.UnixNano()))
+		_, err := tx.InsertPolicyEvaluation(start.UnixNano())
+		return err
 	})
 	if err != nil {
 		d.log.Error("recording scan failure failed", "error", err)

@@ -23,25 +23,26 @@ type RetentionPolicy struct {
 
 // RetentionResult reports what a compaction pass removed.
 type RetentionResult struct {
-	Observations     int64 `json:"observations_deleted"`
-	ActivitySamples  int64 `json:"activity_samples_deleted"`
-	Classifications  int64 `json:"classifications_deleted"`
-	PolicyDecisions  int64 `json:"policy_decisions_deleted"`
-	Scans            int64 `json:"scans_deleted"`
-	Audit            int64 `json:"audit_deleted"`
-	Processes        int64 `json:"processes_deleted"`
-	Ownership        int64 `json:"ownership_deleted"`
-	Sessions         int64 `json:"sessions_deleted"`
-	Relationships    int64 `json:"relationships_deleted"`
-	Aggressive       bool  `json:"aggressive"`
-	SizeBeforeBytes  int64 `json:"size_before_bytes"`
-	SizeAfterBytes   int64 `json:"size_after_bytes"`
-	OverBudgetBefore bool  `json:"over_budget_before"`
+	Observations      int64 `json:"observations_deleted"`
+	ActivitySamples   int64 `json:"activity_samples_deleted"`
+	Classifications   int64 `json:"classifications_deleted"`
+	PolicyDecisions   int64 `json:"policy_decisions_deleted"`
+	PolicyEvaluations int64 `json:"policy_evaluations_deleted"`
+	Scans             int64 `json:"scans_deleted"`
+	Audit             int64 `json:"audit_deleted"`
+	Processes         int64 `json:"processes_deleted"`
+	Ownership         int64 `json:"ownership_deleted"`
+	Sessions          int64 `json:"sessions_deleted"`
+	Relationships     int64 `json:"relationships_deleted"`
+	Aggressive        bool  `json:"aggressive"`
+	SizeBeforeBytes   int64 `json:"size_before_bytes"`
+	SizeAfterBytes    int64 `json:"size_after_bytes"`
+	OverBudgetBefore  bool  `json:"over_budget_before"`
 }
 
 // Total returns the number of rows removed.
 func (r RetentionResult) Total() int64 {
-	return r.Observations + r.ActivitySamples + r.Classifications + r.PolicyDecisions + r.Scans + r.Audit + r.Processes + r.Ownership + r.Sessions + r.Relationships
+	return r.Observations + r.ActivitySamples + r.Classifications + r.PolicyDecisions + r.PolicyEvaluations + r.Scans + r.Audit + r.Processes + r.Ownership + r.Sessions + r.Relationships
 }
 
 // Compact enforces the retention policy.
@@ -105,6 +106,8 @@ func (s *Store) compactOnce(ctx context.Context, p RetentionPolicy, now time.Tim
 			{&res.Classifications, `DELETE FROM process_classifications WHERE ts_ns < ?`, []any{cutoff(p.RawObservations)}},
 			{&res.PolicyDecisions, `DELETE FROM policy_decisions WHERE ts_ns < ?
 				AND (result <> 'candidate' OR cooldown_until_ns <= ?)`, []any{cutoff(p.PolicyDecisions), now.UnixNano()}},
+			{&res.PolicyEvaluations, `DELETE FROM policy_evaluations WHERE ts_ns < ?
+				AND id <> (SELECT MAX(id) FROM policy_evaluations)`, []any{cutoff(p.PolicyDecisions)}},
 			{&res.Scans, `DELETE FROM scans WHERE started_ns < ?`, []any{cutoff(p.Scans)}},
 			{&res.Audit, `DELETE FROM audit_log WHERE ts_ns < ?`, []any{cutoff(p.Audit)}},
 			{&res.Ownership, `DELETE FROM session_processes WHERE proc_uid IN (

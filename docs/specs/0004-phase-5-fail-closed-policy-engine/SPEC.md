@@ -104,7 +104,8 @@ action authority.
 
 1. Define and validate a deliberately small policy schema in configuration.
 2. Add a pure fail-closed evaluator and table-driven tests.
-3. Add schema v5 decision history, cooldown queries, retention and counts.
+3. Add additive decision/evaluation history, cooldown queries, retention and
+   counts.
 4. Evaluate current classification results in the scan and persist decisions
    plus audit evidence transactionally.
 5. Replace placeholder API/CLI surfaces, update durable docs and validate live.
@@ -129,8 +130,9 @@ action authority.
 
 - Current policy views need an explicit committed evaluation watermark. Querying
   merely by the newest decision would leave an old candidate visible after the
-  next classification no longer matched. `last_policy_eval_ns` makes an empty
-  current result durable and keeps API projection transactional.
+  next classification no longer matched. A unique autoincremented evaluation
+  identity makes even an empty or same-timestamp result durable and keeps API
+  projection transactional.
 - Classification samples can contain several independent evidence items that
   explain the state. Copying that evidence into each policy decision makes the
   durable refusal/candidate record self-contained instead of requiring a later
@@ -141,8 +143,10 @@ action authority.
   `crashed` conclusion for live refusal testing instead.
 - macOS activity samples are taken after the selecting process snapshot, so a
   classification timestamp can be slightly later than the cadence timestamp.
-  The policy transaction uses the newest classification time as its decision
-  watermark while retaining the snapshot time solely for cadence bookkeeping.
+  Each process is evaluated at its own classification timestamp so another
+  process's later sample can never satisfy its stable window. Snapshot time is
+  retained solely for cadence bookkeeping, while evaluation identity—not a
+  timestamp—selects the current committed projection.
 - Candidate cooldown lookup must consider only a prior `candidate`, not a prior
   `cooldown` or `refused` decision. It is keyed by policy ID plus exact
   `pid:start_time_ns`, so neither refusal observation nor PID reuse extends it.
@@ -159,6 +163,7 @@ action authority.
   `TestPolicyDecisionCooldownAndCurrentLiveProjection` and
   `TestPolicyCandidateCooldownAndLiveProjection` prove strict config, every
   protection, exact-key cooldown persistence, current-only projection,
+  same-timestamp empty projection, per-process stable windows,
   candidate/cooldown transitions and zero signal attempts.
 - Live fixture run `20260803T165410Z-p5-review` used an exact `codex` /
   `fixture-helper` / `crashed` policy. Seventeen matching samples were durably

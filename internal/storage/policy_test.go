@@ -11,6 +11,10 @@ func TestPolicyDecisionCooldownAndCurrentLiveProjection(t *testing.T) {
 	live := proc("42:1", 42, 1, 100)
 	exited := proc("43:1", 43, 1, 100)
 	if err := s.WithTx(ctx, func(tx *Tx) error {
+		evaluationID, err := tx.InsertPolicyEvaluation(200)
+		if err != nil {
+			return err
+		}
 		if err := tx.UpsertProcess(live); err != nil {
 			return err
 		}
@@ -28,6 +32,7 @@ func TestPolicyDecisionCooldownAndCurrentLiveProjection(t *testing.T) {
 				ClassificationTsNs: 195, ClassificationState: "orphaned", Result: "cooldown",
 				Reason: "cooling down", CooldownUntilNs: 500, EvidenceJSON: "[]"},
 		} {
+			rec.EvaluationID = evaluationID
 			if err := tx.InsertPolicyDecision(rec); err != nil {
 				return err
 			}
@@ -35,7 +40,7 @@ func TestPolicyDecisionCooldownAndCurrentLiveProjection(t *testing.T) {
 		if _, err := tx.tx.ExecContext(ctx, `UPDATE processes SET exited_at_ns = 150 WHERE proc_uid = ?`, exited.ProcUID); err != nil {
 			return err
 		}
-		return tx.SetMeta("last_policy_eval_ns", "200")
+		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -47,6 +52,16 @@ func TestPolicyDecisionCooldownAndCurrentLiveProjection(t *testing.T) {
 	current, err := s.CurrentPolicyDecisions(ctx)
 	if err != nil || len(current) != 1 || current[0].ProcUID != live.ProcUID || current[0].Result != "cooldown" {
 		t.Fatalf("current decisions = %+v, %v", current, err)
+	}
+	if err := s.WithTx(ctx, func(tx *Tx) error {
+		_, err := tx.InsertPolicyEvaluation(200)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	current, err = s.CurrentPolicyDecisions(ctx)
+	if err != nil || len(current) != 0 {
+		t.Fatalf("same-timestamp empty evaluation left stale decisions: %+v, %v", current, err)
 	}
 	counts, err := s.Counts(ctx)
 	if err != nil || counts.PolicyDecisions != 3 {
