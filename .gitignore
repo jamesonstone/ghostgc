@@ -41,3 +41,12 @@ go.work.sum
 .kit/temp/
 .kit/*.tmp
 .kit/*.lock
+
+# Go build output
+/bin/
+coverage.out
+
+# Local daemon state, only created when a config points here
+*.db
+*.db-wal
+*.db-shm

@@ -2,11 +2,47 @@
 
 ## PRINCIPLES
 
-<!-- TODO: define core principles that guide all decisions -->
+- Observe before acting. Audit is the default and, until the policy engine and
+  its safety gates exist, the only mode the daemon will accept.
+- Every classification carries the observations that produced it. A conclusion
+  without evidence is a defect, not a shortcut.
+- Fail closed. Where ownership or safety cannot be established, nothing happens.
+- Prefer saying "unknown" to saying something convenient. A plausible value the
+  daemon did not observe is a fabrication.
+- Record what was observed when it was observed. Do not re-derive a fact each
+  cycle that the operating system can destroy between cycles.
+- Run with the least privilege that can do the job, and inspect only what that
+  privilege legitimately reaches.
+- Keep everything local. No telemetry transport exists in the binary.
 
 ## CONSTRAINTS
 
-<!-- TODO: define invariant rules that must never be violated -->
+- A process is never identified by PID alone. Every process is keyed by
+  `pid:start_time_ns`, and a parent that started after its child is not believed.
+- Unknown is protected. Attribution below the policy-eligible threshold, an
+  uninspected process, and a process owned by another user are all protected.
+- Confidence is combined from independent evidence and capped below 1.0.
+  Heuristic agreement is never reported as certainty, and confidence alone
+  never authorises anything.
+- Evidence that a process belongs to a session is not evidence that it *is* the
+  agent. Environment variables are inherited by every descendant, so they
+  establish lineage only, capped below the policy-eligible threshold.
+- Relationships declare whether they may establish ownership. A shared terminal,
+  process group or repository is context, never ownership.
+- Recorded ownership is durable. Confidence may not fall, a `root` relation may
+  not be downgraded, and the original parent is written once.
+- Detection matches executable basenames exactly and path components as whole
+  segments. Ownership is never established by matching a command-line substring.
+- Source-code contents are never read. The daemon records paths and metadata,
+  and reads version-control plumbing only.
+- Credentials are redacted before anything reaches storage or a log line.
+- Failure never becomes action. A failed observation is recorded, no conclusion
+  is drawn from it, and observation continues.
+- In-memory state advances only after the write that persists it commits.
+- Every queue, cache, worker pool, retained buffer and retention window is
+  bounded by construction.
+- Schema migrations only add. Recorded ownership cannot be recomputed from a
+  fresh observation, so no migration may destroy it.
 
 ### Kit-Managed Baseline Rules
 
@@ -48,8 +84,38 @@
 
 ## NON-GOALS
 
-<!-- TODO: define what this project explicitly will not do -->
+- A general macOS cleaner. ghostgc does not delete caches, optimise settings, or
+  manage anything outside coding-agent sessions.
+- Monitoring user activity outside coding-agent sessions. Unattributed
+  processes are counted during a scan and then forgotten.
+- Replacing Activity Monitor, `ps`, `top` or `launchctl`.
+- Terminating a process on the strength of its executable name or its age.
+- Restarting, reconfiguring or recovering agents automatically.
+- Using a language model to make a termination decision. Classification is
+  deterministic rule evaluation.
+- Requiring elevated privileges, a cloud service, or any network transport.
+- Attempting automatic recovery from every detected problem.
 
 ## DEFINITIONS
 
-<!-- TODO: define key terms used throughout the project -->
+- **Agent** — a coding-agent runtime such as Codex or Claude Code.
+- **Session** — one logical execution of an agent, identified by its root
+  process and, when the agent exposes one, its own session identifier.
+- **Root process** — the entry point of a session. A session has exactly one;
+  when several processes claim it, the earliest-started wins.
+- **Descendant** — a process launched directly or indirectly by a session root.
+- **Detached** — a process no longer attached to its original parent or
+  terminal. Detached does not imply orphaned.
+- **Orphaned** — a process whose session has ended *and* for which strong
+  evidence indicates no useful work remains. Reserved; not yet produced.
+- **Hung** — a process unable to make progress while its session is active.
+  Reserved; not yet produced.
+- **Protected** — a process that must never be terminated automatically.
+- **Cleanup candidate** — a process matching an enabled cleanup policy, which
+  is not the same as a process that will be acted on.
+- **Identity evidence** — evidence that a process *is* an agent program.
+  Executable and argument derived.
+- **Membership evidence** — evidence that a process is *inside* an agent
+  session's lineage. Environment derived, and capped accordingly.
+- **Attributing relationship** — a graph edge permitted to establish ownership,
+  as distinct from a context edge that merely describes circumstance.

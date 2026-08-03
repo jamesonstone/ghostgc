@@ -1,9 +1,230 @@
-# ghostgc
-👻 Garbage Collection for Abandoned AI Coding Runtimes
+```text
+ ██████  ██   ██  ██████  ███████ ████████  ██████   ██████
+██       ██   ██ ██    ██ ██         ██    ██       ██
+██   ███ ███████ ██    ██ ███████    ██    ██   ███ ██
+██    ██ ██   ██ ██    ██      ██    ██    ██    ██ ██
+ ██████  ██   ██  ██████  ███████    ██     ██████   ██████
+
+                    👻 garbage collection for abandoned AI coding runtimes
+```
+
+ghostgc is a local daemon for developers who run coding agents. It works out
+which operating-system processes belong to which agent session, tracks them
+across reparenting and PID reuse, and explains every conclusion it reaches with
+the evidence behind it.
 
 <!-- BEGIN KIT-MANAGED README BADGES -->
 [![Last commit](https://img.shields.io/github/last-commit/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/commits) [![Open issues](https://img.shields.io/github/issues/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/issues) [![Pull requests](https://img.shields.io/github/issues-pr/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/pulls) [![Release](https://img.shields.io/github/v/release/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/releases)
 <!-- END KIT-MANAGED README BADGES -->
+
+**This build observes only.** It contains no code that can send a signal to a
+process, and a test fails the build if any is added. See
+[docs/references/safety-model.md](docs/references/safety-model.md).
+
+```
+$ ghostgc sessions
+ID        AGENT  REPOSITORY        STATE   CONF  AGE     PROCESSES   ROOT   LAUNCHED BY
+8f2a1b3c  codex  labcore@main      active  0.96  18m     12          48102  zsh
+2d1b77e0  codex  event-sink@fix-7  active  0.55  2h 14m  4 (3 live)  51993  Code Helper (Plugin)
+
+$ ghostgc explain 48231
+Classification: protected
+Process: pid 48231 (chrome-headless-shell)
+Identity: 48231:1785756660392212000 (pid plus start time, so a recycled pid is a different process)
+Parent link: reparented
+Created by: unknown — the process was already reparented when ghostgc first observed it
+Session: 8f2a1b3c (codex, state completed), relation environment, confidence 0.90
+
+Evidence:
+- [environment, weight 0.90] environment carries codex session identifier
+  "019fae08-329a-7bb1-946c-a90e9908c2ae", which names session 8f2a1b3c
+- [environment] an environment variable is inherited by every descendant, so this
+  establishes that the process descends from that session and nothing more; it is
+  capped below the policy-eligible threshold for that reason
+
+Relationships (4):
+KIND           FROM   TO     OWNERSHIP    DETAIL
+environment    48231  -      attributing  environment carries the agent's own session identifier
+reparenting    48231  -      context      parent link lost; the process was reparented to pid 1
+repository     48231  -      context      working directory is inside /Users/dev/src/labcore
+terminal       48231  48102  context      shares POSIX session 47990 with the session root
+
+Protections that apply:
+- protected-uncertain-attribution-v1: attribution confidence is 0.90, below the 0.95
+  required for any policy to consider the process; unknown ownership is protected
+```
+
+## Why it exists
+
+Coding agents spawn processes: shells, test runners, headless browsers, MCP
+helpers, language servers. When a session ends badly, some of them survive. The
+usual reaction is to reach for `pkill` and a name pattern, which is how people
+end up killing the language server their editor was using, or a database that
+happened to be started from an agent shell.
+
+The difficult part is not termination. It is knowing, with evidence, *which
+session a process belongs to* — after the operating system has reparented it to
+`launchd`, after its PID has been recycled, and when several unrelated things on
+the machine have the agent's name somewhere in their command line.
+
+ghostgc solves that part first, and refuses to act until it is solved.
+
+## Design commitments
+
+The full set is in [docs/CONSTITUTION.md](docs/CONSTITUTION.md). The ones that
+shape everything else:
+
+**Observe before acting.** Audit is the default mode, and in this build it is
+the only mode the daemon will accept.
+
+**Evidence over heuristics.** Every classification carries the observations that
+produced it. "The node process is old" is not a reason. Confidence combines
+independent signals and is capped below 1.0.
+
+**Fail closed.** Where ownership or safety cannot be established, nothing
+happens. Unknown is protected — including a process the daemon did not manage to
+inspect.
+
+**Never identify a process by PID alone.** Every process is keyed by
+`pid:start_time_ns`, and a parent link whose "parent" started *after* its child
+is not believed at all.
+
+**Ownership is written down, not re-derived.** When a parent exits and the
+kernel reparents its children, the live process tree loses the relationship. The
+daemon does not.
+
+**A session is a graph, not a tree.** Each reason a process belongs is a typed
+edge, and each edge declares whether it may establish ownership. Sharing a
+terminal with an agent means a human was at the same keyboard; it never means
+the agent owns your process.
+
+**Say "unknown" rather than something convenient.** A process first seen after
+its parent exited reports its creator as unknown, not as `launchd`. A process
+whose environment the operating system refuses to show reports that, rather than
+letting "unreadable" pass for "no agent variables set".
+
+## Install
+
+Requires Go 1.25 or newer and the Xcode command line tools (the macOS collector
+uses `libproc` through cgo).
+
+```bash
+make install
+ghostgc config init
+ghostgc service install
+ghostgc status
+```
+
+`make install` puts `ghostgc` and `ghostgcd` in `~/.local/bin`, and
+`ghostgc service install` writes a LaunchAgent so the daemon starts at login and
+restarts after an unsuccessful exit with a 30 second throttle. To run it in the
+foreground instead: `ghostgcd --log-level debug`.
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `ghostgc status` | daemon health, mode, session counts, last scan |
+| `ghostgc sessions` | every observed agent session |
+| `ghostgc session show <id>` | one session: evidence, processes, relationship graph, audit trail |
+| `ghostgc processes` | processes attributed to a session |
+| `ghostgc explain <pid>` | what was concluded about a PID and why — works for *any* PID |
+| `ghostgc candidates` | cleanup candidates (none can exist in this build) |
+| `ghostgc policies` | loaded cleanup policies (none can exist in this build) |
+| `ghostgc logs` | the audit trail |
+| `ghostgc metrics` | scan timings, counts, database size, daemon memory |
+| `ghostgc doctor` | diagnose the installation; works when the daemon is down |
+| `ghostgc config init\|path\|show` | manage the configuration file |
+| `ghostgc service install\|uninstall\|status` | manage the LaunchAgent |
+
+Add `--json` to any command for machine-readable output.
+
+## Where things live
+
+| | macOS |
+| --- | --- |
+| Configuration | `~/.config/ghostgc/config.yaml` |
+| State and database | `~/Library/Application Support/ghostgc/` |
+| Logs | `~/Library/Logs/ghostgc/` |
+| Control socket | `~/Library/Application Support/ghostgc/ghostgc.sock` (mode 0600) |
+| LaunchAgent | `~/Library/LaunchAgents/com.github.jamesonstone.ghostgc.plist` |
+
+The socket is the only interface. No TCP port is opened.
+
+## What is stored
+
+Only processes attributed to an agent session are persisted. Everything else on
+the machine is counted during a scan and then forgotten: monitoring activity
+outside coding-agent sessions is an explicit non-goal.
+
+Before anything reaches SQLite, command-line arguments pass through a redactor
+that removes credentials by flag name, by value shape (`sk-`, `ghp_`, `AKIA`,
+JWTs, …) and by rewriting URLs carrying passwords or presigned signatures;
+environment variables are reduced to the small allowlist the adapters need; and
+file contents are never read at all.
+
+## Measured behaviour
+
+On a machine with 1471 running processes, 1127 of them the current user's:
+
+| Target | Measured |
+| --- | --- |
+| Base process scan under 250 ms | 17 ms mean, 26 ms max |
+| Average CPU under 1% | 0.83% |
+| Idle daemon memory under 50 MB | 35 MB RSS |
+| Database under 250 MB at default retention | 4.4 MB after 36 scans |
+| Runs without `sudo` | yes |
+
+Run `ghostgc metrics` to see these on your own machine.
+
+## Delivery phases
+
+Each phase is completed, tested and documented before the next begins.
+
+| Phase | Contents | Status |
+| --- | --- | --- |
+| 1 | Observation foundation: daemon, CLI, SQLite, macOS collection, process trees, Codex detection, audit log | **done** |
+| 2 | Session graph: typed relationships, launch context, environment membership, repository and terminal association, session state machine | **done** |
+| 3 | Activity tracking: CPU/IO/network deltas, open files, sockets | next |
+| 4 | Classification: active, idle, waiting, detached, suspicious, orphaned, unknown | |
+| 5 | Policy engine: YAML policies, audit evaluation, safety refusals, cooldowns | |
+| 6 | Recommended cleanup: manual approval, exact command preview, pre-action revalidation, SIGTERM only | |
+| 7 | Narrow enforcement: one or two highly specific process classes, behind every gate | |
+| 8 | Adapters for Claude Code, Cursor, OpenCode | |
+| 9 | Linux: `/proc` collector, user systemd unit, parity tests | |
+
+Termination is introduced in phase 6, behind manual approval, and only after the
+policy engine and its safety tests exist. Nothing before then can send a signal.
+
+## Development
+
+```bash
+make check   # gofmt, go vet, source-file-size gate, tests
+make race    # tests under the race detector
+make lint    # golangci-lint
+make run     # daemon in the foreground with debug logging
+```
+
+The suite includes a source-level check that no package can signal a process,
+adversarial detection cases taken from a real machine, and tests for PID reuse,
+reparenting, redaction, schema migration and every relationship kind that must
+not establish ownership. A safety test is never weakened to make it pass.
+
+`fixtures/fixture-agent.sh` builds a real process tree — a session root, a
+worker shell, an idle child, a periodic-work child and a helper orphaned to
+`launchd` — so the collector can be exercised against a known shape:
+
+```bash
+fixtures/fixture-agent.sh start && ghostgc sessions
+```
+
+## Documentation
+
+- [docs/CONSTITUTION.md](docs/CONSTITUTION.md) — project invariants
+- [docs/references/architecture.md](docs/references/architecture.md) — how the pieces fit together
+- [docs/references/safety-model.md](docs/references/safety-model.md) — every guarantee and how it is enforced
+- [docs/references/testing.md](docs/references/testing.md) — commands, suites and evidence expectations
+- [docs/specs/0001-session-aware-process-observation/SPEC.md](docs/specs/0001-session-aware-process-observation/SPEC.md) — feature rationale, discoveries and deferred risks
 
 ## Maintainers
 

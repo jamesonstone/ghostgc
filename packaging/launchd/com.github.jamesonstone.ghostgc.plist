@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Reference copy of the LaunchAgent ghostgc installs.
+
+  `ghostgc service install` generates this file with the real paths filled in
+  and writes it to ~/Library/LaunchAgents/. This copy exists so the contents
+  can be reviewed without installing anything.
+
+  Note the KeepAlive dictionary. An unconditional `KeepAlive: true` turns a
+  crash-on-startup bug into a restart loop that launchd will sustain forever;
+  restarting only after an unsuccessful exit, with a throttle interval, bounds
+  the damage.
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.github.jamesonstone.ghostgc</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/YOU/.local/bin/ghostgcd</string>
+		<string>--config</string>
+		<string>/Users/YOU/.config/ghostgc/config.yaml</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+		<key>Crashed</key>
+		<true/>
+	</dict>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>ExitTimeOut</key>
+	<integer>20</integer>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>LowPriorityIO</key>
+	<true/>
+	<key>Nice</key>
+	<integer>5</integer>
+	<key>StandardOutPath</key>
+	<string>/Users/YOU/Library/Logs/ghostgc/ghostgcd.out.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/YOU/Library/Logs/ghostgc/ghostgcd.err.log</string>
+</dict>
+</plist>

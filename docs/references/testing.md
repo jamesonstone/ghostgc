@@ -10,18 +10,39 @@
 
 | Layer | Command | PR workflow or check | Required | Notes |
 | --- | --- | --- | --- | --- |
-| Project-specific | Document the canonical command | Document the GitHub Actions job | yes or no | Record fixtures, services, and scope |
+| Format + vet + unit/integration | `make check` | not yet wired to Actions | yes | Whole module; no external services |
+| Race detector | `make race` | not yet wired to Actions | yes | Concurrency in the collector and daemon loop |
+| Lint | `make lint` (`golangci-lint run ./...`) | not yet wired to Actions | yes | Must report zero issues |
+| Source file size | `make size` | not yet wired to Actions | yes | Enforces the 300-line gate on `cmd/`, `internal/`, `fixtures/` |
+| Coverage summary | `make cover` | manual | no | Informational |
 
 ## High-Level Suites
 
 | Suite | Type | Environment | Command | Automation | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| Project-specific | end-to-end or live-integration | local or production | Document the ordered invocation | PR, post-deploy, or manual fallback | `tmp/<UTC-date>/<test>/<run-number>/` |
+| Live process tree | end-to-end | local macOS | `fixtures/fixture-agent.sh start`, then `orphan`, then `stop` | manual | `ghostgc sessions`, `ghostgc session show <id>`, `ghostgc explain <pid>` |
+| Resource budget | live-integration | local macOS | run `ghostgcd`, then `ghostgc metrics` | manual | scan duration, CPU, RSS, database size |
 
 ## Environment Preflights
 
-- Document exact local topology, target identity, deployed-version checks, dependencies, and timeouts
-- Document which environments are not applicable instead of creating artificial suites
+- Requires Go 1.25 or newer and the Xcode command line tools; the macOS
+  collector uses `libproc` through cgo.
+- The unit and integration suites need no daemon, no network, and no database
+  server. The platform is faked via `internal/platform/platformtest`.
+- The live suites need a macOS host and observe only the invoking user's own
+  processes. They never require `sudo`.
+- Linux is not applicable until delivery phase 9; the `/proc` collector is a
+  compiling stub that returns `ErrNotImplemented`.
+- The fixture signals only processes it started itself, whose pids it recorded
+  at creation. ghostgc itself cannot signal anything in this build.
+
+## Safety Evidence
+
+- `internal/platform/signal_disabled_test.go` walks the whole repository and
+  fails if any package references a signalling primitive or shells out to a
+  terminator. Treat it as a delivery gate, not an ordinary test.
+- Never weaken a safety test to make it pass. If a safety condition blocks a
+  change, the change is wrong.
 
 ## Credentials And Test Data
 
