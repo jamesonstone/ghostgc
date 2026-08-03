@@ -1,0 +1,41 @@
+# Reference user-level systemd unit for Linux.
+#
+# Linux support is delivery phase 9: the /proc collector is not implemented, so
+# installing this unit today would start a daemon that cannot observe anything.
+# The file is here so the service shape is settled before the collector lands,
+# and so the daemon core stays free of any launchd assumption.
+#
+# Install to ~/.config/systemd/user/ghostgc.service, then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now ghostgc
+
+[Unit]
+Description=ghostgc — session-aware process observation for coding agents
+Documentation=https://github.com/jamesonstone/ghostgc
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/ghostgcd --config %h/.config/ghostgc/config.yaml
+Restart=on-failure
+RestartSec=30s
+# Bound the restart loop the same way the launchd agent does.
+StartLimitBurst=5
+StartLimitIntervalSec=300
+
+# The daemon needs no privilege beyond observing the invoking user's own
+# processes, so it is given none.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/state/ghostgc
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+MemoryMax=256M
+CPUQuota=25%
+
+[Install]
+WantedBy=default.target
