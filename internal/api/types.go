@@ -23,22 +23,23 @@ const (
 
 // StatusResponse backs `ghostgc status`.
 type StatusResponse struct {
-	Health                 Health         `json:"health"`
-	Mode                   string         `json:"mode"`
-	Phase                  string         `json:"phase"`
-	Version                string         `json:"version"`
-	Platform               string         `json:"platform"`
-	PID                    int            `json:"pid"`
-	StartedNs              int64          `json:"started_ns"`
-	UptimeSeconds          float64        `json:"uptime_seconds"`
-	Agents                 []string       `json:"agents"`
-	SessionsByState        map[string]int `json:"sessions_by_state"`
-	ClassificationsByState map[string]int `json:"classifications_by_state"`
-	Sessions               int            `json:"sessions"`
-	CleanupCandidates      int            `json:"cleanup_candidates"`
-	SignallingEnabled      bool           `json:"signalling_enabled"`
-	LastScan               *ScanSummary   `json:"last_scan,omitempty"`
-	Degraded               []string       `json:"degraded_reasons,omitempty"`
+	Health                  Health         `json:"health"`
+	Mode                    string         `json:"mode"`
+	Phase                   string         `json:"phase"`
+	Version                 string         `json:"version"`
+	Platform                string         `json:"platform"`
+	PID                     int            `json:"pid"`
+	StartedNs               int64          `json:"started_ns"`
+	UptimeSeconds           float64        `json:"uptime_seconds"`
+	Agents                  []string       `json:"agents"`
+	SessionsByState         map[string]int `json:"sessions_by_state"`
+	ClassificationsByState  map[string]int `json:"classifications_by_state"`
+	Sessions                int            `json:"sessions"`
+	CleanupCandidates       int            `json:"cleanup_candidates"`
+	SignallingEnabled       bool           `json:"signalling_enabled"`
+	AutomaticCleanupEnabled bool           `json:"automatic_cleanup_enabled"`
+	LastScan                *ScanSummary   `json:"last_scan,omitempty"`
+	Degraded                []string       `json:"degraded_reasons,omitempty"`
 }
 
 // ScanSummary describes the most recent observation cycle.

@@ -28,6 +28,7 @@
 
 - `architecture.md` — how the daemon is composed, the observation cycle, package boundaries, and the storage schema
 - `safety-model.md` — every guarantee ghostgc makes and the code and test that enforce it
+- `dogfooding.md` — the audit-first path through manual and fixture automatic cleanup
 - `external-systems.md` — durable notes about external systems, APIs, or integrations
 - `rules/` — pointer-loaded durable rulesets such as frontend UI rules, testing rules, API conventions, security constraints, or domain rules
 - `../notes/<feature>/` — optional feature source material; not canonical truth and private contents remain ignored

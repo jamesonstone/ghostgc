@@ -18,7 +18,7 @@ func TestActionIsDurableBeforeCompletionAndCountedByOutcome(t *testing.T) {
 		t.Fatal(err)
 	}
 	rows, err := s.ListActions(ctx, ActionFilter{PolicyID: "safe-helper"})
-	if err != nil || len(rows) != 1 || rows[0].Result != "attempting" {
+	if err != nil || len(rows) != 1 || rows[0].Result != "attempting" || rows[0].Authority != "manual" {
 		t.Fatalf("pre-side-effect action = %+v, %v", rows, err)
 	}
 	if err := s.WithTx(ctx, func(tx *Tx) error {
@@ -54,5 +54,21 @@ func TestActionRetentionUsesDedicatedWindow(t *testing.T) {
 	rows, err := s.ListActions(ctx, ActionFilter{})
 	if err != nil || len(rows) != 0 {
 		t.Fatalf("retained actions = %+v, %v", rows, err)
+	}
+}
+
+func TestPhaseSevenMigrationDefaultsExistingActionsToManual(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	_, err := s.db.ExecContext(ctx, `INSERT INTO actions (
+		action_id, policy_id, proc_uid, session_id, requested_ns, updated_ns,
+		result, signal, reason, evidence
+	) VALUES ('act_legacy', 'p', '42:1', 's', 1, 1, 'rejected', 'SIGTERM', 'legacy', '[]')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.ListActions(ctx, ActionFilter{})
+	if err != nil || len(rows) != 1 || rows[0].Authority != "manual" {
+		t.Fatalf("migrated action authority = %+v, %v", rows, err)
 	}
 }

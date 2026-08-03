@@ -35,7 +35,8 @@ superseded decisions live in `docs/specs/<feature>/SPEC.md`.
 
 The deterministic classifier sits after activity collection. The policy engine
 combines its current exact-key conclusions with hard protections to produce
-audit or recommendation decisions before the scan transaction is persisted.
+audit, recommendation or narrowly enforceable decisions before the scan
+transaction is persisted.
 
 ## The observation cycle
 
@@ -56,13 +57,19 @@ Every 15 seconds by default:
 6. **Classify.** Complete exact-key activity evidence becomes an activity state;
    missing evidence remains unknown and detachment remains an independent fact.
 7. **Evaluate policy.** Strict exact-match policies produce candidates,
-   non-overridable refusals or cooldowns; none grants action authority.
+   non-overridable refusals or cooldowns. A decision grants no authority until
+   the global and per-policy mode gates are applied after commit.
 8. **Persist.** Sessions, processes, ownership, observations, classifications,
    policy decisions, exits and audit
    entries are written in **one transaction**, so a crash mid-cycle cannot leave
    a session recorded without its processes.
 9. **Commit.** Only after that transaction succeeds do the reconciler and
    bounded classification windows advance their in-memory views.
+10. **Narrow enforcement.** Under global enforce, select at most the first
+    current candidate from the singular automatic policy, then hold the scan
+    lane through fresh revalidation, the pre-action transaction, the exact
+    platform gate and completion evidence. Refusals and cooldowns never enter
+    this step.
 
 On the separate 60-second activity cadence, the daemon adds a targeted pass
 between attribution and persistence. It validates the exact process key before
@@ -156,8 +163,8 @@ time distinguishes a reused PID from the process that held it before.
 
 This propagates everywhere — the primary key in `processes`, session root
 identity, the derived session identifier, snapshot lookups, and the tree
-builder's refusal to believe a parent younger than its child. Phase 6's
-pre-action revalidation will depend on it too.
+builder's refusal to believe a parent younger than its child. Manual and
+automatic pre-action revalidation plus the final platform gate depend on it too.
 
 ## Package boundaries
 
@@ -196,7 +203,7 @@ HTTP.
 | `process_classifications` | phase-4 state, basis, detachment, stable window and evidence |
 | `policy_evaluations` | unique committed phase-5 projections, including empty results |
 | `policy_decisions` | phase-5+ candidates, refusals, cooldowns and evidence |
-| `actions` | phase-6 pre-side-effect attempts and final outcomes with evidence |
+| `actions` | phase-6+ pre-side-effect attempts, manual/automatic authority and final outcomes with evidence |
 | `scans` | one row per cycle, including failures |
 | `sessions` | one row per detected session |
 | `session_processes` | durable ownership, never downgraded |

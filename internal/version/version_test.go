@@ -27,6 +27,12 @@ func TestPhaseAdvertisesThatNothingCanBeTerminated(t *testing.T) {
 	}
 }
 
+func TestPhaseSevenNamesItsAutomaticBound(t *testing.T) {
+	if PhaseNumber == 7 && (!strings.Contains(Phase, "one candidate per evaluation") || !strings.Contains(Phase, "SIGTERM only")) {
+		t.Fatalf("Phase 7 must advertise its automatic authority bound: %q", Phase)
+	}
+}
+
 func TestStringIncludesVersion(t *testing.T) {
 	if !strings.Contains(String(), Version) {
 		t.Fatalf("String() = %q, want it to contain the version %q", String(), Version)

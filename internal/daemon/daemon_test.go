@@ -159,7 +159,7 @@ func TestCleanupSurfacesAreEmptyAndSayWhy(t *testing.T) {
 	if len(candidates.Enforceable) != 0 || len(candidates.Audited) != 0 {
 		t.Fatal("this build must report no cleanup candidates of any kind")
 	}
-	if !strings.Contains(candidates.Note, "phase") {
+	if !strings.Contains(strings.ToLower(candidates.Note), "phase") {
 		t.Fatalf("the empty result must explain itself: %q", candidates.Note)
 	}
 

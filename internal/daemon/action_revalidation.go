@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jamesonstone/ghostgc/internal/classification"
+	"github.com/jamesonstone/ghostgc/internal/config"
 	"github.com/jamesonstone/ghostgc/internal/policy"
 	"github.com/jamesonstone/ghostgc/internal/process"
 	"github.com/jamesonstone/ghostgc/internal/sessions"
@@ -21,8 +22,8 @@ type cleanupTarget struct {
 
 func (d *Daemon) revalidateCleanup(ctx context.Context, approval *cleanupApproval) (cleanupTarget, error) {
 	definition, ok := d.policyDefinition(approval.policy.ID)
-	if !ok || !d.manualCleanupEnabled() || definition.Mode != approval.policy.Mode || !definition.Enabled {
-		return cleanupTarget{}, errors.New("recommendation policy or global mode changed")
+	if !ok || definition.Mode != approval.policy.Mode || !d.cleanupAuthorityEnabled(approval, definition) {
+		return cleanupTarget{}, errors.New("cleanup authority, policy or global mode changed")
 	}
 	records, err := d.store.CurrentPolicyDecisions(ctx)
 	if err != nil {
@@ -35,15 +36,15 @@ func (d *Daemon) revalidateCleanup(ctx context.Context, approval *cleanupApprova
 			break
 		}
 	}
-	if current.ID == 0 || !d.isRecommendation(current) {
-		return cleanupTarget{}, errors.New("the approved recommendation is no longer current")
+	if current.ID == 0 || !d.cleanupDecisionCurrent(approval, current) {
+		return cleanupTarget{}, errors.New("the authorized cleanup decision is no longer current")
 	}
 	binding, err := approvalBinding(current, definition, approval.executable)
 	if err != nil {
 		return cleanupTarget{}, err
 	}
 	if binding != approval.bindingDigest {
-		return cleanupTarget{}, errors.New("the policy decision or evidence changed after preview")
+		return cleanupTarget{}, errors.New("the policy decision or evidence changed after authority was established")
 	}
 
 	key, err := process.ParseKey(current.ProcUID)
@@ -63,7 +64,7 @@ func (d *Daemon) revalidateCleanup(ctx context.Context, approval *cleanupApprova
 		return cleanupTarget{}, err
 	}
 	if executable != approval.executable {
-		return cleanupTarget{}, errors.New("exact executable identity changed after preview")
+		return cleanupTarget{}, errors.New("exact executable identity changed after authority was established")
 	}
 	tree := process.BuildTree(snap)
 	res, err := d.recon.Reconcile(ctx, snap, tree, d.cfg.Privacy.StoreCommandLines)
@@ -105,8 +106,8 @@ func (d *Daemon) revalidateCleanup(ctx context.Context, approval *cleanupApprova
 		},
 	})
 	evidence := []policy.Evidence{
-		{Rule: "approval-binding-v1", Detail: "the exact committed evaluation, decision and canonical policy still match the preview"},
-		{Rule: "exact-executable-v1", Detail: "the fresh executable path and kernel name still match the preview"},
+		{Rule: "authority-binding-v1", Detail: fmt.Sprintf("the exact committed evaluation, decision, policy and %s authority still match", approval.authority)},
+		{Rule: "exact-executable-v1", Detail: "the fresh executable path and kernel name still match bound authority"},
 		{Rule: "exact-process-key-v1", Detail: "fresh snapshot contains " + key.UID()},
 		{Rule: "fresh-ownership-v1", Detail: fmt.Sprintf("fresh reconciliation retained session %s with confidence %.2f", attr.SessionID, attr.Confidence)},
 	}
@@ -131,11 +132,29 @@ func (d *Daemon) revalidateCleanup(ctx context.Context, approval *cleanupApprova
 		SessionEnded: ended, Protection: protections,
 	}, sample.Taken, time.Time{})
 	if !matched || decision.Result != policy.ResultCandidate {
-		return cleanupTarget{key: key, evidence: evidence}, errors.New("fresh facts no longer satisfy the exact recommendation policy")
+		return cleanupTarget{key: key, evidence: evidence}, errors.New("fresh facts no longer satisfy the exact cleanup policy")
 	}
 	evidence = append(evidence, decision.Evidence...)
 	evidence = append(evidence, policy.Evidence{Rule: "pre-action-revalidation-v1", Detail: "all authority, identity, lifecycle, activity, classification, policy and hard-protection gates passed"})
 	return cleanupTarget{key: key, evidence: evidence}, nil
+}
+
+func (d *Daemon) cleanupAuthorityEnabled(approval *cleanupApproval, definition config.Policy) bool {
+	switch approval.authority {
+	case authorityManual:
+		return d.manualCleanupEnabled() && definition.Enabled && definition.Mode == config.ModeRecommend
+	case authorityAutomatic:
+		return d.automaticCleanupEnabled() && definition.Enabled && definition.Mode == config.ModeEnforce && definition.Automatic
+	default:
+		return false
+	}
+}
+
+func (d *Daemon) cleanupDecisionCurrent(approval *cleanupApproval, current storage.PolicyDecisionRecord) bool {
+	if approval.authority == authorityAutomatic {
+		return d.isEnforceable(current)
+	}
+	return approval.authority == authorityManual && d.isRecommendation(current)
 }
 
 func (d *Daemon) sessionEnded(ctx context.Context, sessionID string, res *sessions.Result) (bool, error) {

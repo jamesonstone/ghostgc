@@ -21,7 +21,8 @@ func TestPolicyValidationFailsClosed(t *testing.T) {
 		change func(*Config, *Policy)
 		want   string
 	}{
-		{name: "enforce mode", change: func(_ *Config, p *Policy) { p.Mode = ModeEnforce }, want: "unavailable"},
+		{name: "automatic audit", change: func(_ *Config, p *Policy) { p.Automatic = true }, want: "requires mode enforce"},
+		{name: "enforce without automatic", change: func(_ *Config, p *Policy) { p.Mode = ModeEnforce }, want: "requires automatic"},
 		{name: "enabled disabled mode", change: func(_ *Config, p *Policy) { p.Mode = ModeDisabled }, want: "enabled but mode is disabled"},
 		{name: "weak state", change: func(_ *Config, p *Policy) { p.States = []string{"idle"} }, want: "not policy-eligible"},
 		{name: "working state", change: func(_ *Config, p *Policy) { p.States = []string{"suspicious"} }, want: "not policy-eligible"},
@@ -45,6 +46,46 @@ func TestPolicyValidationFailsClosed(t *testing.T) {
 				t.Fatalf("Validate() = %v, want %q", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestEnforcePolicyValidationIsNarrow(t *testing.T) {
+	valid := validPolicy()
+	valid.Mode, valid.Automatic = ModeEnforce, true
+	tests := []struct {
+		name string
+		edit func(*Policy)
+		want string
+	}{
+		{"multiple states", func(p *Policy) { p.States = []string{"orphaned", "crashed"} }, "one orphaned state"},
+		{"crashed", func(p *Policy) { p.States = []string{"crashed"} }, "one orphaned state"},
+		{"multiple agents", func(p *Policy) { p.Agents = []string{"codex", "codex"} }, "duplicate agent"},
+		{"multiple executables", func(p *Policy) { p.Executables = []string{"helper", "worker"} }, "one executable"},
+		{"attached", func(p *Policy) { p.RequireDetached = false }, "state \"orphaned\" requires"},
+		{"active session", func(p *Policy) { p.RequireSessionEnded = false }, "state \"orphaned\" requires"},
+		{"short cooldown", func(p *Policy) { p.Cooldown = Duration(time.Minute) }, "at least 1h"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, policy := Default(), valid
+			cfg.GlobalMode = ModeEnforce
+			tt.edit(&policy)
+			cfg.Policies = []Policy{policy}
+			if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("Validate() = %v, want %q", err, tt.want)
+			}
+		})
+	}
+	cfg := Default()
+	cfg.GlobalMode, cfg.Policies = ModeEnforce, []Policy{valid}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("narrow enforce policy rejected: %v", err)
+	}
+	second := valid
+	second.ID = "second-policy"
+	cfg.Policies = append(cfg.Policies, second)
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "only one") {
+		t.Fatalf("multiple enabled enforce policies = %v", err)
 	}
 }
 

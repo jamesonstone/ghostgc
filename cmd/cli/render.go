@@ -89,7 +89,9 @@ func renderStatus(s api.StatusResponse) {
 	for _, reason := range s.Degraded {
 		fmt.Printf("\nDegraded: %s\n", reason)
 	}
-	if s.SignallingEnabled {
+	if s.AutomaticCleanupEnabled {
+		fmt.Printf("\nAutomatic cleanup enabled: one exact current orphaned candidate per evaluation, fresh revalidation, SIGTERM only.\nDelivery phase %s\n", s.Phase)
+	} else if s.SignallingEnabled {
 		fmt.Printf("\nManual cleanup enabled: exact preview, one-time approval, fresh revalidation, SIGTERM only.\nDelivery phase %s\n", s.Phase)
 	} else {
 		fmt.Printf("\nManual cleanup is disabled by configuration. Observation and policy audit remain active.\nDelivery phase %s\n", s.Phase)

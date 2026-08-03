@@ -116,6 +116,9 @@ func BuildRegistry(cfg config.Config, repos *repository.Finder) *adapters.Regist
 
 // New constructs a Daemon.
 func New(opts Options) (*Daemon, error) {
+	if err := opts.Config.Validate(); err != nil {
+		return nil, fmt.Errorf("daemon: invalid configuration: %w", err)
+	}
 	if opts.Store == nil {
 		return nil, errors.New("daemon: a store is required")
 	}
@@ -178,7 +181,8 @@ func (d *Daemon) Run(ctx context.Context) error {
 		"socket", d.paths.Socket,
 		"database", d.store.Path(),
 		"agents", d.agentIDs(),
-		"signalling_enabled", d.manualCleanupEnabled(),
+		"signalling_enabled", d.manualCleanupEnabled() || d.automaticCleanupEnabled(),
+		"automatic_cleanup_enabled", d.automaticCleanupEnabled(),
 	)
 
 	var wg sync.WaitGroup

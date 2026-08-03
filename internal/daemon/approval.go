@@ -20,11 +20,17 @@ import (
 const approvalLifetime = 2 * time.Minute
 const maxApprovals = 128
 
+const (
+	authorityManual    = "manual"
+	authorityAutomatic = "automatic"
+)
+
 type cleanupApproval struct {
 	bindingDigest string
 	decision      storage.PolicyDecisionRecord
 	policy        config.Policy
 	executable    process.ExecutableIdentity
+	authority     string
 	expires       time.Time
 	used          bool
 }
@@ -79,7 +85,7 @@ func (d *Daemon) CleanupPreview(ctx context.Context, req api.CleanupPreviewReque
 	expires := now.Add(approvalLifetime)
 	approval := &cleanupApproval{
 		bindingDigest: binding, decision: decision, policy: definition,
-		executable: identity, expires: expires,
+		executable: identity, authority: authorityManual, expires: expires,
 	}
 	d.actionMu.Lock()
 	d.pruneApprovals(now)

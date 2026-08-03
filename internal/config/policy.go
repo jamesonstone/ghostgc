@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -18,6 +19,7 @@ type Policy struct {
 	Description         string   `yaml:"description"`
 	Enabled             bool     `yaml:"enabled"`
 	Mode                Mode     `yaml:"mode"`
+	Automatic           bool     `yaml:"automatic"`
 	States              []string `yaml:"states"`
 	Agents              []string `yaml:"agents"`
 	Executables         []string `yaml:"executables"`
@@ -29,6 +31,7 @@ type Policy struct {
 
 func (c Config) validatePolicies() error {
 	ids := make(map[string]bool)
+	enforcePolicies := 0
 	for i, policy := range c.Policies {
 		prefix := fmt.Sprintf("policies[%d]", i)
 		if !policyIDPattern.MatchString(policy.ID) {
@@ -38,11 +41,20 @@ func (c Config) validatePolicies() error {
 			return fmt.Errorf("duplicate policy id %q", policy.ID)
 		}
 		ids[policy.ID] = true
-		if policy.Mode != ModeAudit && policy.Mode != ModeRecommend && policy.Mode != ModeDisabled {
-			return fmt.Errorf("%s.mode %q is unavailable in phase 6; use audit, recommend, or disabled", prefix, policy.Mode)
+		if !policy.Mode.Valid() {
+			return fmt.Errorf("%s.mode %q is unknown", prefix, policy.Mode)
 		}
 		if policy.Enabled && policy.Mode == ModeDisabled {
 			return fmt.Errorf("%s is enabled but mode is disabled", prefix)
+		}
+		if policy.Automatic && policy.Mode != ModeEnforce {
+			return fmt.Errorf("%s.automatic requires mode enforce", prefix)
+		}
+		if policy.Mode == ModeEnforce && !policy.Automatic {
+			return fmt.Errorf("%s mode enforce requires automatic: true", prefix)
+		}
+		if policy.Enabled && policy.Mode == ModeEnforce {
+			enforcePolicies++
 		}
 		if strings.TrimSpace(policy.Description) == "" {
 			return fmt.Errorf("%s.description is required", prefix)
@@ -91,6 +103,20 @@ func (c Config) validatePolicies() error {
 		if policy.Cooldown.D() < time.Minute {
 			return fmt.Errorf("%s.cooldown must be at least 1m", prefix)
 		}
+		if policy.Mode == ModeEnforce {
+			if len(policy.States) != 1 || policy.States[0] != "orphaned" || len(policy.Agents) != 1 || len(policy.Executables) != 1 {
+				return fmt.Errorf("%s enforce scope must be one orphaned state, one agent and one executable", prefix)
+			}
+			if !policy.RequireDetached || !policy.RequireSessionEnded {
+				return fmt.Errorf("%s enforce requires detachment and an ended session", prefix)
+			}
+			if policy.Cooldown.D() < time.Hour {
+				return fmt.Errorf("%s enforce cooldown must be at least 1h", prefix)
+			}
+		}
+	}
+	if enforcePolicies > 1 {
+		return errors.New("only one enabled enforce policy is allowed")
 	}
 	return nil
 }

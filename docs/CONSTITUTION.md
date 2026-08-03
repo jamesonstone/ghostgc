@@ -2,9 +2,10 @@
 
 ## PRINCIPLES
 
-- Observe before acting. Audit is the default. Recommendation mode grants only
-  a short-lived, single-use manual approval followed by full fresh revalidation
-  and one exact-key SIGTERM; it never grants automatic action.
+- Observe before acting. Audit is the default. Recommendation grants only a
+  short-lived, single-use manual approval. Enforcement requires global consent
+  plus one singular orphan-only automatic policy. Both paths fully revalidate
+  and can send only one exact-key SIGTERM.
 - Every classification carries the observations that produced it. A conclusion
   without evidence is a defect, not a shortcut.
 - Fail closed. Where ownership or safety cannot be established, nothing happens.
@@ -22,8 +23,10 @@
 
 - A process is never identified by PID alone. Every process is keyed by
   `pid:start_time_ns`, and a parent that started after its child is not believed.
-- Action authority also binds the executable path and kernel name observed at
-  preview; a changed or unavailable executable identity is protected.
+- Action authority binds the executable path and kernel name observed at manual
+  preview or automatic selection; a changed or unavailable image is protected.
+- Automatic authority may select only a current candidate from the newest
+  committed evaluation and may attempt at most one action per evaluation.
 - Unknown is protected. Attribution below the policy-eligible threshold, an
   uninspected process, and a process owned by another user are all protected.
 - Confidence is combined from independent evidence and capped below 1.0.

@@ -35,6 +35,7 @@ type PolicySummary struct {
 	Description         string   `json:"description"`
 	Enabled             bool     `json:"enabled"`
 	Mode                string   `json:"mode"`
+	Automatic           bool     `json:"automatic"`
 	States              []string `json:"states"`
 	Agents              []string `json:"agents"`
 	Executables         []string `json:"executables"`

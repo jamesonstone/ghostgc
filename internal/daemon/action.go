@@ -30,11 +30,10 @@ func (d *Daemon) CleanupApply(ctx context.Context, req api.CleanupApplyRequest) 
 	if approval == nil {
 		return api.CleanupApplyResponse{}, errors.New(refusal)
 	}
-	actionID, _, err := newSecret(12)
+	actionID, err := newActionID()
 	if err != nil {
 		return api.CleanupApplyResponse{}, err
 	}
-	actionID = "act_" + actionID
 	if refusal != "" {
 		evidence := []policy.Evidence{{Rule: "approval-consumption-v1", Detail: refusal}}
 		return d.rejectAction(ctx, actionID, approval, refusal, evidence, now)
@@ -43,9 +42,14 @@ func (d *Daemon) CleanupApply(ctx context.Context, req api.CleanupApplyRequest) 
 	// prevents a policy scan from advancing daemon state between revalidation
 	// and the exact-key platform gate.
 	d.scanMu.Lock()
+	defer d.scanMu.Unlock()
+	return d.executeCleanupLocked(ctx, actionID, approval, now)
+}
+
+func (d *Daemon) executeCleanupLocked(ctx context.Context, actionID string,
+	approval *cleanupApproval, now time.Time) (api.CleanupApplyResponse, error) {
 	target, err := d.revalidateCleanup(ctx, approval)
 	if err != nil {
-		d.scanMu.Unlock()
 		evidence := append(target.evidence, policy.Evidence{Rule: "pre-action-refusal-v1", Detail: err.Error()})
 		return d.rejectAction(ctx, actionID, approval, err.Error(), evidence, time.Now())
 	}
@@ -53,9 +57,9 @@ func (d *Daemon) CleanupApply(ctx context.Context, req api.CleanupApplyRequest) 
 	evidenceJSON := actionEvidenceJSON(target.evidence)
 	attempt := storage.ActionRecord{
 		ActionID: actionID, PolicyID: approval.policy.ID, ProcUID: approval.decision.ProcUID,
-		SessionID: approval.decision.SessionID, RequestedNs: now.UnixNano(),
+		SessionID: approval.decision.SessionID, Authority: approval.authority, RequestedNs: now.UnixNano(),
 		UpdatedNs: time.Now().UnixNano(), Result: actionAttempting, Signal: "SIGTERM",
-		Reason:       "full pre-action revalidation passed; exact-key SIGTERM is about to be attempted",
+		Reason:       approval.authority + " authority passed full pre-action revalidation; exact-key SIGTERM is about to be attempted",
 		EvidenceJSON: evidenceJSON,
 	}
 	if err := d.store.WithTx(ctx, func(tx *storage.Tx) error {
@@ -64,16 +68,14 @@ func (d *Daemon) CleanupApply(ctx context.Context, req api.CleanupApplyRequest) 
 		}
 		return tx.AppendAudit(storage.AuditRecord{
 			TsNs: attempt.UpdatedNs, Kind: "action.attempting", Subject: attempt.ProcUID,
-			Summary:      fmt.Sprintf("action %s committed before exact-key SIGTERM for policy %s", actionID, attempt.PolicyID),
+			Summary:      fmt.Sprintf("%s action %s committed before exact-key SIGTERM for policy %s", approval.authority, actionID, attempt.PolicyID),
 			EvidenceJSON: evidenceJSON,
 		})
 	}); err != nil {
-		d.scanMu.Unlock()
 		return api.CleanupApplyResponse{}, err
 	}
 
 	signalErr := d.plat.SignalProcess(ctx, target.key, approval.executable, platform.SIGTERM)
-	d.scanMu.Unlock()
 	completedAt := time.Now()
 	result, reason, kind := actionSignalled, "exact-key SIGTERM was accepted by the operating system", "action.signalled"
 	if signalErr != nil {
@@ -89,7 +91,7 @@ func (d *Daemon) CleanupApply(ctx context.Context, req api.CleanupApplyRequest) 
 		}
 		return tx.AppendAudit(storage.AuditRecord{
 			TsNs: completedAt.UnixNano(), Kind: kind, Subject: attempt.ProcUID,
-			Summary: fmt.Sprintf("action %s: %s", actionID, reason), EvidenceJSON: completedJSON,
+			Summary: fmt.Sprintf("%s action %s: %s", approval.authority, actionID, reason), EvidenceJSON: completedJSON,
 		})
 	}); err != nil {
 		return api.CleanupApplyResponse{}, err
@@ -97,12 +99,21 @@ func (d *Daemon) CleanupApply(ctx context.Context, req api.CleanupApplyRequest) 
 	return actionResponse(actionID, approval, result, reason, completedJSON, completedAt), nil
 }
 
+func newActionID() (string, error) {
+	id, _, err := newSecret(12)
+	if err != nil {
+		return "", err
+	}
+	return "act_" + id, nil
+}
+
 func (d *Daemon) rejectAction(ctx context.Context, actionID string, approval *cleanupApproval,
 	reason string, evidence []policy.Evidence, at time.Time) (api.CleanupApplyResponse, error) {
 	evidenceJSON := actionEvidenceJSON(evidence)
 	record := storage.ActionRecord{
 		ActionID: actionID, PolicyID: approval.policy.ID, ProcUID: approval.decision.ProcUID,
-		SessionID: approval.decision.SessionID, RequestedNs: at.UnixNano(), UpdatedNs: at.UnixNano(),
+		SessionID: approval.decision.SessionID, Authority: approval.authority,
+		RequestedNs: at.UnixNano(), UpdatedNs: at.UnixNano(),
 		Result: actionRejected, Signal: "SIGTERM", Reason: reason, EvidenceJSON: evidenceJSON,
 	}
 	if err := d.store.WithTx(ctx, func(tx *storage.Tx) error {
@@ -111,7 +122,7 @@ func (d *Daemon) rejectAction(ctx context.Context, actionID string, approval *cl
 		}
 		return tx.AppendAudit(storage.AuditRecord{
 			TsNs: at.UnixNano(), Kind: "action.rejected", Subject: record.ProcUID,
-			Summary:      fmt.Sprintf("action %s rejected before signalling: %s", actionID, reason),
+			Summary:      fmt.Sprintf("%s action %s rejected before signalling: %s", approval.authority, actionID, reason),
 			EvidenceJSON: evidenceJSON,
 		})
 	}); err != nil {
@@ -122,7 +133,7 @@ func (d *Daemon) rejectAction(ctx context.Context, actionID string, approval *cl
 
 func actionResponse(id string, approval *cleanupApproval, result, reason, evidence string, at time.Time) api.CleanupApplyResponse {
 	return api.CleanupApplyResponse{
-		ActionID: id, PolicyID: approval.policy.ID, ProcUID: approval.decision.ProcUID,
+		ActionID: id, Authority: approval.authority, PolicyID: approval.policy.ID, ProcUID: approval.decision.ProcUID,
 		Result: result, Signal: "SIGTERM", AtNs: at.UnixNano(), Reason: reason,
 		Evidence: json.RawMessage(evidence),
 	}
@@ -139,7 +150,8 @@ func (d *Daemon) Actions(ctx context.Context, opts api.ActionOptions) (api.Actio
 	response := api.ActionsResponse{Actions: make([]api.ActionView, 0, len(records))}
 	for _, record := range records {
 		view := api.ActionView{
-			ActionID: record.ActionID, PolicyID: record.PolicyID, ProcUID: record.ProcUID,
+			ActionID: record.ActionID, Authority: record.Authority,
+			PolicyID: record.PolicyID, ProcUID: record.ProcUID,
 			SessionID: record.SessionID, RequestedNs: record.RequestedNs, UpdatedNs: record.UpdatedNs,
 			Result: record.Result, Signal: record.Signal, Reason: record.Reason,
 		}

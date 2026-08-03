@@ -97,7 +97,10 @@ start() {
 	# still be traced back to the session that started it.
 	export CODEX_SESSION_ID="fixture-$$-$(date +%s)"
 	echo "$CODEX_SESSION_ID" >"$STATE_DIR/session-id"
-	"$BIN" "$STATE_DIR/repo" >>"$STATE_DIR/fixture.out" 2>&1 &
+	# Start the root in a new POSIX session so the fixture never inherits the
+	# operator's terminal. This makes positive action tests reproducible from a
+	# normal interactive shell while production TTY processes remain protected.
+	"$STATE_DIR/bin/fixture-helper" --session "$BIN" "$STATE_DIR/repo" >>"$STATE_DIR/fixture.out" 2>&1 &
 	root=$!
 	root_start=$(process_start "$root")
 	[[ -n "$root_start" ]] || { echo "could not record fixture root identity" >&2; exit 1; }

@@ -19,7 +19,7 @@ import (
 const shortIDLength = 8
 
 // phaseNote states the current action-authority boundary.
-const phaseNote = "Phase 6 can recommend an exact candidate and send one manually approved, fully revalidated SIGTERM. No decision is automatically enforceable; narrow enforcement arrives in phase 7."
+const phaseNote = "Phase 7 can enforce at most one exact current orphaned candidate per evaluation when global and policy automatic authority are explicit. Manual cleanup remains available; every path fully revalidates and sends SIGTERM only."
 
 func shortID(id string) string {
 	if len(id) <= shortIDLength {
@@ -36,20 +36,21 @@ func (d *Daemon) Status(ctx context.Context) (api.StatusResponse, error) {
 	d.mu.RUnlock()
 
 	resp := api.StatusResponse{
-		Health:                 api.HealthHealthy,
-		Mode:                   string(d.cfg.GlobalMode),
-		Phase:                  version.Phase,
-		Version:                version.String(),
-		Platform:               d.plat.Name(),
-		PID:                    d.selfPI,
-		StartedNs:              d.startedAt.UnixNano(),
-		UptimeSeconds:          time.Since(d.startedAt).Seconds(),
-		Agents:                 d.agentIDs(),
-		SessionsByState:        map[string]int{},
-		ClassificationsByState: map[string]int{},
-		CleanupCandidates:      0,
-		SignallingEnabled:      d.manualCleanupEnabled(),
-		Degraded:               degraded,
+		Health:                  api.HealthHealthy,
+		Mode:                    string(d.cfg.GlobalMode),
+		Phase:                   version.Phase,
+		Version:                 version.String(),
+		Platform:                d.plat.Name(),
+		PID:                     d.selfPI,
+		StartedNs:               d.startedAt.UnixNano(),
+		UptimeSeconds:           time.Since(d.startedAt).Seconds(),
+		Agents:                  d.agentIDs(),
+		SessionsByState:         map[string]int{},
+		ClassificationsByState:  map[string]int{},
+		CleanupCandidates:       0,
+		SignallingEnabled:       d.manualCleanupEnabled() || d.automaticCleanupEnabled(),
+		AutomaticCleanupEnabled: d.automaticCleanupEnabled(),
+		Degraded:                degraded,
 	}
 	switch {
 	case len(degraded) > 0:
@@ -76,7 +77,7 @@ func (d *Daemon) Status(ctx context.Context) (api.StatusResponse, error) {
 		return api.StatusResponse{}, err
 	}
 	for _, decision := range decisions {
-		if d.isRecommendation(decision) {
+		if d.isRecommendation(decision) || d.isEnforceable(decision) {
 			resp.CleanupCandidates++
 		}
 	}
