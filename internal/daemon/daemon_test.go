@@ -80,6 +80,16 @@ func TestObservationLifecycle(t *testing.T) {
 	if len(explain.Evidence) == 0 {
 		t.Fatal("every conclusion must carry evidence")
 	}
+	if !explain.Detached {
+		t.Fatal("losing an observed original parent must be reported as detached")
+	}
+	foundParentLoss := false
+	for _, evidence := range explain.ActivityEvidence {
+		foundParentLoss = foundParentLoss || evidence.Rule == "observed-parent-loss-v1"
+	}
+	if !foundParentLoss {
+		t.Fatalf("detachment lacks parent-loss evidence: %+v", explain.ActivityEvidence)
+	}
 
 	// The root exited, so the process row must be marked as such rather than
 	// silently disappearing.

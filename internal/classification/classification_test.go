@@ -67,16 +67,18 @@ func TestStrongStatesRequireFiveContinuousMinutes(t *testing.T) {
 			tt.configure(&first)
 			got := Classify(first)
 			previous := Previous{Key: classKey, Basis: got.Basis, Detached: got.Detached,
-				SessionEnded: got.SessionEnded, ProcessStatus: first.Status, StableSince: classT0}
+				SessionEnded: got.SessionEnded, ProcessStatus: first.Status, StableSince: classT0, SampledAt: classT0}
 
 			before := first
 			before.Activity.Taken = classT0.Add(StrongConclusionWindow - time.Nanosecond)
+			previous.SampledAt = before.Activity.Taken.Add(-time.Minute)
 			before.Previous = previous
 			if got := Classify(before); got.State != tt.before {
 				t.Fatalf("before window = %s, want %s", got.State, tt.before)
 			}
 			after := before
 			after.Activity.Taken = classT0.Add(StrongConclusionWindow)
+			after.Previous.SampledAt = after.Activity.Taken.Add(-time.Minute)
 			if got := Classify(after); got.State != tt.after {
 				t.Fatalf("at window = %s, want %s", got.State, tt.after)
 			}
@@ -89,7 +91,7 @@ func TestEvidenceGapAndIdentityChangeResetStableWindow(t *testing.T) {
 	in.Detached, in.SessionEnded = true, true
 	in.Activity.Taken = classT0.Add(10 * time.Minute)
 	in.Previous = Previous{Key: classKey, Basis: StateIdle, Detached: true,
-		SessionEnded: true, StableSince: classT0}
+		SessionEnded: true, StableSince: classT0, SampledAt: classT0.Add(9 * time.Minute)}
 
 	reused := in
 	reused.Key.StartTimeNs++
@@ -106,5 +108,21 @@ func TestEvidenceGapAndIdentityChangeResetStableWindow(t *testing.T) {
 func withActivity(change func(*Activity)) Input {
 	a := complete()
 	change(&a)
-	return Input{Key: classKey, Status: process.StatusSleeping, Activity: a}
+	return Input{Key: classKey, Status: process.StatusSleeping, Activity: a, EvidenceCadence: time.Minute}
+}
+
+func TestEvidencePauseResetsStableWindowAndDetachmentIsExplained(t *testing.T) {
+	in := withActivity(func(a *Activity) {})
+	in.Detached, in.SessionEnded = true, true
+	in.DetachmentDetail = "observed parent 7 was lost"
+	in.Activity.Taken = classT0.Add(10 * time.Minute)
+	in.Previous = Previous{Key: classKey, Basis: StateIdle, Detached: true, SessionEnded: true,
+		ProcessStatus: in.Status, StableSince: classT0, SampledAt: classT0.Add(time.Minute)}
+	got := Classify(in)
+	if got.State != StateIdle || got.StableSince != in.Activity.Taken {
+		t.Fatalf("evidence pause inherited strong window: %+v", got)
+	}
+	if got.Evidence[len(got.Evidence)-1].Rule != "observed-parent-loss-v1" {
+		t.Fatalf("detachment lacks evidence: %+v", got.Evidence)
+	}
 }

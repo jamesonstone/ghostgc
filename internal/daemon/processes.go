@@ -22,7 +22,7 @@ func (d *Daemon) Processes(ctx context.Context, opts api.ListOptions) (api.Proce
 	if err != nil {
 		return api.ProcessesResponse{}, err
 	}
-	classes, err := d.store.ListClassifications(ctx, storage.ClassificationFilter{Latest: true, Limit: 1000})
+	classes, err := d.store.LatestClassifications(ctx, "")
 	if err != nil {
 		return api.ProcessesResponse{}, err
 	}

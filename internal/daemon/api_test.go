@@ -66,6 +66,9 @@ func TestAPIRoundTripOverUnixSocket(t *testing.T) {
 	if len(classifications.Classifications) != 1 || classifications.Classifications[0].State != "unknown" {
 		t.Fatalf("initial classification = %+v, want one baseline-unknown result", classifications.Classifications)
 	}
+	if classifications.Classifications[0].Detached {
+		t.Fatal("a process first observed under launchd must not be reported detached")
+	}
 	if _, err := client.Session(ctx, "does-not-exist"); err == nil {
 		t.Fatal("an unknown session must be an error")
 	}

@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/jamesonstone/ghostgc/internal/classification"
@@ -13,20 +14,19 @@ import (
 
 type classificationBatch struct {
 	due      bool
+	emit     bool
 	at       time.Time
 	records  []storage.ClassificationRecord
 	previous map[string]classification.Previous
 }
 
-func (d *Daemon) classifyActivity(ctx context.Context, snap *process.Snapshot, tree *process.Tree,
+func (d *Daemon) classifyActivity(ctx context.Context, snap *process.Snapshot,
 	res *sessions.Result, activity activityBatch) (classificationBatch, error) {
 	if !activity.due {
 		return classificationBatch{}, nil
 	}
-	if !d.lastClassificationAt.IsZero() &&
-		activity.at.Sub(d.lastClassificationAt) < d.cfg.Sampling.Classification.D() {
-		return classificationBatch{}, nil
-	}
+	emit := d.lastClassificationAt.IsZero() ||
+		activity.at.Sub(d.lastClassificationAt) >= d.cfg.Sampling.Classification.D()
 	sessionsByID, err := d.store.ListSessions(ctx, storage.SessionFilter{})
 	if err != nil {
 		return classificationBatch{}, err
@@ -38,7 +38,7 @@ func (d *Daemon) classifyActivity(ctx context.Context, snap *process.Snapshot, t
 	for _, rec := range res.Ended {
 		ended[rec.SessionID] = true
 	}
-	batch := classificationBatch{due: true, at: activity.at, previous: make(map[string]classification.Previous)}
+	batch := classificationBatch{due: true, emit: emit, at: activity.at, previous: make(map[string]classification.Previous)}
 	for _, rec := range activity.records {
 		key, err := process.ParseKey(rec.ProcUID)
 		if err != nil {
@@ -49,11 +49,15 @@ func (d *Daemon) classifyActivity(ctx context.Context, snap *process.Snapshot, t
 			continue
 		}
 		attr := res.Attributions[rec.ProcUID]
-		detached := tree.Link(proc.PID) == process.LinkReparented ||
-			(attr.OriginalParentObserved && proc.PPID != attr.OriginalPPID)
+		detached := attr.OriginalParentObserved && proc.PPID != attr.OriginalPPID
+		detachmentDetail := ""
+		if detached {
+			detachmentDetail = fmt.Sprintf("observed original parent pid %d was replaced by current parent pid %d", attr.OriginalPPID, proc.PPID)
+		}
 		result := classification.Classify(classification.Input{
 			Key: key, Status: proc.Status, Detached: detached,
 			SessionEnded: ended[rec.SessionID], Previous: d.classificationPrevious[rec.ProcUID],
+			EvidenceCadence: d.cfg.Sampling.ActivitySample.D(), DetachmentDetail: detachmentDetail,
 			Activity: classification.Activity{
 				Taken: time.Unix(0, rec.TsNs), BaselineOK: rec.BaselineOK,
 				CPUPercent: rec.CPUPercent, CPUKnown: rec.CPUKnown,
@@ -63,18 +67,24 @@ func (d *Daemon) classifyActivity(ctx context.Context, snap *process.Snapshot, t
 			},
 		})
 		evidence, _ := json.Marshal(result.Evidence)
-		batch.records = append(batch.records, storage.ClassificationRecord{
-			ProcUID: rec.ProcUID, SessionID: rec.SessionID, TsNs: snap.Taken.UnixNano(),
-			ActivityTsNs: rec.TsNs, State: string(result.State), BasisState: string(result.Basis),
-			Detached: result.Detached, SessionEnded: result.SessionEnded,
-			StableSinceNs: result.StableSince.UnixNano(), EvidenceJSON: string(evidence),
-		})
+		if emit {
+			batch.records = append(batch.records, storage.ClassificationRecord{
+				ProcUID: rec.ProcUID, SessionID: rec.SessionID, TsNs: rec.TsNs,
+				ActivityTsNs: rec.TsNs, State: string(result.State), BasisState: string(result.Basis),
+				Detached: result.Detached, SessionEnded: result.SessionEnded,
+				StableSinceNs: result.StableSince.UnixNano(), EvidenceJSON: string(evidence),
+			})
+		}
 		batch.previous[rec.ProcUID] = classification.Previous{
 			Key: key, Basis: result.Basis, Detached: result.Detached, SessionEnded: result.SessionEnded,
-			ProcessStatus: proc.Status, StableSince: result.StableSince,
+			ProcessStatus: proc.Status, StableSince: result.StableSince, SampledAt: time.Unix(0, rec.TsNs),
 		}
 	}
 	return batch, nil
+}
+
+func (d *Daemon) resetClassificationEvidence() {
+	d.classificationPrevious = make(map[string]classification.Previous)
 }
 
 func (d *Daemon) commitClassifications(batch classificationBatch) {
@@ -82,5 +92,7 @@ func (d *Daemon) commitClassifications(batch classificationBatch) {
 		return
 	}
 	d.classificationPrevious = batch.previous
-	d.lastClassificationAt = batch.at
+	if batch.emit {
+		d.lastClassificationAt = batch.at
+	}
 }

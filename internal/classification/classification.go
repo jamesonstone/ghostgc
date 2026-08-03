@@ -57,16 +57,19 @@ type Previous struct {
 	SessionEnded  bool
 	ProcessStatus process.Status
 	StableSince   time.Time
+	SampledAt     time.Time
 }
 
 // Input contains only observations, never policy configuration.
 type Input struct {
-	Key          process.Key
-	Status       process.Status
-	Detached     bool
-	SessionEnded bool
-	Activity     Activity
-	Previous     Previous
+	Key              process.Key
+	Status           process.Status
+	Detached         bool
+	SessionEnded     bool
+	Activity         Activity
+	Previous         Previous
+	EvidenceCadence  time.Duration
+	DetachmentDetail string
 }
 
 // Result contains the visible state and its unmodified basis state.
@@ -80,11 +83,22 @@ type Result struct {
 }
 
 // Classify deterministically evaluates one current sample.
-func Classify(in Input) Result {
-	result := Result{
+func Classify(in Input) (result Result) {
+	result = Result{
 		State: StateUnknown, Basis: StateUnknown, Detached: in.Detached,
 		SessionEnded: in.SessionEnded, StableSince: in.Activity.Taken,
 	}
+	defer func() {
+		if result.Detached {
+			detail := in.DetachmentDetail
+			if detail == "" {
+				detail = "an observed original-parent link was lost"
+			}
+			result.Evidence = append(result.Evidence, Evidence{
+				Rule: "observed-parent-loss-v1", Detail: detail,
+			})
+		}
+	}()
 	if in.Status == process.StatusZombie {
 		result.State, result.Basis = StateCrashed, StateCrashed
 		result.Evidence = []Evidence{{Rule: "kernel-zombie-v1", Detail: "the kernel reported zombie state"}}
@@ -148,9 +162,11 @@ func basis(a Activity) (State, []Evidence) {
 
 func sameWindow(in Input) bool {
 	p := in.Previous
+	gap := in.Activity.Taken.Sub(p.SampledAt)
 	return p.Key == in.Key && !p.StableSince.IsZero() && p.Basis != StateUnknown &&
 		p.Basis == basisState(in.Activity) && p.Detached == in.Detached &&
-		p.SessionEnded == in.SessionEnded && p.ProcessStatus == in.Status
+		p.SessionEnded == in.SessionEnded && p.ProcessStatus == in.Status &&
+		in.EvidenceCadence > 0 && gap > 0 && gap <= 2*in.EvidenceCadence
 }
 
 func basisState(a Activity) State {

@@ -125,7 +125,15 @@ ownership, protection or permission to act.
 
 ## DISCOVERIES
 
-No additional information required before implementation.
+- Independent review found that a lower classification cadence cannot ignore
+  intervening activity samples: unavailable or changed evidence must reset a
+  strong window even when no result is emitted. The daemon now consumes every
+  activity pass and emits only at the configured classification cadence.
+- A process first observed with PPID 1 has an unknown creator, not proven
+  detachment. Detachment now requires the loss of an original parent that the
+  daemon actually observed, and that loss is included in persisted evidence.
+- Complete status/session/process joins use unbounded storage operations;
+  presentation history remains capped independently.
 
 ## VALIDATION
 
@@ -134,8 +142,10 @@ No additional information required before implementation.
 - Classifier tests cover all immediate states, exact five-minute boundaries,
   detachment independence, PID reuse and evidence-gap reset.
 - Storage tests cover schema v4, ordered history, latest-per-process queries and
-  classification counts. Live fixture and pull-request CI evidence are recorded
-  in `tests/RUN_STATUS.md`.
+  classification counts, including more than 1,000 latest results. Daemon tests
+  cover cadence mismatch, failed-scan continuity reset, direct-launchd unknown
+  parent handling and observed-parent-loss evidence. Live fixture and
+  pull-request CI evidence are recorded in `tests/RUN_STATUS.md`.
 
 ## OUTCOME
 

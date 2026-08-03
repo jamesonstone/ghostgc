@@ -66,13 +66,11 @@ func (d *Daemon) Status(ctx context.Context) (api.StatusResponse, error) {
 		resp.SessionsByState[s.State]++
 	}
 	resp.Sessions = len(recs)
-	classes, err := d.store.ListClassifications(ctx, storage.ClassificationFilter{Latest: true, Limit: 1000})
+	classCounts, err := d.store.ClassificationCounts(ctx, "")
 	if err != nil {
 		return api.StatusResponse{}, err
 	}
-	for _, class := range classes {
-		resp.ClassificationsByState[class.State]++
-	}
+	resp.ClassificationsByState = classCounts
 
 	if scan, err := d.store.LastScan(ctx); err == nil {
 		resp.LastScan = &api.ScanSummary{
@@ -151,13 +149,11 @@ func (d *Daemon) sessionSummary(ctx context.Context, rec storage.SessionRecord) 
 		LaunchedByPath:  rec.HostExecPath,
 		Classifications: map[string]int{},
 	}
-	classes, err := d.store.ListClassifications(ctx, storage.ClassificationFilter{SessionID: rec.SessionID, Latest: true, Limit: 1000})
+	classes, err := d.store.ClassificationCounts(ctx, rec.SessionID)
 	if err != nil {
 		return api.SessionSummary{}, err
 	}
-	for _, class := range classes {
-		summary.Classifications[class.State]++
-	}
+	summary.Classifications = classes
 	if rec.HostName != "" {
 		summary.LaunchedBy = rec.HostName
 	}

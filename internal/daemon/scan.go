@@ -40,7 +40,7 @@ func (d *Daemon) runScan(ctx context.Context) {
 	reconcileDuration := time.Since(reconcileStart)
 	activityStart := time.Now()
 	activity := d.collectActivity(ctx, snap, result)
-	classifications, err := d.classifyActivity(ctx, snap, tree, result, activity)
+	classifications, err := d.classifyActivity(ctx, snap, result, activity)
 	if err != nil {
 		d.recordScanFailure(ctx, start, fmt.Errorf("classify: %w", err))
 		return
@@ -165,6 +165,7 @@ func (d *Daemon) persist(ctx context.Context, snap *process.Snapshot, res *sessi
 }
 
 func (d *Daemon) recordScanFailure(ctx context.Context, start time.Time, cause error) {
+	d.resetClassificationEvidence()
 	d.mu.Lock()
 	d.metrics.scanFailures++
 	d.degraded = append(d.degraded[:0], cause.Error())
