@@ -34,6 +34,16 @@ func (d *Daemon) collectActivity(ctx context.Context, snap *process.Snapshot, re
 			continue
 		}
 		sample, err := d.plat.SampleActivity(ctx, p.Key(), attr.RepositoryPath)
+		if err == nil {
+			switch {
+			case sample.Key != p.Key():
+				err = fmt.Errorf("collector returned key %s for requested process %s", sample.Key, p.Key())
+			case sample.Taken.IsZero():
+				err = fmt.Errorf("collector returned a zero sample time for process %s", p.Key())
+			case sample.Taken.Before(snap.Taken):
+				err = fmt.Errorf("collector sample time for %s predates its selecting snapshot", p.Key())
+			}
+		}
 		if err != nil {
 			batch.records = append(batch.records, storage.ActivityRecord{
 				ProcUID: uid, SessionID: attr.SessionID, TsNs: snap.Taken.UnixNano(),
@@ -41,7 +51,6 @@ func (d *Daemon) collectActivity(ctx context.Context, snap *process.Snapshot, re
 			})
 			continue
 		}
-		sample.Key, sample.Taken = p.Key(), snap.Taken
 		delta := process.DeriveActivity(d.activityBaseline[uid], sample)
 		batch.baselines[uid] = sample
 		batch.records = append(batch.records, activityRecord(attr.SessionID, sample, delta))
@@ -100,8 +109,8 @@ func (d *Daemon) commitActivity(batch activityBatch) {
 	if !batch.due {
 		return
 	}
-	for uid, sample := range batch.baselines {
-		d.activityBaseline[uid] = sample
-	}
+	// Replace rather than extend: exited, unreadable and de-attributed process
+	// keys must not leak memory or regain a stale baseline after an evidence gap.
+	d.activityBaseline = batch.baselines
 	d.lastActivityAt = batch.at
 }
