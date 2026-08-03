@@ -197,5 +197,11 @@ func renderExplain(r api.ExplainResponse) {
 			fmt.Printf("- %s: %s\n", rule.ID, rule.Reason)
 		}
 	}
+	if len(r.PolicyDecisions) > 0 {
+		fmt.Println("\nPolicy decisions:")
+		for _, decision := range r.PolicyDecisions {
+			fmt.Printf("- %s: %s — %s\n", decision.PolicyID, decision.Result, decision.Reason)
+		}
+	}
 	fmt.Printf("\n%s\n", r.PolicyNote)
 }

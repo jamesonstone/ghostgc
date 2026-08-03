@@ -22,6 +22,14 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 2 && os.Args[1] == "--tick" {
+		for {
+			if err := os.WriteFile(os.Args[2], []byte(time.Now().Format(time.RFC3339Nano)), 0o600); err != nil {
+				fmt.Fprintln(os.Stderr, "fake-agent tick:", err)
+			}
+			time.Sleep(2 * time.Second)
+		}
+	}
 	// --sleep makes this binary stand in for a long-lived helper. The fixture
 	// uses it for the detached child so that the child's environment is
 	// readable: macOS withholds the environment of system binaries such as
@@ -43,6 +51,17 @@ func main() {
 	}
 	// Deliberately a differently named binary: see fixture-agent.sh.
 	helper := filepath.Join(filepath.Dir(self), "fixture-helper")
+
+	// A direct, non-broad helper gives later phases one controlled process that
+	// can become detached while remaining active. Teardown owns its recorded PID.
+	candidate := exec.Command(helper, "--tick", filepath.Join(repo, "candidate.log"))
+	candidate.Dir = repo
+	candidate.Stdout, candidate.Stderr = os.Stdout, os.Stderr
+	if err := candidate.Start(); err != nil {
+		fmt.Fprintln(os.Stderr, "fake-agent candidate:", err)
+		os.Exit(1)
+	}
+	fmt.Printf("fixture candidate-child %d\n", candidate.Process.Pid)
 
 	// A child shell that owns the rest of the tree, mirroring how an agent
 	// shells out to do work.

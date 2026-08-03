@@ -17,6 +17,7 @@ type classificationBatch struct {
 	emit     bool
 	at       time.Time
 	records  []storage.ClassificationRecord
+	current  []storage.ClassificationRecord
 	previous map[string]classification.Previous
 }
 
@@ -67,13 +68,15 @@ func (d *Daemon) classifyActivity(ctx context.Context, snap *process.Snapshot,
 			},
 		})
 		evidence, _ := json.Marshal(result.Evidence)
+		current := storage.ClassificationRecord{
+			ProcUID: rec.ProcUID, SessionID: rec.SessionID, TsNs: rec.TsNs,
+			ActivityTsNs: rec.TsNs, State: string(result.State), BasisState: string(result.Basis),
+			Detached: result.Detached, SessionEnded: result.SessionEnded,
+			StableSinceNs: result.StableSince.UnixNano(), EvidenceJSON: string(evidence),
+		}
+		batch.current = append(batch.current, current)
 		if emit {
-			batch.records = append(batch.records, storage.ClassificationRecord{
-				ProcUID: rec.ProcUID, SessionID: rec.SessionID, TsNs: rec.TsNs,
-				ActivityTsNs: rec.TsNs, State: string(result.State), BasisState: string(result.Basis),
-				Detached: result.Detached, SessionEnded: result.SessionEnded,
-				StableSinceNs: result.StableSince.UnixNano(), EvidenceJSON: string(evidence),
-			})
+			batch.records = append(batch.records, current)
 		}
 		batch.previous[rec.ProcUID] = classification.Previous{
 			Key: key, Basis: result.Basis, Detached: result.Detached, SessionEnded: result.SessionEnded,

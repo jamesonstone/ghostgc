@@ -53,11 +53,12 @@ start() {
 	make_fake_agent
 	: >"$PID_FILE"
 
-	# The session root, with three descendants:
+	# The session root, with four descendants:
 	#   active-child   busy in a loop
 	#   idle-child     sleeping
 	#   detached-child outlives an intermediate shell that exits immediately,
 	#                  so the kernel reparents it to launchd
+	#   candidate-child direct active helper for policy/action fixture tests
 	cd "$STATE_DIR/repo"
 	# The agent's own session identifier. Children inherit it through the
 	# environment, which is how a process that has since been reparented can

@@ -23,6 +23,7 @@
 | Live process tree | end-to-end | local macOS | `fixtures/fixture-agent.sh start`, then `orphan`, then `stop` | manual | `ghostgc sessions`, `ghostgc session show <id>`, `ghostgc explain <pid>` |
 | Activity evidence | live-integration | local macOS | start fixture and daemon, wait for two activity cadences | manual | `ghostgc activity`; periodic worker has positive delta, idle worker has known zero |
 | Deterministic classification | integration + live | local macOS | wait for two activity cadences, then `ghostgc classifications` | manual | active periodic worker, known-idle worker, independent detachment, freshness and evidence |
+| Policy audit | integration + live | local macOS | enable a fixture-scoped audit policy and wait through its stable window | manual | `ghostgc policies`, `ghostgc candidates`, policy audit log; zero enforceable entries and signals |
 | Resource budget | live-integration | local macOS | run `ghostgcd`, then `ghostgc metrics` | manual | scan duration, CPU, RSS, database size |
 
 ## Environment Preflights

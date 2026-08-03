@@ -19,7 +19,7 @@ import (
 const shortIDLength = 8
 
 // phaseNote is repeated wherever a command exists but its subject does not yet.
-const phaseNote = "No policy engine exists in this build. Cleanup policies arrive in delivery phase 5, recommendations in phase 6 and narrowly scoped enforcement in phase 7. Until then ghostgc observes and explains only, and cannot send a signal to any process."
+const phaseNote = "Policies are evaluated in audit mode only. Phase 5 records candidates, refusals and cooldowns but cannot recommend or signal. Manual recommendation arrives in phase 6 and narrow enforcement in phase 7."
 
 func shortID(id string) string {
 	if len(id) <= shortIDLength {
@@ -71,6 +71,15 @@ func (d *Daemon) Status(ctx context.Context) (api.StatusResponse, error) {
 		return api.StatusResponse{}, err
 	}
 	resp.ClassificationsByState = classCounts
+	decisions, err := d.currentPolicyDecisions(ctx)
+	if err != nil {
+		return api.StatusResponse{}, err
+	}
+	for _, decision := range decisions {
+		if decision.Result == "candidate" {
+			resp.CleanupCandidates++
+		}
+	}
 
 	if scan, err := d.store.LastScan(ctx); err == nil {
 		resp.LastScan = &api.ScanSummary{

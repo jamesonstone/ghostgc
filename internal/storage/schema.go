@@ -1,7 +1,7 @@
 package storage
 
 // schemaVersion is the newest migration below.
-const schemaVersion = 4
+const schemaVersion = 5
 
 // migration is one forward step. Migrations are applied in order, each in its
 // own transaction, and the version is recorded as each completes.
@@ -19,6 +19,7 @@ var migrations = []migration{
 	{version: 2, stmts: schemaV2},
 	{version: 3, stmts: schemaV3},
 	{version: 4, stmts: schemaV4},
+	{version: 5, stmts: schemaV5},
 }
 
 // schemaV1 is the delivery phase 1 schema.
@@ -255,4 +256,24 @@ CREATE INDEX process_classifications_ts_idx ON process_classifications(ts_ns);
 CREATE INDEX process_classifications_proc_idx ON process_classifications(proc_uid, ts_ns);
 CREATE INDEX process_classifications_session_idx ON process_classifications(session_id, ts_ns);
 CREATE INDEX process_classifications_state_idx ON process_classifications(state, ts_ns);
+`
+
+// schemaV5 records audit-only policy decisions and durable exact-key cooldowns.
+const schemaV5 = `
+CREATE TABLE policy_decisions (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	policy_id TEXT NOT NULL,
+	proc_uid TEXT NOT NULL,
+	session_id TEXT NOT NULL,
+	ts_ns INTEGER NOT NULL,
+	classification_ts_ns INTEGER NOT NULL,
+	classification_state TEXT NOT NULL,
+	result TEXT NOT NULL,
+	reason TEXT NOT NULL,
+	cooldown_until_ns INTEGER NOT NULL DEFAULT 0,
+	evidence TEXT NOT NULL DEFAULT '[]'
+) STRICT;
+CREATE INDEX policy_decisions_ts_idx ON policy_decisions(ts_ns);
+CREATE INDEX policy_decisions_policy_proc_idx ON policy_decisions(policy_id, proc_uid, ts_ns);
+CREATE INDEX policy_decisions_result_idx ON policy_decisions(result, ts_ns);
 `

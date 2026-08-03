@@ -45,10 +45,15 @@ func (d *Daemon) runScan(ctx context.Context) {
 		d.recordScanFailure(ctx, start, fmt.Errorf("classify: %w", err))
 		return
 	}
+	policies, err := d.evaluatePolicies(ctx, snap, tree, result, classifications)
+	if err != nil {
+		d.recordScanFailure(ctx, start, fmt.Errorf("policy: %w", err))
+		return
+	}
 	activityDuration := time.Since(activityStart)
 
 	persistStart := time.Now()
-	if err := d.persist(ctx, snap, result, activity.records, classifications.records, start, scanDuration); err != nil {
+	if err := d.persist(ctx, snap, result, activity.records, classifications.records, policies, start, scanDuration); err != nil {
 		if ctx.Err() != nil {
 			return
 		}
@@ -61,6 +66,7 @@ func (d *Daemon) runScan(ctx context.Context) {
 	d.recon.Commit(result)
 	d.commitActivity(activity)
 	d.commitClassifications(classifications)
+	d.commitPolicies(policies)
 
 	d.mu.Lock()
 	d.snapshot = snap
@@ -78,6 +84,7 @@ func (d *Daemon) runScan(ctx context.Context) {
 	d.metrics.lastActivity = activityDuration
 	d.metrics.activitySamples += int64(len(activity.records))
 	d.metrics.classifications += int64(len(classifications.records))
+	d.metrics.policyDecisions += int64(len(policies.records))
 	d.metrics.visibleProcesses = snap.TotalCount
 	d.metrics.inspectedProcesses = snap.Len()
 	d.metrics.attributed = result.AttributedCount
@@ -93,11 +100,12 @@ func (d *Daemon) runScan(ctx context.Context) {
 		"activity_ms", activityDuration.Milliseconds(),
 		"activity_samples", len(activity.records),
 		"classifications", len(classifications.records),
+		"policy_decisions", len(policies.records),
 		"persist_ms", persistDuration.Milliseconds(),
 	)
 }
 
-func (d *Daemon) persist(ctx context.Context, snap *process.Snapshot, res *sessions.Result, activity []storage.ActivityRecord, classifications []storage.ClassificationRecord, start time.Time, scanDuration time.Duration) error {
+func (d *Daemon) persist(ctx context.Context, snap *process.Snapshot, res *sessions.Result, activity []storage.ActivityRecord, classifications []storage.ClassificationRecord, policies policyBatch, start time.Time, scanDuration time.Duration) error {
 	nowNs := snap.Taken.UnixNano()
 	return d.store.WithTx(ctx, func(tx *storage.Tx) error {
 		scanID, err := tx.InsertScan(storage.ScanRecord{
@@ -147,6 +155,21 @@ func (d *Daemon) persist(ctx context.Context, snap *process.Snapshot, res *sessi
 				return err
 			}
 		}
+		for _, decision := range policies.records {
+			if err := tx.InsertPolicyDecision(decision); err != nil {
+				return err
+			}
+		}
+		for _, audit := range policies.audit {
+			if err := tx.AppendAudit(audit); err != nil {
+				return err
+			}
+		}
+		if policies.due {
+			if err := tx.SetMeta("last_policy_eval_ns", fmt.Sprint(policies.at.UnixNano())); err != nil {
+				return err
+			}
+		}
 		if _, err := tx.MarkExitedBefore(nowNs, nowNs); err != nil {
 			return err
 		}
@@ -166,6 +189,7 @@ func (d *Daemon) persist(ctx context.Context, snap *process.Snapshot, res *sessi
 
 func (d *Daemon) recordScanFailure(ctx context.Context, start time.Time, cause error) {
 	d.resetClassificationEvidence()
+	d.lastPolicyAt = time.Time{}
 	d.mu.Lock()
 	d.metrics.scanFailures++
 	d.degraded = append(d.degraded[:0], cause.Error())
@@ -180,12 +204,15 @@ func (d *Daemon) recordScanFailure(ctx context.Context, start time.Time, cause e
 		}); err != nil {
 			return err
 		}
-		return tx.AppendAudit(storage.AuditRecord{
+		if err := tx.AppendAudit(storage.AuditRecord{
 			TsNs:    time.Now().UnixNano(),
 			Kind:    AuditScanFailed,
 			Subject: "daemon",
 			Summary: "observation cycle failed and was skipped; no conclusion was drawn: " + cause.Error(),
-		})
+		}); err != nil {
+			return err
+		}
+		return tx.SetMeta("last_policy_eval_ns", fmt.Sprint(start.UnixNano()))
 	})
 	if err != nil {
 		d.log.Error("recording scan failure failed", "error", err)
