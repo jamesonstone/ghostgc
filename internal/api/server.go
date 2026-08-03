@@ -162,6 +162,13 @@ func (s *Server) routes() http.Handler {
 		opts.SinceNs, _ = strconv.ParseInt(q.Get("since_ns"), 10, 64)
 		return s.Backend.Activity(r.Context(), opts)
 	}))
+	mux.HandleFunc("GET "+p+"/classifications", s.handle(func(r *http.Request) (any, error) {
+		q := r.URL.Query()
+		opts := ClassificationOptions{ProcUID: q.Get("process"), SessionID: q.Get("session"), State: q.Get("state"), Latest: q.Get("latest") == "true"}
+		opts.Limit, _ = strconv.Atoi(q.Get("limit"))
+		opts.SinceNs, _ = strconv.ParseInt(q.Get("since_ns"), 10, 64)
+		return s.Backend.Classifications(r.Context(), opts)
+	}))
 
 	return mux
 }

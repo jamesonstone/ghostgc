@@ -79,7 +79,9 @@ Tested in `sessions_test.go:TestOwnershipSurvivesReparenting`,
 `storage_test.go:TestOwnershipIsDurableAndNeverDowngraded`.
 
 **Detached is not orphaned.** Nothing in the codebase concludes that a
-reparented process is disposable. It concludes only that its session finished.
+reparented process is disposable. Phase 4 records detachment independently;
+`orphaned` requires five continuous minutes of complete known-idle evidence
+after the owning session ended. Even that classification grants no authority.
 
 ## Unknown is protected
 

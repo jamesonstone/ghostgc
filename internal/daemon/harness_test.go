@@ -49,6 +49,10 @@ type harness struct {
 }
 
 func newHarness(t *testing.T, snaps ...*process.Snapshot) *harness {
+	return newHarnessConfig(t, config.Default(), snaps...)
+}
+
+func newHarnessConfig(t *testing.T, cfg config.Config, snaps ...*process.Snapshot) *harness {
 	t.Helper()
 	dir := t.TempDir()
 	// The socket lives in its own short directory: t.TempDir() embeds the test
@@ -74,7 +78,7 @@ func newHarness(t *testing.T, snaps ...*process.Snapshot) *harness {
 
 	fake := platformtest.New(testUID, snaps...)
 	d, err := daemon.New(daemon.Options{
-		Config:   config.Default(),
+		Config:   cfg,
 		Paths:    paths,
 		Store:    store,
 		Platform: fake,

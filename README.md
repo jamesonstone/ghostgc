@@ -131,6 +131,7 @@ foreground instead: `ghostgcd --log-level debug`.
 | `ghostgc explain <pid>` | what was concluded about a PID and why — works for *any* PID |
 | `ghostgc activity` | bounded CPU, disk, file and socket evidence for attributed processes |
 | `ghostgc candidates` | cleanup candidates (none can exist in this build) |
+| `ghostgc classifications` | latest deterministic process states and detachment |
 | `ghostgc policies` | loaded cleanup policies (none can exist in this build) |
 | `ghostgc logs` | the audit trail |
 | `ghostgc metrics` | scan timings, counts, database size, daemon memory |
@@ -192,8 +193,8 @@ Each phase is completed, tested and documented before the next begins.
 | 1 | Observation foundation: daemon, CLI, SQLite, macOS collection, process trees, Codex detection, audit log | **done** |
 | 2 | Session graph: typed relationships, launch context, environment membership, repository and terminal association, session state machine | **done** |
 | 3 | Activity tracking: CPU/IO/network deltas, open files, sockets | **done** |
-| 4 | Classification: active, idle, waiting, detached, suspicious, orphaned, unknown | next |
-| 5 | Policy engine: YAML policies, audit evaluation, safety refusals, cooldowns | |
+| 4 | Classification: active, idle, waiting, detached, suspicious, orphaned, unknown | **done** |
+| 5 | Policy engine: YAML policies, audit evaluation, safety refusals, cooldowns | next |
 | 6 | Recommended cleanup: manual approval, exact command preview, pre-action revalidation, SIGTERM only | |
 | 7 | Narrow enforcement: one or two highly specific process classes, behind every gate | |
 | 8 | Adapters for Claude Code, Cursor, OpenCode | |

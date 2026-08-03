@@ -155,6 +155,30 @@ func (c *Client) Activity(ctx context.Context, opts ActivityOptions) (ActivityRe
 	return get[ActivityResponse](ctx, c, "/activity", q)
 }
 
+// Classifications fetches deterministic process conclusions.
+func (c *Client) Classifications(ctx context.Context, opts ClassificationOptions) (ClassificationsResponse, error) {
+	q := url.Values{}
+	if opts.ProcUID != "" {
+		q.Set("process", opts.ProcUID)
+	}
+	if opts.SessionID != "" {
+		q.Set("session", opts.SessionID)
+	}
+	if opts.State != "" {
+		q.Set("state", opts.State)
+	}
+	if opts.SinceNs > 0 {
+		q.Set("since_ns", strconv.FormatInt(opts.SinceNs, 10))
+	}
+	if opts.Limit > 0 {
+		q.Set("limit", strconv.Itoa(opts.Limit))
+	}
+	if opts.Latest {
+		q.Set("latest", "true")
+	}
+	return get[ClassificationsResponse](ctx, c, "/classifications", q)
+}
+
 func listQuery(opts ListOptions) url.Values {
 	q := url.Values{}
 	if opts.SessionID != "" {

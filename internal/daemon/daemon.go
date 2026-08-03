@@ -18,6 +18,7 @@ import (
 	"github.com/jamesonstone/ghostgc/internal/adapters"
 	"github.com/jamesonstone/ghostgc/internal/adapters/codex"
 	"github.com/jamesonstone/ghostgc/internal/api"
+	"github.com/jamesonstone/ghostgc/internal/classification"
 	"github.com/jamesonstone/ghostgc/internal/config"
 	"github.com/jamesonstone/ghostgc/internal/platform"
 	"github.com/jamesonstone/ghostgc/internal/process"
@@ -61,14 +62,16 @@ type Daemon struct {
 
 	startedAt time.Time
 
-	mu               sync.RWMutex
-	snapshot         *process.Snapshot
-	tree             *process.Tree
-	last             *sessions.Result
-	degraded         []string
-	metrics          metrics
-	lastActivityAt   time.Time
-	activityBaseline map[string]process.ActivitySample
+	mu                     sync.RWMutex
+	snapshot               *process.Snapshot
+	tree                   *process.Tree
+	last                   *sessions.Result
+	degraded               []string
+	metrics                metrics
+	lastActivityAt         time.Time
+	activityBaseline       map[string]process.ActivitySample
+	classificationPrevious map[string]classification.Previous
+	lastClassificationAt   time.Time
 }
 
 type metrics struct {
@@ -81,6 +84,7 @@ type metrics struct {
 	lastPersist        time.Duration
 	lastActivity       time.Duration
 	activitySamples    int64
+	classifications    int64
 	retentionRuns      int64
 	lastRetentionRows  int64
 	visibleProcesses   int
@@ -126,16 +130,17 @@ func New(opts Options) (*Daemon, error) {
 	}
 
 	d := &Daemon{
-		cfg:              opts.Config,
-		paths:            opts.Paths,
-		store:            opts.Store,
-		plat:             opts.Platform,
-		log:              log,
-		reg:              reg,
-		repos:            repos,
-		selfPI:           os.Getpid(),
-		startedAt:        time.Now(),
-		activityBaseline: make(map[string]process.ActivitySample),
+		cfg:                    opts.Config,
+		paths:                  opts.Paths,
+		store:                  opts.Store,
+		plat:                   opts.Platform,
+		log:                    log,
+		reg:                    reg,
+		repos:                  repos,
+		selfPI:                 os.Getpid(),
+		startedAt:              time.Now(),
+		activityBaseline:       make(map[string]process.ActivitySample),
+		classificationPrevious: make(map[string]classification.Previous),
 	}
 	d.recon = sessions.New(reg, d.selfPI, opts.Platform.SelfUID(), repos)
 	return d, nil

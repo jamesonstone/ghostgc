@@ -196,6 +196,12 @@ func init() {
 			run:     cmdActivity,
 		},
 		{
+			name:    "classifications",
+			summary: "show deterministic process classifications",
+			usage:   "[--session <id>] [--process <proc-uid>] [--state <state>] [--history] [--limit <n>]",
+			run:     cmdClassifications,
+		},
+		{
 			name:    "config",
 			summary: "manage the configuration file",
 			usage:   "init|path|show",

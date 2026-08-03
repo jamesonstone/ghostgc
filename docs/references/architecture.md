@@ -33,8 +33,9 @@ superseded decisions live in `docs/specs/<feature>/SPEC.md`.
                                └─────────────────────────────┘
 ```
 
-The policy engine sits between protections and the daemon and does not exist
-yet; that is delivery phase 5.
+The deterministic classifier sits after activity collection and before
+persistence. The policy engine will sit between classification, protections and
+the daemon in delivery phase 5.
 
 ## The observation cycle
 
@@ -52,11 +53,13 @@ Every 15 seconds by default:
 5. **Attribution.** Each inspected process is offered to each adapter; the
    highest-confidence answer wins. A process nothing claims falls back to
    ownership recorded at an earlier observation.
-6. **Persist.** Sessions, processes, ownership, observations, exits and audit
+6. **Classify.** Complete exact-key activity evidence becomes an activity state;
+   missing evidence remains unknown and detachment remains an independent fact.
+7. **Persist.** Sessions, processes, ownership, observations, classifications, exits and audit
    entries are written in **one transaction**, so a crash mid-cycle cannot leave
    a session recorded without its processes.
-7. **Commit.** Only after that transaction succeeds does the reconciler advance
-   its in-memory view.
+8. **Commit.** Only after that transaction succeeds do the reconciler and
+   bounded classification windows advance their in-memory views.
 
 On the separate 60-second activity cadence, the daemon adds a targeted pass
 between attribution and persistence. It validates the exact process key before
@@ -165,6 +168,7 @@ pre-action revalidation will depend on it too.
 | `internal/storage` | SQLite schema, writes, queries, retention | nothing |
 | `internal/sessions` | reconciliation, durable ownership, audit emission | `adapters`, `process`, `storage` |
 | `internal/protection` | hard protections | `adapters`, `process` |
+| `internal/classification` | deterministic evidence-to-state rules; no policy or action | `process` |
 | `internal/config` | configuration, paths, phase guards | nothing |
 | `internal/api` | socket transport, request and response types | `adapters`, `protection`, `storage` |
 | `internal/daemon` | the loop, the API backend, diagnostics | everything above |
@@ -185,6 +189,7 @@ HTTP.
 | `processes` | one row per attributed process, keyed `pid:start_time_ns` |
 | `process_observations` | lightweight time series from every process scan |
 | `process_activity` | bounded phase-3 deltas and availability flags |
+| `process_classifications` | phase-4 state, basis, detachment, stable window and evidence |
 | `scans` | one row per cycle, including failures |
 | `sessions` | one row per detected session |
 | `session_processes` | durable ownership, never downgraded |
@@ -214,10 +219,11 @@ downgraded, because downgrading would silently drop columns it depends on.
   completed
 ```
 
-`idle`, `waiting`, `suspicious`, `hung`, `orphaned` and `crashed` are declared
-and unproduced: phase 3 records the activity evidence they need, but only the
-phase-4 classification engine may turn it into state. `unknown` is reserved for
-a session the daemon cannot describe, and unknown is protected.
+Session lifecycle remains `starting`, `active` or `completed`. Phase 4 records a
+separate per-process activity state: `active`, `waiting`, `idle`, `suspicious`,
+`hung`, `crashed`, `orphaned` or `unknown`. Strong hung/orphaned conclusions need
+five continuous minutes of complete exact-key evidence. Unknown remains
+protected and no activity state authorises an action.
 
 The transition out of a live state is by process *key*, never PID: a recycled
 PID cannot keep a finished session alive, and the evidence for the transition

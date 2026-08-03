@@ -36,19 +36,20 @@ func (d *Daemon) Status(ctx context.Context) (api.StatusResponse, error) {
 	d.mu.RUnlock()
 
 	resp := api.StatusResponse{
-		Health:            api.HealthHealthy,
-		Mode:              string(d.cfg.GlobalMode),
-		Phase:             version.Phase,
-		Version:           version.String(),
-		Platform:          d.plat.Name(),
-		PID:               d.selfPI,
-		StartedNs:         d.startedAt.UnixNano(),
-		UptimeSeconds:     time.Since(d.startedAt).Seconds(),
-		Agents:            d.agentIDs(),
-		SessionsByState:   map[string]int{},
-		CleanupCandidates: 0,
-		SignallingEnabled: false,
-		Degraded:          degraded,
+		Health:                 api.HealthHealthy,
+		Mode:                   string(d.cfg.GlobalMode),
+		Phase:                  version.Phase,
+		Version:                version.String(),
+		Platform:               d.plat.Name(),
+		PID:                    d.selfPI,
+		StartedNs:              d.startedAt.UnixNano(),
+		UptimeSeconds:          time.Since(d.startedAt).Seconds(),
+		Agents:                 d.agentIDs(),
+		SessionsByState:        map[string]int{},
+		ClassificationsByState: map[string]int{},
+		CleanupCandidates:      0,
+		SignallingEnabled:      false,
+		Degraded:               degraded,
 	}
 	switch {
 	case len(degraded) > 0:
@@ -65,6 +66,11 @@ func (d *Daemon) Status(ctx context.Context) (api.StatusResponse, error) {
 		resp.SessionsByState[s.State]++
 	}
 	resp.Sessions = len(recs)
+	classCounts, err := d.store.ClassificationCounts(ctx, "")
+	if err != nil {
+		return api.StatusResponse{}, err
+	}
+	resp.ClassificationsByState = classCounts
 
 	if scan, err := d.store.LastScan(ctx); err == nil {
 		resp.LastScan = &api.ScanSummary{
@@ -141,7 +147,13 @@ func (d *Daemon) sessionSummary(ctx context.Context, rec storage.SessionRecord) 
 		TerminalSID:     rec.TerminalSID,
 		LaunchedByPID:   rec.HostPID,
 		LaunchedByPath:  rec.HostExecPath,
+		Classifications: map[string]int{},
 	}
+	classes, err := d.store.ClassificationCounts(ctx, rec.SessionID)
+	if err != nil {
+		return api.SessionSummary{}, err
+	}
+	summary.Classifications = classes
 	if rec.HostName != "" {
 		summary.LaunchedBy = rec.HostName
 	}
