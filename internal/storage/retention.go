@@ -96,23 +96,24 @@ func (s *Store) compactOnce(ctx context.Context, p RetentionPolicy, now time.Tim
 
 	return s.WithTx(ctx, func(t *Tx) error {
 		steps := []struct {
-			dst *int64
-			q   string
-			arg int64
+			dst  *int64
+			q    string
+			args []any
 		}{
-			{&res.Observations, `DELETE FROM process_observations WHERE ts_ns < ?`, cutoff(p.RawObservations)},
-			{&res.ActivitySamples, `DELETE FROM process_activity WHERE ts_ns < ?`, cutoff(p.RawObservations)},
-			{&res.Classifications, `DELETE FROM process_classifications WHERE ts_ns < ?`, cutoff(p.RawObservations)},
-			{&res.PolicyDecisions, `DELETE FROM policy_decisions WHERE ts_ns < ?`, cutoff(p.PolicyDecisions)},
-			{&res.Scans, `DELETE FROM scans WHERE started_ns < ?`, cutoff(p.Scans)},
-			{&res.Audit, `DELETE FROM audit_log WHERE ts_ns < ?`, cutoff(p.Audit)},
+			{&res.Observations, `DELETE FROM process_observations WHERE ts_ns < ?`, []any{cutoff(p.RawObservations)}},
+			{&res.ActivitySamples, `DELETE FROM process_activity WHERE ts_ns < ?`, []any{cutoff(p.RawObservations)}},
+			{&res.Classifications, `DELETE FROM process_classifications WHERE ts_ns < ?`, []any{cutoff(p.RawObservations)}},
+			{&res.PolicyDecisions, `DELETE FROM policy_decisions WHERE ts_ns < ?
+				AND (result <> 'candidate' OR cooldown_until_ns <= ?)`, []any{cutoff(p.PolicyDecisions), now.UnixNano()}},
+			{&res.Scans, `DELETE FROM scans WHERE started_ns < ?`, []any{cutoff(p.Scans)}},
+			{&res.Audit, `DELETE FROM audit_log WHERE ts_ns < ?`, []any{cutoff(p.Audit)}},
 			{&res.Ownership, `DELETE FROM session_processes WHERE proc_uid IN (
-				SELECT proc_uid FROM processes WHERE exited_at_ns IS NOT NULL AND exited_at_ns < ?)`, cutoff(p.ExitedProcesses)},
-			{&res.Processes, `DELETE FROM processes WHERE exited_at_ns IS NOT NULL AND exited_at_ns < ?`, cutoff(p.ExitedProcesses)},
-			{&res.Sessions, `DELETE FROM sessions WHERE ended_ns IS NOT NULL AND ended_ns < ?`, cutoff(p.EndedSessions)},
+				SELECT proc_uid FROM processes WHERE exited_at_ns IS NOT NULL AND exited_at_ns < ?)`, []any{cutoff(p.ExitedProcesses)}},
+			{&res.Processes, `DELETE FROM processes WHERE exited_at_ns IS NOT NULL AND exited_at_ns < ?`, []any{cutoff(p.ExitedProcesses)}},
+			{&res.Sessions, `DELETE FROM sessions WHERE ended_ns IS NOT NULL AND ended_ns < ?`, []any{cutoff(p.EndedSessions)}},
 		}
 		for _, step := range steps {
-			r, err := t.tx.ExecContext(ctx, step.q, step.arg)
+			r, err := t.tx.ExecContext(ctx, step.q, step.args...)
 			if err != nil {
 				return fmt.Errorf("storage: retention step failed: %w", err)
 			}

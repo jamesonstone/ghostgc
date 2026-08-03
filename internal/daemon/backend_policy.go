@@ -27,7 +27,8 @@ func (d *Daemon) Candidates(ctx context.Context) (api.CandidatesResponse, error)
 		}
 		entry := api.CandidateEntry{
 			PID: key.PID, ProcUID: rec.ProcUID, SessionID: rec.SessionID,
-			PolicyID: rec.PolicyID, State: rec.ClassificationState, Result: rec.Result,
+			PolicyID: rec.PolicyID, State: rec.ClassificationState,
+			DecisionTsNs: rec.TsNs, ClassificationTsNs: rec.ClassificationTsNs, Result: rec.Result,
 			Reason: rec.Reason, CooldownUntilNs: rec.CooldownUntilNs,
 		}
 		_ = json.Unmarshal([]byte(rec.EvidenceJSON), &entry.Evidence)

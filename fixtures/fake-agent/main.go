@@ -22,6 +22,9 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "--exit" {
+		return
+	}
 	if len(os.Args) > 2 && os.Args[1] == "--tick" {
 		for {
 			if err := os.WriteFile(os.Args[2], []byte(time.Now().Format(time.RFC3339Nano)), 0o600); err != nil {
@@ -51,6 +54,17 @@ func main() {
 	}
 	// Deliberately a differently named binary: see fixture-agent.sh.
 	helper := filepath.Join(filepath.Dir(self), "fixture-helper")
+	// Leave one exited child deliberately unreaped. This gives the live
+	// classifier a fixture-owned zombie whose crashed state is immediate and
+	// deterministic; teardown ends the parent that owns the process table entry.
+	crashed := exec.Command(helper, "--exit")
+	crashed.Dir = repo
+	crashed.Stdout, crashed.Stderr = os.Stdout, os.Stderr
+	if err := crashed.Start(); err != nil {
+		fmt.Fprintln(os.Stderr, "fake-agent crashed fixture:", err)
+		os.Exit(1)
+	}
+	fmt.Printf("fixture crashed-child %d\n", crashed.Process.Pid)
 
 	// A direct, non-broad helper gives later phases one controlled process that
 	// can become detached while remaining active. Teardown owns its recorded PID.

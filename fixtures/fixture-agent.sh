@@ -53,7 +53,8 @@ start() {
 	make_fake_agent
 	: >"$PID_FILE"
 
-	# The session root, with four descendants:
+	# The session root, with five descendants:
+	#   crashed-child  intentionally unreaped fixture zombie
 	#   active-child   busy in a loop
 	#   idle-child     sleeping
 	#   detached-child outlives an intermediate shell that exits immediately,

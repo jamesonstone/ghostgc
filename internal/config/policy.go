@@ -61,11 +61,11 @@ func (c Config) validatePolicies() error {
 		}
 		for _, state := range policy.States {
 			switch state {
-			case "orphaned", "suspicious", "hung", "crashed":
+			case "orphaned", "hung", "crashed":
 			default:
 				return fmt.Errorf("%s state %q is not policy-eligible", prefix, state)
 			}
-			if (state == "orphaned" || state == "suspicious") && (!policy.RequireDetached || !policy.RequireSessionEnded) {
+			if state == "orphaned" && (!policy.RequireDetached || !policy.RequireSessionEnded) {
 				return fmt.Errorf("%s state %q requires requireDetached and requireSessionEnded", prefix, state)
 			}
 		}

@@ -22,7 +22,9 @@ func renderCandidates(r api.CandidatesResponse) {
 	if len(r.Audited) > 0 {
 		fmt.Printf("\n%d current audit decision(s):\n", len(r.Audited))
 		for _, c := range r.Audited {
-			fmt.Printf("PID %d (%s)\n  Policy: %s\n  State: %s\n  Result: %s\n  Reason: %s\n", c.PID, c.ProcUID, c.PolicyID, c.State, c.Result, c.Reason)
+			fmt.Printf("PID %d (%s)\n  Policy: %s\n  State: %s\n  Decision: %s\n  Classification: %s\n  Result: %s\n  Reason: %s\n",
+				c.PID, c.ProcUID, c.PolicyID, c.State, time.Unix(0, c.DecisionTsNs).Format(time.RFC3339),
+				time.Unix(0, c.ClassificationTsNs).Format(time.RFC3339), c.Result, c.Reason)
 			for _, evidence := range c.Evidence {
 				fmt.Printf("  Evidence: %s (%s)\n", evidence.Detail, evidence.Rule)
 			}
@@ -39,10 +41,12 @@ func renderPolicies(r api.PoliciesResponse) {
 		fmt.Println("No policies are loaded.")
 	} else {
 		w := newTable()
-		_, _ = fmt.Fprintln(w, "ID\tENABLED\tMODE\tSTATES\tEXECUTABLES\tDESCRIPTION")
+		_, _ = fmt.Fprintln(w, "ID\tENABLED\tMODE\tSTATES\tAGENTS\tEXECUTABLES\tDETACHED\tSESSION ENDED\tMIN STABLE\tCOOLDOWN\tDESCRIPTION")
 		for _, p := range r.Policies {
-			_, _ = fmt.Fprintf(w, "%s\t%t\t%s\t%s\t%s\t%s\n", p.ID, p.Enabled, p.Mode,
-				strings.Join(p.States, ","), strings.Join(p.Executables, ","), p.Description)
+			_, _ = fmt.Fprintf(w, "%s\t%t\t%s\t%s\t%s\t%s\t%t\t%t\t%s\t%s\t%s\n",
+				p.ID, p.Enabled, p.Mode, strings.Join(p.States, ","), strings.Join(p.Agents, ","),
+				strings.Join(p.Executables, ","), p.RequireDetached, p.RequireSessionEnded,
+				time.Duration(p.MinStableNs), time.Duration(p.CooldownNs), p.Description)
 		}
 		_ = w.Flush()
 	}

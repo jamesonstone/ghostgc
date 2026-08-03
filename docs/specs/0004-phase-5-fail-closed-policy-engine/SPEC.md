@@ -68,7 +68,8 @@ action authority.
   duplicate/invalid identifiers, unsupported modes, broad executable names,
   unknown states, empty scopes, unsafe stable windows and invalid cooldowns.
 - Require exact agent IDs and executable basenames. Phase 5 policies may match
-  only strong `orphaned`, `suspicious`, `hung` or `crashed` states.
+  only `orphaned`, `hung` or `crashed`; `suspicious` explicitly means progress
+  or live resources remain and is never cleanup-eligible.
 - Evaluate every current exact-key classification at the configured cadence.
   Match state, agent, executable, detachment, ended-session and stable-window
   conditions before applying all hard protections.
@@ -116,6 +117,11 @@ action authority.
   protected runtime classes during validation.
 - A cooldown suppresses repeated candidate noise; it never converts a refusal
   into eligibility and never extends itself when merely observed.
+- Global `disabled` is a hard cap: the daemon transactionally advances an empty
+  current evaluation and emits no decisions even if individual policies are
+  enabled in audit mode.
+- Retention never deletes the candidate row that grants an active cooldown,
+  including during aggressive compaction.
 - Current candidate views join decisions to live exact process rows so stale
   database history cannot look actionable.
 
@@ -129,11 +135,14 @@ action authority.
   explain the state. Copying that evidence into each policy decision makes the
   durable refusal/candidate record self-contained instead of requiring a later
   join to reconstruct its basis.
-- The live fixture inherited the invoking terminal even after its parent exited.
-  The hard controlling-terminal rule therefore refused all thirteen otherwise
-  matching samples. This is the intended fail-closed behavior; the isolated
-  daemon test supplies a terminal-free target to prove candidate and cooldown
-  behavior without making a live process eligible for action.
+- `suspicious` means that progress or live resources remain after a session
+  ends. Treating it as cleanup-eligible would invert that evidence, so policy
+  validation rejects it. A fixture-owned zombie supplies a deterministic
+  `crashed` conclusion for live refusal testing instead.
+- macOS activity samples are taken after the selecting process snapshot, so a
+  classification timestamp can be slightly later than the cadence timestamp.
+  The policy transaction uses the newest classification time as its decision
+  watermark while retaining the snapshot time solely for cadence bookkeeping.
 - Candidate cooldown lookup must consider only a prior `candidate`, not a prior
   `cooldown` or `refused` decision. It is keyed by policy ID plus exact
   `pid:start_time_ns`, so neither refusal observation nor PID reuse extends it.
@@ -151,12 +160,13 @@ action authority.
   `TestPolicyCandidateCooldownAndLiveProjection` prove strict config, every
   protection, exact-key cooldown persistence, current-only projection,
   candidate/cooldown transitions and zero signal attempts.
-- Live fixture run `20260803T163426Z-p5` used an exact `codex` /
-  `fixture-helper` policy. After the observed parent exited, thirteen matching
-  samples were durably recorded as `policy.refused` because the process retained
-  a controlling terminal. `ghostgc candidates`, `explain`, `logs`, `metrics`
-  and `policies` exposed the evidence; attempted/completed actions stayed zero.
-  The fixture-owned PIDs were removed after the run.
+- Live fixture run `20260803T165410Z-p5-review` used an exact `codex` /
+  `fixture-helper` / `crashed` policy. Seventeen matching samples were durably
+  recorded as `policy.refused` because the owning fixture session was active.
+  `ghostgc candidates`, `explain`, `logs`, `metrics` and `policies` exposed the
+  complete scope, both freshness timestamps and evidence; attempted/rejected/
+  completed actions stayed zero. Structured `result.json` and readable
+  `output.txt` record source identity, assertions and successful fixture cleanup.
 
 ## OUTCOME
 

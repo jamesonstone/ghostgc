@@ -23,6 +23,7 @@ func TestPolicyValidationFailsClosed(t *testing.T) {
 	}{
 		{name: "recommend mode", change: func(_ *Config, p *Policy) { p.Mode = ModeRecommend }, want: "unavailable"},
 		{name: "weak state", change: func(_ *Config, p *Policy) { p.States = []string{"idle"} }, want: "not policy-eligible"},
+		{name: "working state", change: func(_ *Config, p *Policy) { p.States = []string{"suspicious"} }, want: "not policy-eligible"},
 		{name: "broad runtime", change: func(_ *Config, p *Policy) { p.Executables = []string{"node"} }, want: "protected broad class"},
 		{name: "path executable", change: func(_ *Config, p *Policy) { p.Executables = []string{"/tmp/helper"} }, want: "exact basename"},
 		{name: "unknown agent", change: func(_ *Config, p *Policy) { p.Agents = []string{"other"} }, want: "not enabled"},

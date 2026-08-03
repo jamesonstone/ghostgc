@@ -147,6 +147,43 @@ func TestRetentionCompactsHarderWhenOverBudget(t *testing.T) {
 	}
 }
 
+func TestRetentionPreservesActiveCandidateCooldown(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	now := time.Now()
+	active := PolicyDecisionRecord{
+		PolicyID: "p1", ProcUID: "1:1", SessionID: "s1", TsNs: now.Add(-2 * time.Hour).UnixNano(),
+		ClassificationTsNs: now.Add(-2 * time.Hour).UnixNano(), ClassificationState: "orphaned",
+		Result: "candidate", Reason: "matched", CooldownUntilNs: now.Add(time.Hour).UnixNano(), EvidenceJSON: "[]",
+	}
+	expired := active
+	expired.ProcUID = "2:1"
+	expired.CooldownUntilNs = now.Add(-time.Minute).UnixNano()
+	if err := s.WithTx(ctx, func(tx *Tx) error {
+		if err := tx.InsertPolicyDecision(active); err != nil {
+			return err
+		}
+		return tx.InsertPolicyDecision(expired)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := s.Compact(ctx, RetentionPolicy{
+		RawObservations: time.Minute, Scans: time.Minute, Audit: time.Minute,
+		PolicyDecisions: time.Minute, ExitedProcesses: time.Minute,
+		EndedSessions: time.Minute, MaxDatabaseBytes: 1,
+	}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Aggressive || res.PolicyDecisions != 1 {
+		t.Fatalf("retention = %+v, want only the expired candidate removed", res)
+	}
+	until, err := s.LastCandidateCooldown(ctx, active.PolicyID, active.ProcUID)
+	if err != nil || until != active.CooldownUntilNs {
+		t.Fatalf("active cooldown = %d, %v; want %d", until, err, active.CooldownUntilNs)
+	}
+}
+
 func TestAuditLogIsQueryable(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()

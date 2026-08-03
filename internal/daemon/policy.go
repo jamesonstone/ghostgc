@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jamesonstone/ghostgc/internal/config"
 	"github.com/jamesonstone/ghostgc/internal/policy"
 	"github.com/jamesonstone/ghostgc/internal/process"
 	"github.com/jamesonstone/ghostgc/internal/sessions"
@@ -15,6 +16,7 @@ import (
 type policyBatch struct {
 	due        bool
 	at         time.Time
+	cadenceAt  time.Time
 	records    []storage.PolicyDecisionRecord
 	audit      []storage.AuditRecord
 	candidates int
@@ -25,7 +27,15 @@ func (d *Daemon) evaluatePolicies(ctx context.Context, snap *process.Snapshot, t
 	if !classes.due || (!d.lastPolicyAt.IsZero() && snap.Taken.Sub(d.lastPolicyAt) < d.cfg.Sampling.PolicyEvaluation.D()) {
 		return policyBatch{}, nil
 	}
-	batch := policyBatch{due: true, at: snap.Taken}
+	batch := policyBatch{due: true, at: snap.Taken, cadenceAt: snap.Taken}
+	for _, class := range classes.current {
+		if sampledAt := time.Unix(0, class.TsNs); sampledAt.After(batch.at) {
+			batch.at = sampledAt
+		}
+	}
+	if d.cfg.GlobalMode != config.ModeAudit {
+		return batch, nil
+	}
 	for _, class := range classes.current {
 		key, err := process.ParseKey(class.ProcUID)
 		if err != nil {
@@ -53,7 +63,7 @@ func (d *Daemon) evaluatePolicies(ctx context.Context, snap *process.Snapshot, t
 				StableSince: time.Unix(0, class.StableSinceNs), AgentID: attr.AgentID,
 				Executable: proc.Name(), Detached: class.Detached, SessionEnded: class.SessionEnded,
 				Protection: protectionResult,
-			}, snap.Taken, time.Unix(0, untilNs))
+			}, batch.at, time.Unix(0, untilNs))
 			if !matched {
 				continue
 			}
@@ -67,7 +77,7 @@ func (d *Daemon) evaluatePolicies(ctx context.Context, snap *process.Snapshot, t
 			}
 			record := storage.PolicyDecisionRecord{
 				PolicyID: decision.PolicyID, ProcUID: decision.ProcUID, SessionID: decision.SessionID,
-				TsNs: snap.Taken.UnixNano(), ClassificationTsNs: class.TsNs,
+				TsNs: batch.at.UnixNano(), ClassificationTsNs: class.TsNs,
 				ClassificationState: decision.State, Result: string(decision.Result),
 				Reason: decision.Reason, CooldownUntilNs: cooldownUntilNs, EvidenceJSON: string(evidence),
 			}
@@ -76,7 +86,7 @@ func (d *Daemon) evaluatePolicies(ctx context.Context, snap *process.Snapshot, t
 				batch.candidates++
 			}
 			batch.audit = append(batch.audit, storage.AuditRecord{
-				TsNs: snap.Taken.UnixNano(), Kind: "policy." + string(decision.Result), Subject: class.ProcUID,
+				TsNs: batch.at.UnixNano(), Kind: "policy." + string(decision.Result), Subject: class.ProcUID,
 				Summary: fmt.Sprintf("policy %s: %s", decision.PolicyID, decision.Reason), EvidenceJSON: string(evidence),
 			})
 		}
@@ -86,6 +96,6 @@ func (d *Daemon) evaluatePolicies(ctx context.Context, snap *process.Snapshot, t
 
 func (d *Daemon) commitPolicies(batch policyBatch) {
 	if batch.due {
-		d.lastPolicyAt = batch.at
+		d.lastPolicyAt = batch.cadenceAt
 	}
 }

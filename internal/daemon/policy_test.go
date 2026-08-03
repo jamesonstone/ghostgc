@@ -40,7 +40,7 @@ func TestPolicyCandidateCooldownAndLiveProjection(t *testing.T) {
 	h.fake.SetActivity(root.Key(), completeSample(root.Key(), time.Minute, time.Second))
 	var samples []process.ActivitySample
 	for minute := 1; minute <= 8; minute++ {
-		samples = append(samples, completeSample(child.Key(), time.Duration(minute)*time.Minute, time.Second))
+		samples = append(samples, completeSample(child.Key(), time.Duration(minute)*time.Minute+time.Second, time.Second))
 	}
 	h.fake.SetActivity(child.Key(), samples...)
 
@@ -56,6 +56,9 @@ func TestPolicyCandidateCooldownAndLiveProjection(t *testing.T) {
 	}
 	if len(resp.Audited[0].Evidence) == 0 || h.fake.SignalAttempts != 0 {
 		t.Fatalf("candidate lacks evidence or attempted a signal: %+v, signals=%d", resp.Audited[0], h.fake.SignalAttempts)
+	}
+	if resp.Audited[0].DecisionTsNs == 0 || resp.Audited[0].ClassificationTsNs == 0 {
+		t.Fatalf("candidate lacks freshness timestamps: %+v", resp.Audited[0])
 	}
 	cold, err := daemon.New(daemon.Options{
 		Config: cfg, Paths: h.paths, Store: h.store, Platform: platformtest.New(testUID),
@@ -89,5 +92,38 @@ func TestPolicyCandidateCooldownAndLiveProjection(t *testing.T) {
 	}
 	if h.fake.SignalAttempts != 0 {
 		t.Fatalf("policy evaluation attempted %d signals", h.fake.SignalAttempts)
+	}
+}
+
+func TestGlobalDisabledAdvancesEmptyPolicyProjection(t *testing.T) {
+	ctx := context.Background()
+	init := mk(1, 0, "/sbin/launchd", 0)
+	root := codexRoot(100, 1, time.Second)
+	child := mk(200, 100, "/opt/ghostgc-fixtures/safe-helper", 2*time.Second)
+	zombie := withParent(child, 1)
+	zombie.Status = process.StatusZombie
+	cfg := config.Default()
+	cfg.GlobalMode = config.ModeDisabled
+	cfg.Policies = []config.Policy{{
+		ID: "safe-helper", Description: "audit crashed fixture helper", Enabled: true, Mode: config.ModeAudit,
+		States: []string{"crashed"}, Agents: []string{"codex"}, Executables: []string{"safe-helper"},
+		MinStable: 0, Cooldown: config.Duration(time.Hour),
+	}}
+	h := newHarnessConfig(t, cfg,
+		snapshot(time.Minute, init, root, child),
+		snapshot(2*time.Minute, init, zombie),
+	)
+	h.d.ScanNow(ctx)
+	h.d.ScanNow(ctx)
+	resp, err := h.d.Candidates(ctx)
+	if err != nil || len(resp.Audited) != 0 {
+		t.Fatalf("disabled global mode produced decisions: %+v, %v", resp.Audited, err)
+	}
+	counts, err := h.store.Counts(ctx)
+	if err != nil || counts.PolicyDecisions != 0 {
+		t.Fatalf("disabled global mode persisted decisions: %+v, %v", counts, err)
+	}
+	if _, err := h.store.GetMeta(ctx, "last_policy_eval_ns"); err != nil {
+		t.Fatalf("disabled evaluation did not commit an empty watermark: %v", err)
 	}
 }

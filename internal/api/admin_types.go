@@ -7,16 +7,18 @@ import (
 
 // CandidateEntry is one current policy decision for an exact live process.
 type CandidateEntry struct {
-	PID             int               `json:"pid"`
-	ProcUID         string            `json:"proc_uid"`
-	SessionID       string            `json:"session_id"`
-	PolicyID        string            `json:"policy_id"`
-	State           string            `json:"classification_state"`
-	Result          string            `json:"result"`
-	Reason          string            `json:"reason"`
-	CooldownUntilNs int64             `json:"cooldown_until_ns,omitempty"`
-	Evidence        []policy.Evidence `json:"evidence"`
-	Command         string            `json:"would_execute,omitempty"`
+	PID                int               `json:"pid"`
+	ProcUID            string            `json:"proc_uid"`
+	SessionID          string            `json:"session_id"`
+	PolicyID           string            `json:"policy_id"`
+	State              string            `json:"classification_state"`
+	DecisionTsNs       int64             `json:"decision_ts_ns"`
+	ClassificationTsNs int64             `json:"classification_ts_ns"`
+	Result             string            `json:"result"`
+	Reason             string            `json:"reason"`
+	CooldownUntilNs    int64             `json:"cooldown_until_ns,omitempty"`
+	Evidence           []policy.Evidence `json:"evidence"`
+	Command            string            `json:"would_execute,omitempty"`
 }
 
 // CandidatesResponse backs `ghostgc candidates`.

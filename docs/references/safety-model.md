@@ -40,13 +40,16 @@ Tested in `internal/config/config_test.go`.
 ## Policies cannot widen authority
 
 Phase 5 policies accept only `audit` or `disabled`. Their schema is strict and
-non-Turing-complete: exact strong states, agent IDs and executable basenames,
-plus explicit booleans and durations. Validation rejects broad protected
-runtimes, weak/unknown states, unknown agents, unsafe windows, duplicates and
-recommend/enforce modes. A policy is applied only after hard protections; every
+non-Turing-complete: exact `orphaned`, `hung` or `crashed` states, agent IDs and
+executable basenames, plus explicit booleans and durations. `suspicious` is
+never eligible because it means progress or live resources remain. Validation
+rejects broad protected runtimes, weak/unknown states, unknown agents, unsafe
+windows, duplicates and recommend/enforce modes. Global `disabled` caps every
+individual policy. A policy is applied only after hard protections; every
 triggered protection becomes an immutable refusal reason and cannot be
 overridden. Cooldowns are keyed by policy plus `pid:start_time_ns`, so PID reuse
-cannot inherit eligibility or suppression.
+cannot inherit eligibility or suppression, and active cooldown rows survive
+ordinary and aggressive retention.
 
 Tested in `internal/config/policy_test.go`, `internal/policy/policy_test.go` and
 `internal/daemon/policy_test.go`.
