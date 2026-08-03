@@ -24,9 +24,10 @@ func (d *Daemon) Doctor(ctx context.Context) (api.DoctorResponse, error) {
 	}
 
 	invalid := process.Key{PID: d.selfPI, StartTimeNs: 1}
-	if err := d.plat.SignalProcess(ctx, invalid, platform.Signal(-1)); err == nil {
+	invalidExecutable := process.ExecutableIdentity{ExecPath: "/invalid", Comm: "invalid"}
+	if err := d.plat.SignalProcess(ctx, invalid, invalidExecutable, platform.Signal(-1)); err == nil {
 		add("signal-safety-gate", api.CheckError, "the platform accepted a non-TERM signal", "stop the daemon and rebuild from a trusted source tree")
-	} else if err := d.plat.SignalProcess(ctx, invalid, platform.SIGTERM); err == nil {
+	} else if err := d.plat.SignalProcess(ctx, invalid, invalidExecutable, platform.SIGTERM); err == nil {
 		add("signal-safety-gate", api.CheckError, "the platform accepted a changed exact process identity", "stop the daemon and rebuild from a trusted source tree")
 	} else {
 		add("signal-safety-gate", api.CheckOK, "non-TERM signals and changed exact process identities are rejected", "")

@@ -20,6 +20,7 @@ directions:
 | Check | Where |
 | --- | --- |
 | Non-TERM and changed exact identities are refused | `internal/platform/signal_gate_test.go:TestPlatformRejectsNonTERMAndChangedIdentity` |
+| A changed executable image is refused beside the signal syscall | `internal/platform/darwin/signal_test.go` |
 | Exactly one literal SIGTERM primitive exists; alternatives are forbidden | `TestSignalPrimitiveIsSingleLiteralSIGTERM` — walks the whole repository |
 | No source file shells out to `kill`, `pkill` or `killall` | `TestNoSourceFileShellsOutToATerminator` |
 | The daemon proves both refusals at runtime | `ghostgc doctor`, check `signal-safety-gate` |
@@ -59,11 +60,13 @@ Retention also preserves the latest evaluation as an indivisible projection;
 compaction cannot make only part of a current decision set disappear.
 
 Recommendation still grants no automatic authority. Preview binds the unique
-evaluation and decision IDs, exact process key, session, classification
-evidence and canonical policy. The bearer token is random, memory-only,
-single-use and valid for two minutes. Apply serializes with scans and then
-freshly snapshots, reconciles, samples, classifies, protects and evaluates. Any
-unknown or changed fact fails closed before the sole signal primitive.
+evaluation and decision IDs, exact process key, executable path and kernel
+name, session, classification evidence and canonical policy. The bearer token
+is random, memory-only, single-use and valid for two minutes. Apply serializes
+with scans and then freshly snapshots, reconciles, samples, classifies,
+protects and evaluates. The platform repeats exact-key and executable-image
+validation immediately beside the sole signal primitive. Any unknown or
+changed fact fails closed.
 
 Tested in `internal/config/policy_test.go`, `internal/policy/policy_test.go` and
 `internal/daemon/policy_test.go`.

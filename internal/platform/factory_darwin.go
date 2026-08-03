@@ -38,11 +38,12 @@ func (p *darwinPlatform) SampleActivity(ctx context.Context, key process.Key, re
 	return p.c.SampleActivity(ctx, key, repositoryRoot)
 }
 
-func (p *darwinPlatform) SignalProcess(ctx context.Context, key process.Key, sig Signal) error {
+func (p *darwinPlatform) SignalProcess(ctx context.Context, key process.Key,
+	executable process.ExecutableIdentity, sig Signal) error {
 	if sig != SIGTERM {
 		return ErrSignalNotAllowed
 	}
-	return p.c.SignalProcess(ctx, key, sig)
+	return p.c.SignalProcess(ctx, key, executable, sig)
 }
 
 func (p *darwinPlatform) InstallService(ctx context.Context, opts ServiceOptions) error {

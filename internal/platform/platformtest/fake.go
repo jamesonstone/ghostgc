@@ -149,7 +149,8 @@ type SignalAttempt struct {
 }
 
 // SignalProcess validates the scripted exact key and accepts SIGTERM only.
-func (f *Fake) SignalProcess(ctx context.Context, key process.Key, sig syscall.Signal) error {
+func (f *Fake) SignalProcess(ctx context.Context, key process.Key,
+	executable process.ExecutableIdentity, sig syscall.Signal) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.SignalAttempts++
@@ -159,8 +160,13 @@ func (f *Fake) SignalProcess(ctx context.Context, key process.Key, sig syscall.S
 	if f.last == nil {
 		return errors.New("platformtest: no process snapshot has been observed")
 	}
-	if _, ok := f.last.ByKey(key); !ok {
+	observed, ok := f.last.ByKey(key)
+	if !ok {
 		return errors.New("platformtest: signal target changed or exited")
+	}
+	identity, ok := observed.Executable()
+	if !ok || identity != executable {
+		return errors.New("platformtest: signal target executable changed or is unavailable")
 	}
 	f.Signals = append(f.Signals, SignalAttempt{Key: key, Sig: sig})
 	return f.SignalErr

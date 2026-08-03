@@ -56,6 +56,7 @@ func (c *Collector) SampleActivity(ctx context.Context, key process.Key, reposit
 }
 
 // SignalProcess implements the platform contract and always refuses.
-func (c *Collector) SignalProcess(ctx context.Context, key process.Key, sig syscall.Signal) error {
+func (c *Collector) SignalProcess(ctx context.Context, key process.Key,
+	executable process.ExecutableIdentity, sig syscall.Signal) error {
 	return errors.New("platform: process signalling is not available on linux before delivery phase 9")
 }

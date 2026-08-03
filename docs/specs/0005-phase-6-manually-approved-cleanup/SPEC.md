@@ -72,9 +72,9 @@ at every unknown, stale or changed fact.
 - Serialize action revalidation with scans. Take a new process snapshot,
   reconcile ownership and lifecycle, resample activity, reclassify, rerun hard
   protections and reevaluate the exact policy before acting.
-- Make the platform signal method accept an exact process key, validate it
-  inside the platform implementation immediately before the system call, and
-  accept only SIGTERM.
+- Make the platform signal method accept an exact process key plus the bound
+  executable path and kernel name, validate all of them inside the platform
+  implementation immediately before the system call, and accept only SIGTERM.
 - Persist the action attempt before the side effect, then durably record
   signalled, rejected or failed completion evidence. Expose action history via
   API, CLI, audit log and metrics.
@@ -143,7 +143,8 @@ at every unknown, stale or changed fact.
   structured history.
 - Platform source tests prove exactly one literal SIGTERM system-call site,
   reject alternate signalling primitives, SIGKILL and shell terminators, and
-  exercise non-TERM plus changed-key refusal against the running collector.
+  exercise non-TERM, changed-key and changed-image refusal against the running
+  collector.
 - Live run `20260803T180100Z-p6a5` at exact source/deployed `1e3cb06` used only
   fixture target `44801:1785780083631995000`. It reached orphaned after more
   than five continuous idle minutes, appeared only as recommended, issued a

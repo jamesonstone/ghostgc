@@ -35,7 +35,8 @@ func (p *linuxPlatform) SampleActivity(ctx context.Context, key process.Key, rep
 	return p.c.SampleActivity(ctx, key, repositoryRoot)
 }
 
-func (p *linuxPlatform) SignalProcess(ctx context.Context, key process.Key, sig Signal) error {
+func (p *linuxPlatform) SignalProcess(ctx context.Context, key process.Key,
+	executable process.ExecutableIdentity, sig Signal) error {
 	return ErrSignalingDisabled
 }
 

@@ -24,14 +24,9 @@ type cleanupApproval struct {
 	bindingDigest string
 	decision      storage.PolicyDecisionRecord
 	policy        config.Policy
-	executable    executableIdentity
+	executable    process.ExecutableIdentity
 	expires       time.Time
 	used          bool
-}
-
-type executableIdentity struct {
-	ExecPath string `json:"exec_path"`
-	Comm     string `json:"comm"`
 }
 
 // CleanupPreview issues one ephemeral approval for an exact recommendation.
@@ -165,12 +160,12 @@ func secretDigest(token string) string {
 }
 
 func approvalBinding(decision storage.PolicyDecisionRecord, definition config.Policy,
-	executable executableIdentity) (string, error) {
+	executable process.ExecutableIdentity) (string, error) {
 	raw, err := json.Marshal(struct {
 		Decision   storage.PolicyDecisionRecord `json:"decision"`
 		Evidence   string                       `json:"decision_evidence"`
 		Policy     config.Policy                `json:"policy"`
-		Executable executableIdentity           `json:"executable"`
+		Executable process.ExecutableIdentity   `json:"executable"`
 	}{decision, decision.EvidenceJSON, definition, executable})
 	if err != nil {
 		return "", err
@@ -179,9 +174,9 @@ func approvalBinding(decision storage.PolicyDecisionRecord, definition config.Po
 	return hex.EncodeToString(sum[:]), nil
 }
 
-func exactExecutable(observed process.Process, present bool) (executableIdentity, error) {
-	if !present || !observed.Detailed || observed.ExecPath == "" || observed.Comm == "" {
-		return executableIdentity{}, errors.New("exact executable identity is unavailable")
+func exactExecutable(observed process.Process, present bool) (process.ExecutableIdentity, error) {
+	if executable, ok := observed.Executable(); present && ok {
+		return executable, nil
 	}
-	return executableIdentity{ExecPath: observed.ExecPath, Comm: observed.Comm}, nil
+	return process.ExecutableIdentity{}, errors.New("exact executable identity is unavailable")
 }

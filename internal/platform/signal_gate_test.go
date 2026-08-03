@@ -19,10 +19,11 @@ func TestPlatformRejectsNonTERMAndChangedIdentity(t *testing.T) {
 		t.Skipf("no platform implementation for this host: %v", err)
 	}
 	invalid := process.Key{PID: os.Getpid(), StartTimeNs: 1}
-	if err := p.SignalProcess(context.Background(), invalid, platform.Signal(-1)); !errors.Is(err, platform.ErrSignalNotAllowed) {
+	invalidExecutable := process.ExecutableIdentity{ExecPath: "/invalid", Comm: "invalid"}
+	if err := p.SignalProcess(context.Background(), invalid, invalidExecutable, platform.Signal(-1)); !errors.Is(err, platform.ErrSignalNotAllowed) {
 		t.Fatalf("non-TERM signal returned %v, want ErrSignalNotAllowed", err)
 	}
-	if err := p.SignalProcess(context.Background(), invalid, platform.SIGTERM); err == nil {
+	if err := p.SignalProcess(context.Background(), invalid, invalidExecutable, platform.SIGTERM); err == nil {
 		t.Fatal("changed exact identity was accepted")
 	}
 }

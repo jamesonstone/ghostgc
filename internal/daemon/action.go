@@ -72,7 +72,7 @@ func (d *Daemon) CleanupApply(ctx context.Context, req api.CleanupApplyRequest) 
 		return api.CleanupApplyResponse{}, err
 	}
 
-	signalErr := d.plat.SignalProcess(ctx, target.key, platform.SIGTERM)
+	signalErr := d.plat.SignalProcess(ctx, target.key, approval.executable, platform.SIGTERM)
 	d.scanMu.Unlock()
 	completedAt := time.Now()
 	result, reason, kind := actionSignalled, "exact-key SIGTERM was accepted by the operating system", "action.signalled"

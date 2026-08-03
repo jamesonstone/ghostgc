@@ -98,7 +98,8 @@ func localChecks(ctx context.Context, e *env) []api.DoctorCheck {
 
 	if plat, err := platform.New(platform.Options{}); err == nil {
 		invalid := process.Key{PID: os.Getpid(), StartTimeNs: 1}
-		if err := plat.SignalProcess(ctx, invalid, platform.Signal(-1)); err != nil {
+		invalidExecutable := process.ExecutableIdentity{ExecPath: "/invalid", Comm: "invalid"}
+		if err := plat.SignalProcess(ctx, invalid, invalidExecutable, platform.Signal(-1)); err != nil {
 			add("signal-safety-gate", api.CheckOK, "non-TERM signals are rejected before any system call", "")
 		} else {
 			add("signal-safety-gate", api.CheckError, "the platform accepted a non-TERM signal", "do not use this build; rebuild from a trusted source tree")

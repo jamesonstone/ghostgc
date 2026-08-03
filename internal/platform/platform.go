@@ -78,9 +78,10 @@ type Platform interface {
 	// before and after inspection and return partial availability explicitly.
 	SampleActivity(ctx context.Context, key process.Key, repositoryRoot string) (process.ActivitySample, error)
 
-	// SignalProcess validates the exact key immediately before sending SIGTERM.
-	// The daemon must independently establish action authority first.
-	SignalProcess(ctx context.Context, key process.Key, sig Signal) error
+	// SignalProcess validates the exact key and bound executable image
+	// immediately before sending SIGTERM. The daemon must independently
+	// establish action authority first.
+	SignalProcess(ctx context.Context, key process.Key, executable process.ExecutableIdentity, sig Signal) error
 
 	// InstallService registers the daemon with the platform service manager.
 	InstallService(ctx context.Context, opts ServiceOptions) error

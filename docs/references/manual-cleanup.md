@@ -50,10 +50,11 @@ then run that exact command within two minutes if they are correct.
 
 The daemon consumes the approval once, serializes with process scans, and
 freshly verifies the committed decision, canonical policy, PID plus start time,
-ownership, session lifecycle, activity, classification and every hard
-protection. It records `attempting` before the system call and then records
-`signalled` or `failed`. A stale or changed fact records `rejected` and sends no
-signal.
+executable path and kernel name, ownership, session lifecycle, activity,
+classification and every hard protection. The platform verifies the key and
+image once more immediately beside the system call. It records `attempting`
+before that call and then records `signalled` or `failed`. A stale or changed
+fact records `rejected` and sends no signal.
 
 ```bash
 ghostgc actions
