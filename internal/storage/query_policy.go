@@ -28,19 +28,14 @@ func (s *Store) LastCandidateCooldown(ctx context.Context, policyID, procUID str
 // CurrentPolicyDecisions returns decisions from the unique latest committed
 // evaluation for exact process rows that are still live.
 func (s *Store) CurrentPolicyDecisions(ctx context.Context) ([]PolicyDecisionRecord, error) {
-	var evaluationID int64
-	err := s.db.QueryRowContext(ctx, `SELECT id FROM policy_evaluations ORDER BY id DESC LIMIT 1`).Scan(&evaluationID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("storage: reading latest policy evaluation: %w", err)
-	}
 	rows, err := s.db.QueryContext(ctx, `SELECT `+qualifiedPolicyDecisionColumns+`
 		FROM policy_decisions d JOIN processes p ON p.proc_uid = d.proc_uid
-		WHERE d.evaluation_id = ? AND p.exited_at_ns IS NULL AND d.id IN (
-			SELECT MAX(id) FROM policy_decisions WHERE evaluation_id = ? GROUP BY policy_id, proc_uid
-		) ORDER BY d.id`, evaluationID, evaluationID)
+		WHERE d.evaluation_id = (SELECT MAX(id) FROM policy_evaluations)
+		AND p.exited_at_ns IS NULL AND d.id IN (
+			SELECT MAX(id) FROM policy_decisions
+			WHERE evaluation_id = (SELECT MAX(id) FROM policy_evaluations)
+			GROUP BY policy_id, proc_uid
+		) ORDER BY d.id`)
 	if err != nil {
 		return nil, fmt.Errorf("storage: listing current policy decisions: %w", err)
 	}

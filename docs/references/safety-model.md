@@ -50,6 +50,8 @@ triggered protection becomes an immutable refusal reason and cannot be
 overridden. Cooldowns are keyed by policy plus `pid:start_time_ns`, so PID reuse
 cannot inherit eligibility or suppression, and active cooldown rows survive
 ordinary and aggressive retention.
+Retention also preserves the latest evaluation as an indivisible projection;
+compaction cannot make only part of a current decision set disappear.
 
 Tested in `internal/config/policy_test.go`, `internal/policy/policy_test.go` and
 `internal/daemon/policy_test.go`.

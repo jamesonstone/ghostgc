@@ -122,7 +122,9 @@ action authority.
   current evaluation and emits no decisions even if individual policies are
   enabled in audit mode.
 - Retention never deletes the candidate row that grants an active cooldown,
-  including during aggressive compaction.
+  including during aggressive compaction. It also preserves the entire latest
+  committed projection and every evaluation row still referenced by a retained
+  decision.
 - Current candidate views join decisions to live exact process rows so stale
   database history cannot look actionable.
 
@@ -150,6 +152,9 @@ action authority.
 - Candidate cooldown lookup must consider only a prior `candidate`, not a prior
   `cooldown` or `refused` decision. It is keyed by policy ID plus exact
   `pid:start_time_ns`, so neither refusal observation nor PID reuse extends it.
+- Selecting the latest evaluation and its decisions must be one SQLite
+  statement. Two statements allow a newer empty evaluation to commit between
+  them and briefly resurrect the older candidate.
 
 ## VALIDATION
 
@@ -163,7 +168,8 @@ action authority.
   `TestPolicyDecisionCooldownAndCurrentLiveProjection` and
   `TestPolicyCandidateCooldownAndLiveProjection` prove strict config, every
   protection, exact-key cooldown persistence, current-only projection,
-  same-timestamp empty projection, per-process stable windows,
+  same-timestamp and concurrent empty projections, retention-stable current
+  views, per-process stable windows,
   candidate/cooldown transitions and zero signal attempts.
 - Live fixture run `20260803T170659Z-p5f1` at exact source `e4f1d76` used an exact `codex` /
   `fixture-helper` / `crashed` policy. Seventeen matching samples were durably

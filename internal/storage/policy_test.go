@@ -68,3 +68,53 @@ func TestPolicyDecisionCooldownAndCurrentLiveProjection(t *testing.T) {
 		t.Fatalf("counts = %+v, %v", counts, err)
 	}
 }
+
+func TestCurrentPolicyDecisionsStayEmptyDuringConcurrentEmptyCommits(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	live := proc("42:1", 42, 1, 100)
+	if err := s.WithTx(ctx, func(tx *Tx) error {
+		evaluationID, err := tx.InsertPolicyEvaluation(100)
+		if err != nil {
+			return err
+		}
+		if err := tx.UpsertProcess(live); err != nil {
+			return err
+		}
+		return tx.InsertPolicyDecision(PolicyDecisionRecord{
+			EvaluationID: evaluationID, PolicyID: "p1", ProcUID: live.ProcUID,
+			SessionID: "s1", TsNs: 100, ClassificationTsNs: 100,
+			ClassificationState: "crashed", Result: "candidate", Reason: "seed", EvidenceJSON: "[]",
+		})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	firstCommitted := make(chan struct{})
+	writerDone := make(chan error, 1)
+	go func() {
+		for i := range 100 {
+			err := s.WithTx(ctx, func(tx *Tx) error {
+				_, err := tx.InsertPolicyEvaluation(int64(200 + i))
+				return err
+			})
+			if err != nil {
+				writerDone <- err
+				return
+			}
+			if i == 0 {
+				close(firstCommitted)
+			}
+		}
+		writerDone <- nil
+	}()
+	<-firstCommitted
+	for range 100 {
+		current, err := s.CurrentPolicyDecisions(ctx)
+		if err != nil || len(current) != 0 {
+			t.Fatalf("concurrent empty evaluation exposed stale decisions: %+v, %v", current, err)
+		}
+	}
+	if err := <-writerDone; err != nil {
+		t.Fatal(err)
+	}
+}

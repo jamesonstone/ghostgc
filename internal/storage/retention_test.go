@@ -159,11 +159,37 @@ func TestRetentionPreservesActiveCandidateCooldown(t *testing.T) {
 	expired := active
 	expired.ProcUID = "2:1"
 	expired.CooldownUntilNs = now.Add(-time.Minute).UnixNano()
+	latestProcess := proc("3:1", 3, 1, now.UnixNano())
+	latest := active
+	latest.ProcUID = latestProcess.ProcUID
+	latest.Result = "refused"
+	latest.CooldownUntilNs = 0
 	if err := s.WithTx(ctx, func(tx *Tx) error {
+		activeEvaluation, err := tx.InsertPolicyEvaluation(active.TsNs)
+		if err != nil {
+			return err
+		}
+		active.EvaluationID = activeEvaluation
 		if err := tx.InsertPolicyDecision(active); err != nil {
 			return err
 		}
-		return tx.InsertPolicyDecision(expired)
+		expiredEvaluation, err := tx.InsertPolicyEvaluation(expired.TsNs)
+		if err != nil {
+			return err
+		}
+		expired.EvaluationID = expiredEvaluation
+		if err := tx.InsertPolicyDecision(expired); err != nil {
+			return err
+		}
+		latestEvaluation, err := tx.InsertPolicyEvaluation(latest.TsNs)
+		if err != nil {
+			return err
+		}
+		latest.EvaluationID = latestEvaluation
+		if err := tx.UpsertProcess(latestProcess); err != nil {
+			return err
+		}
+		return tx.InsertPolicyDecision(latest)
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -175,12 +201,20 @@ func TestRetentionPreservesActiveCandidateCooldown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !res.Aggressive || res.PolicyDecisions != 1 {
-		t.Fatalf("retention = %+v, want only the expired candidate removed", res)
+	if !res.Aggressive || res.PolicyDecisions != 1 || res.PolicyEvaluations != 1 {
+		t.Fatalf("retention = %+v, want only the expired candidate and its evaluation removed", res)
 	}
 	until, err := s.LastCandidateCooldown(ctx, active.PolicyID, active.ProcUID)
 	if err != nil || until != active.CooldownUntilNs {
 		t.Fatalf("active cooldown = %d, %v; want %d", until, err, active.CooldownUntilNs)
+	}
+	current, err := s.CurrentPolicyDecisions(ctx)
+	if err != nil || len(current) != 1 || current[0].ProcUID != latest.ProcUID || current[0].Result != "refused" {
+		t.Fatalf("latest projection changed during retention: %+v, %v", current, err)
+	}
+	var evaluations int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM policy_evaluations`).Scan(&evaluations); err != nil || evaluations != 2 {
+		t.Fatalf("retained evaluation count = %d, %v; want latest plus active cooldown parent", evaluations, err)
 	}
 }
 

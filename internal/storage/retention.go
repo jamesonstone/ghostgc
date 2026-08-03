@@ -105,9 +105,11 @@ func (s *Store) compactOnce(ctx context.Context, p RetentionPolicy, now time.Tim
 			{&res.ActivitySamples, `DELETE FROM process_activity WHERE ts_ns < ?`, []any{cutoff(p.RawObservations)}},
 			{&res.Classifications, `DELETE FROM process_classifications WHERE ts_ns < ?`, []any{cutoff(p.RawObservations)}},
 			{&res.PolicyDecisions, `DELETE FROM policy_decisions WHERE ts_ns < ?
+				AND evaluation_id <> (SELECT MAX(id) FROM policy_evaluations)
 				AND (result <> 'candidate' OR cooldown_until_ns <= ?)`, []any{cutoff(p.PolicyDecisions), now.UnixNano()}},
 			{&res.PolicyEvaluations, `DELETE FROM policy_evaluations WHERE ts_ns < ?
-				AND id <> (SELECT MAX(id) FROM policy_evaluations)`, []any{cutoff(p.PolicyDecisions)}},
+				AND id <> (SELECT MAX(id) FROM policy_evaluations)
+				AND id NOT IN (SELECT DISTINCT evaluation_id FROM policy_decisions)`, []any{cutoff(p.PolicyDecisions)}},
 			{&res.Scans, `DELETE FROM scans WHERE started_ns < ?`, []any{cutoff(p.Scans)}},
 			{&res.Audit, `DELETE FROM audit_log WHERE ts_ns < ?`, []any{cutoff(p.Audit)}},
 			{&res.Ownership, `DELETE FROM session_processes WHERE proc_uid IN (
