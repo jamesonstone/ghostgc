@@ -10,10 +10,10 @@
 
 | Layer | Command | PR workflow or check | Required | Notes |
 | --- | --- | --- | --- | --- |
-| Format + vet + unit/integration | `make check` | not yet wired to Actions | yes | Whole module; no external services |
-| Race detector | `make race` | not yet wired to Actions | yes | Concurrency in the collector and daemon loop |
-| Lint | `make lint` (`golangci-lint run ./...`) | not yet wired to Actions | yes | Must report zero issues |
-| Source file size | `make size` | not yet wired to Actions | yes | Enforces the 300-line gate on `cmd/`, `internal/`, `fixtures/` |
+| Format + vet + unit/integration | `make check` | `CI / Check` | yes | Whole module; no external services |
+| Race detector | `make race` | `CI / Race detector` | yes | Concurrency in the collector and daemon loop |
+| Lint | `make lint` (`golangci-lint run ./...`) | `CI / Lint` | yes | Must report zero issues |
+| Source file size | `make size` | included in `CI / Check` | yes | Enforces the 300-line gate on `cmd/`, `internal/`, `fixtures/` |
 | Coverage summary | `make cover` | manual | no | Informational |
 
 ## High-Level Suites
@@ -21,6 +21,7 @@
 | Suite | Type | Environment | Command | Automation | Evidence |
 | --- | --- | --- | --- | --- | --- |
 | Live process tree | end-to-end | local macOS | `fixtures/fixture-agent.sh start`, then `orphan`, then `stop` | manual | `ghostgc sessions`, `ghostgc session show <id>`, `ghostgc explain <pid>` |
+| Activity evidence | live-integration | local macOS | start fixture and daemon, wait for two activity cadences | manual | `ghostgc activity`; periodic worker has positive delta, idle worker has known zero |
 | Resource budget | live-integration | local macOS | run `ghostgcd`, then `ghostgc metrics` | manual | scan duration, CPU, RSS, database size |
 
 ## Environment Preflights

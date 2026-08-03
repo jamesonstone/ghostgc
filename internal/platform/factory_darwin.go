@@ -34,6 +34,10 @@ func (p *darwinPlatform) InspectProcess(ctx context.Context, pid int) (process.P
 	return p.c.InspectProcess(ctx, pid)
 }
 
+func (p *darwinPlatform) SampleActivity(ctx context.Context, key process.Key, repositoryRoot string) (process.ActivitySample, error) {
+	return p.c.SampleActivity(ctx, key, repositoryRoot)
+}
+
 // SignalProcess is refused by the collector and re-reported with this
 // package's sentinel error so callers can match on it.
 func (p *darwinPlatform) SignalProcess(ctx context.Context, pid int, sig Signal) error {

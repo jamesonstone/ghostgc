@@ -232,6 +232,24 @@ The repository package calls `os.Lstat` on `.git` and nothing else. No code path
 opens a file inside a repository. `privacy.storeSourceContents` exists only so
 that setting it to `true` can be refused.
 
+## Activity evidence fails closed
+
+The expensive activity pass runs only for live processes whose attribution
+clears the reporting threshold. The platform validates the complete
+`pid:start_time_ns` key and same-user ownership before and after descriptor
+inspection, so PID reuse or exit produces unavailable evidence rather than a
+sample for the wrong process.
+
+CPU and disk deltas require two ordered, available, monotonic samples for that
+exact key. Availability is stored independently for CPU, disk, files and
+sockets. Missing evidence therefore remains unknown and can never masquerade as
+zero activity. File paths and socket endpoints are used only to derive bounded
+counts and are intentionally not persisted. Socket and file-lock relationships
+are context-only and cannot establish ownership.
+
+Tested by `process/activity_test.go`, `daemon/activity_test.go` and
+`storage/activity_test.go`.
+
 ## Failure never becomes action
 
 A failed scan is recorded to `scans` and to the audit log with the summary

@@ -166,6 +166,8 @@ func (d *Daemon) Metrics(ctx context.Context) (api.MetricsResponse, error) {
 		MaxScanDurationMs:    float64(m.maxScanDuration.Microseconds()) / 1000,
 		LastReconcileMs:      float64(m.lastReconcile.Microseconds()) / 1000,
 		LastPersistMs:        float64(m.lastPersist.Microseconds()) / 1000,
+		LastActivityMs:       float64(m.lastActivity.Microseconds()) / 1000,
+		ActivitySamples:      m.activitySamples,
 		VisibleProcesses:     m.visibleProcesses,
 		InspectedProcesses:   m.inspectedProcesses,
 		AttributedProcesses:  m.attributed,

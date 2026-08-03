@@ -190,6 +190,12 @@ func init() {
 			run:     cmdMetrics,
 		},
 		{
+			name:    "activity",
+			summary: "show targeted process activity evidence",
+			usage:   "[--session <id>] [--process <proc-uid>] [--limit <n>]",
+			run:     cmdActivity,
+		},
+		{
 			name:    "config",
 			summary: "manage the configuration file",
 			usage:   "init|path|show",

@@ -16,9 +16,13 @@ import (
 
 // Fake replays a scripted sequence of snapshots.
 type Fake struct {
-	mu        sync.Mutex
-	snapshots []*process.Snapshot
-	index     int
+	mu            sync.Mutex
+	snapshots     []*process.Snapshot
+	index         int
+	last          *process.Snapshot
+	activity      map[string][]process.ActivitySample
+	activityIndex map[string]int
+	activityCalls []process.Key
 
 	// UID is the uid the fake claims to run as.
 	UID uint32
@@ -36,7 +40,25 @@ type Fake struct {
 // New builds a Fake that replays the given snapshots in order, repeating the
 // last one once the script is exhausted.
 func New(uid uint32, snapshots ...*process.Snapshot) *Fake {
-	return &Fake{UID: uid, snapshots: snapshots}
+	return &Fake{
+		UID: uid, snapshots: snapshots,
+		activity:      make(map[string][]process.ActivitySample),
+		activityIndex: make(map[string]int),
+	}
+}
+
+// SetActivity scripts targeted samples for one exact process key.
+func (f *Fake) SetActivity(key process.Key, samples ...process.ActivitySample) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.activity[key.UID()] = append([]process.ActivitySample(nil), samples...)
+}
+
+// ActivityCalls returns the exact keys selected for expensive inspection.
+func (f *Fake) ActivityCalls() []process.Key {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]process.Key(nil), f.activityCalls...)
 }
 
 // Push appends a snapshot to the script.
@@ -65,6 +87,7 @@ func (f *Fake) SnapshotProcesses(ctx context.Context) (*process.Snapshot, error)
 		return nil, errors.New("platformtest: no snapshots were scripted")
 	}
 	s := f.snapshots[f.index]
+	f.last = s
 	if f.index < len(f.snapshots)-1 {
 		f.index++
 	}
@@ -78,11 +101,43 @@ func (f *Fake) InspectProcess(ctx context.Context, pid int) (process.Process, er
 	if len(f.snapshots) == 0 {
 		return process.Process{}, errors.New("platformtest: no snapshots were scripted")
 	}
-	p, ok := f.snapshots[f.index].ByPID(pid)
+	snap := f.last
+	if snap == nil {
+		snap = f.snapshots[f.index]
+	}
+	p, ok := snap.ByPID(pid)
 	if !ok {
 		return process.Process{}, errors.New("platformtest: no such process")
 	}
 	return p, nil
+}
+
+// SampleActivity implements targeted activity inspection and validates the
+// exact process key before returning scripted evidence.
+func (f *Fake) SampleActivity(ctx context.Context, key process.Key, repositoryRoot string) (process.ActivitySample, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.last == nil {
+		return process.ActivitySample{}, errors.New("platformtest: no process snapshot has been observed")
+	}
+	p, ok := f.last.ByKey(key)
+	if !ok {
+		return process.ActivitySample{}, errors.New("platformtest: activity target changed or exited")
+	}
+	f.activityCalls = append(f.activityCalls, key)
+	if scripted := f.activity[key.UID()]; len(scripted) > 0 {
+		i := f.activityIndex[key.UID()]
+		if i >= len(scripted) {
+			i = len(scripted) - 1
+		}
+		f.activityIndex[key.UID()]++
+		return scripted[i], nil
+	}
+	return process.ActivitySample{
+		Key: key, Taken: f.last.Taken, CPUTime: p.CPUTime,
+		CPUKnown: p.Detailed, RSSBytes: p.RSSBytes,
+		Note: "file, socket and I/O activity was not scripted",
+	}, nil
 }
 
 // SignalProcess implements platform.Platform and always refuses, exactly as

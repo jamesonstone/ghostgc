@@ -52,6 +52,13 @@ func TestAPIRoundTripOverUnixSocket(t *testing.T) {
 	if _, err := client.Explain(ctx, 100); err != nil {
 		t.Fatalf("Explain over the socket: %v", err)
 	}
+	activity, err := client.Activity(ctx, api.ActivityOptions{Limit: 10})
+	if err != nil {
+		t.Fatalf("Activity over the socket: %v", err)
+	}
+	if len(activity.Samples) != 1 {
+		t.Fatalf("got %d activity samples over the socket, want 1", len(activity.Samples))
+	}
 	if _, err := client.Session(ctx, "does-not-exist"); err == nil {
 		t.Fatal("an unknown session must be an error")
 	}

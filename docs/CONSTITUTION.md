@@ -9,6 +9,8 @@
 - Fail closed. Where ownership or safety cannot be established, nothing happens.
 - Prefer saying "unknown" to saying something convenient. A plausible value the
   daemon did not observe is a fabrication.
+- Missing activity evidence is not inactivity. Deltas require two ordered,
+  available samples for the same exact process key.
 - Record what was observed when it was observed. Do not re-derive a fact each
   cycle that the operating system can destroy between cycles.
 - Run with the least privilege that can do the job, and inspect only what that
@@ -35,6 +37,9 @@
   segments. Ownership is never established by matching a command-line substring.
 - Source-code contents are never read. The daemon records paths and metadata,
   and reads version-control plumbing only.
+- Expensive activity inspection is restricted to live, same-user processes
+  already attributed to a coding-agent session. File paths and socket endpoints
+  discovered during that pass never reach storage.
 - Credentials are redacted before anything reaches storage or a log line.
 - Failure never becomes action. A failed observation is recorded, no conclusion
   is drawn from it, and observation continues.

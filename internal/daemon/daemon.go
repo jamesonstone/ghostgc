@@ -61,12 +61,14 @@ type Daemon struct {
 
 	startedAt time.Time
 
-	mu       sync.RWMutex
-	snapshot *process.Snapshot
-	tree     *process.Tree
-	last     *sessions.Result
-	degraded []string
-	metrics  metrics
+	mu               sync.RWMutex
+	snapshot         *process.Snapshot
+	tree             *process.Tree
+	last             *sessions.Result
+	degraded         []string
+	metrics          metrics
+	lastActivityAt   time.Time
+	activityBaseline map[string]process.ActivitySample
 }
 
 type metrics struct {
@@ -77,6 +79,8 @@ type metrics struct {
 	maxScanDuration    time.Duration
 	lastReconcile      time.Duration
 	lastPersist        time.Duration
+	lastActivity       time.Duration
+	activitySamples    int64
 	retentionRuns      int64
 	lastRetentionRows  int64
 	visibleProcesses   int
@@ -122,15 +126,16 @@ func New(opts Options) (*Daemon, error) {
 	}
 
 	d := &Daemon{
-		cfg:       opts.Config,
-		paths:     opts.Paths,
-		store:     opts.Store,
-		plat:      opts.Platform,
-		log:       log,
-		reg:       reg,
-		repos:     repos,
-		selfPI:    os.Getpid(),
-		startedAt: time.Now(),
+		cfg:              opts.Config,
+		paths:            opts.Paths,
+		store:            opts.Store,
+		plat:             opts.Platform,
+		log:              log,
+		reg:              reg,
+		repos:            repos,
+		selfPI:           os.Getpid(),
+		startedAt:        time.Now(),
+		activityBaseline: make(map[string]process.ActivitySample),
 	}
 	d.recon = sessions.New(reg, d.selfPI, opts.Platform.SelfUID(), repos)
 	return d, nil

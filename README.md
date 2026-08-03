@@ -14,7 +14,7 @@ across reparenting and PID reuse, and explains every conclusion it reaches with
 the evidence behind it.
 
 <!-- BEGIN KIT-MANAGED README BADGES -->
-[![Last commit](https://img.shields.io/github/last-commit/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/commits) [![Open issues](https://img.shields.io/github/issues/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/issues) [![Pull requests](https://img.shields.io/github/issues-pr/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/pulls) [![Release](https://img.shields.io/github/v/release/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/releases)
+[![Last commit](https://img.shields.io/github/last-commit/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/commits) [![Open issues](https://img.shields.io/github/issues/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/issues) [![Pull requests](https://img.shields.io/github/issues-pr/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/pulls) [![CI](https://github.com/jamesonstone/ghostgc/actions/workflows/ci.yml/badge.svg)](https://github.com/jamesonstone/ghostgc/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/releases)
 <!-- END KIT-MANAGED README BADGES -->
 
 **This build observes only.** It contains no code that can send a signal to a
@@ -129,6 +129,7 @@ foreground instead: `ghostgcd --log-level debug`.
 | `ghostgc session show <id>` | one session: evidence, processes, relationship graph, audit trail |
 | `ghostgc processes` | processes attributed to a session |
 | `ghostgc explain <pid>` | what was concluded about a PID and why — works for *any* PID |
+| `ghostgc activity` | bounded CPU, disk, file and socket evidence for attributed processes |
 | `ghostgc candidates` | cleanup candidates (none can exist in this build) |
 | `ghostgc policies` | loaded cleanup policies (none can exist in this build) |
 | `ghostgc logs` | the audit trail |
@@ -163,6 +164,11 @@ JWTs, …) and by rewriting URLs carrying passwords or presigned signatures;
 environment variables are reduced to the small allowlist the adapters need; and
 file contents are never read at all.
 
+The separate activity pass runs once a minute by default and only for live
+processes already attributed to an agent session. It persists deltas and counts,
+not file paths or socket endpoints. A `?` in `ghostgc activity` means the metric
+was unavailable or lacks a valid baseline; it never means observed zero.
+
 ## Measured behaviour
 
 On a machine with 1471 running processes, 1127 of them the current user's:
@@ -185,8 +191,8 @@ Each phase is completed, tested and documented before the next begins.
 | --- | --- | --- |
 | 1 | Observation foundation: daemon, CLI, SQLite, macOS collection, process trees, Codex detection, audit log | **done** |
 | 2 | Session graph: typed relationships, launch context, environment membership, repository and terminal association, session state machine | **done** |
-| 3 | Activity tracking: CPU/IO/network deltas, open files, sockets | next |
-| 4 | Classification: active, idle, waiting, detached, suspicious, orphaned, unknown | |
+| 3 | Activity tracking: CPU/IO/network deltas, open files, sockets | **done** |
+| 4 | Classification: active, idle, waiting, detached, suspicious, orphaned, unknown | next |
 | 5 | Policy engine: YAML policies, audit evaluation, safety refusals, cooldowns | |
 | 6 | Recommended cleanup: manual approval, exact command preview, pre-action revalidation, SIGTERM only | |
 | 7 | Narrow enforcement: one or two highly specific process classes, behind every gate | |
@@ -215,7 +221,10 @@ worker shell, an idle child, a periodic-work child and a helper orphaned to
 `launchd` — so the collector can be exercised against a known shape:
 
 ```bash
-fixtures/fixture-agent.sh start && ghostgc sessions
+fixtures/fixture-agent.sh start
+ghostgc sessions
+sleep 65
+ghostgc activity
 ```
 
 ## Documentation

@@ -148,6 +148,13 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET "+p+"/metrics", s.handle(func(r *http.Request) (any, error) {
 		return s.Backend.Metrics(r.Context())
 	}))
+	mux.HandleFunc("GET "+p+"/activity", s.handle(func(r *http.Request) (any, error) {
+		q := r.URL.Query()
+		opts := ActivityOptions{ProcUID: q.Get("process"), SessionID: q.Get("session")}
+		opts.Limit, _ = strconv.Atoi(q.Get("limit"))
+		opts.SinceNs, _ = strconv.ParseInt(q.Get("since_ns"), 10, 64)
+		return s.Backend.Activity(r.Context(), opts)
+	}))
 
 	return mux
 }

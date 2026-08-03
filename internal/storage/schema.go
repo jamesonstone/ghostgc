@@ -1,7 +1,7 @@
 package storage
 
 // schemaVersion is the newest migration below.
-const schemaVersion = 2
+const schemaVersion = 3
 
 // migration is one forward step. Migrations are applied in order, each in its
 // own transaction, and the version is recorded as each completes.
@@ -17,6 +17,7 @@ type migration struct {
 var migrations = []migration{
 	{version: 1, stmts: schemaV1},
 	{version: 2, stmts: schemaV2},
+	{version: 3, stmts: schemaV3},
 }
 
 // schemaV1 is the delivery phase 1 schema.
@@ -198,4 +199,37 @@ CREATE TABLE session_relationships (
 ) STRICT;
 CREATE INDEX session_relationships_session_idx ON session_relationships(session_id);
 CREATE INDEX session_relationships_from_idx    ON session_relationships(from_proc_uid);
+`
+
+// schemaV3 adds bounded phase-3 activity evidence. It stores derived counts
+// and deltas only; raw file paths and socket endpoints never reach storage.
+const schemaV3 = `
+CREATE TABLE process_activity (
+	id                         INTEGER PRIMARY KEY AUTOINCREMENT,
+	proc_uid                   TEXT NOT NULL,
+	session_id                 TEXT NOT NULL,
+	ts_ns                      INTEGER NOT NULL,
+	interval_ns                INTEGER NOT NULL DEFAULT 0,
+	baseline_ok                INTEGER NOT NULL DEFAULT 0,
+	cpu_percent                REAL NOT NULL DEFAULT 0,
+	cpu_delta_ns               INTEGER NOT NULL DEFAULT 0,
+	cpu_known                  INTEGER NOT NULL DEFAULT 0,
+	disk_read_bytes            INTEGER NOT NULL DEFAULT 0,
+	disk_written_bytes         INTEGER NOT NULL DEFAULT 0,
+	io_known                   INTEGER NOT NULL DEFAULT 0,
+	rss_bytes                  INTEGER NOT NULL DEFAULT 0,
+	open_files                 INTEGER NOT NULL DEFAULT 0,
+	writable_repository_files  INTEGER NOT NULL DEFAULT 0,
+	files_known                INTEGER NOT NULL DEFAULT 0,
+	sockets                    INTEGER NOT NULL DEFAULT 0,
+	connected_sockets          INTEGER NOT NULL DEFAULT 0,
+	receive_queue_bytes        INTEGER NOT NULL DEFAULT 0,
+	send_queue_bytes           INTEGER NOT NULL DEFAULT 0,
+	network_changed            INTEGER NOT NULL DEFAULT 0,
+	sockets_known              INTEGER NOT NULL DEFAULT 0,
+	note                       TEXT NOT NULL DEFAULT ''
+) STRICT;
+CREATE INDEX process_activity_ts_idx ON process_activity(ts_ns);
+CREATE INDEX process_activity_proc_idx ON process_activity(proc_uid, ts_ns);
+CREATE INDEX process_activity_session_idx ON process_activity(session_id, ts_ns);
 `

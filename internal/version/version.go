@@ -7,7 +7,7 @@ import "runtime/debug"
 var Version = "dev"
 
 // PhaseNumber is the delivery phase this build implements.
-const PhaseNumber = 2
+const PhaseNumber = 3
 
 // Phase names the delivery phase this build implements. It is displayed
 // wherever the daemon reports what it can and cannot do, so that the audit-only
@@ -15,7 +15,7 @@ const PhaseNumber = 2
 //
 // It is a constant, so it goes stale silently unless something checks it;
 // version_test.go does.
-const Phase = "2 — session graph (no process termination code is present)"
+const Phase = "3 — activity tracking (no process termination code is present)"
 
 // Revision returns the VCS revision recorded by the Go toolchain, if any.
 func Revision() string {
