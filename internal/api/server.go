@@ -97,9 +97,16 @@ func (s *Server) Serve(ctx context.Context) error {
 	case <-ctx.Done():
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = s.srv.Shutdown(shutdownCtx)
+		shutdownErr := s.srv.Shutdown(shutdownCtx)
+		// Wait for Serve to finish closing its UnixListener. UnixListener unlinks
+		// the socket on close; returning first would let a caller recreate the
+		// path only for the old listener to remove the new file afterward.
+		serveErr := <-errCh
 		_ = os.Remove(s.SocketPath)
-		return nil
+		if shutdownErr != nil {
+			return fmt.Errorf("api: shutting down server: %w", shutdownErr)
+		}
+		return serveErr
 	case err := <-errCh:
 		_ = os.Remove(s.SocketPath)
 		return err
@@ -147,6 +154,13 @@ func (s *Server) routes() http.Handler {
 	}))
 	mux.HandleFunc("GET "+p+"/metrics", s.handle(func(r *http.Request) (any, error) {
 		return s.Backend.Metrics(r.Context())
+	}))
+	mux.HandleFunc("GET "+p+"/activity", s.handle(func(r *http.Request) (any, error) {
+		q := r.URL.Query()
+		opts := ActivityOptions{ProcUID: q.Get("process"), SessionID: q.Get("session")}
+		opts.Limit, _ = strconv.Atoi(q.Get("limit"))
+		opts.SinceNs, _ = strconv.ParseInt(q.Get("since_ns"), 10, 64)
+		return s.Backend.Activity(r.Context(), opts)
 	}))
 
 	return mux

@@ -58,6 +58,12 @@ Every 15 seconds by default:
 7. **Commit.** Only after that transaction succeeds does the reconciler advance
    its in-memory view.
 
+On the separate 60-second activity cadence, the daemon adds a targeted pass
+between attribution and persistence. It validates the exact process key before
+and after collection, then samples cumulative CPU and disk counters plus bounded
+file and socket counts. Only derived counts and deltas enter the same transaction
+as the scan; discovered paths and socket endpoints remain scan-local.
+
 Retention compacts every 6 hours.
 
 ## Why staged collection
@@ -68,8 +74,8 @@ the detail pass covered all 1464 processes including other users', it would have
 bought nothing — those processes can never be attributed or managed — while
 adding a third to the scan cost.
 
-Phase 3 adds a genuinely expensive third stage (open files, sockets), which must
-be gated on candidate selection rather than run per cycle.
+Phase 3 adds a genuinely expensive third stage (open files and sockets). It is
+gated on successful attribution and its own cadence rather than run per cycle.
 
 ## Why only attributed processes are stored
 
@@ -96,7 +102,7 @@ Phase 2 records *why* each process belongs, as typed, timestamped edges:
 | `process-group` | shared process group with the session root | no |
 | `terminal` | shared controlling terminal or POSIX session | no |
 | `repository` | the repository a process is working inside | no |
-| `socket`, `file-lock` | declared; populated in phase 3 | no |
+| `socket`, `file-lock` | live socket counts and repository-lock context | no |
 
 Several edges can support one attribution, so losing a reason does not lose the
 session. A process whose parent exited still has its `original-parent` edge, its
@@ -177,7 +183,8 @@ HTTP.
 | --- | --- |
 | `meta` | schema version, daemon key/values |
 | `processes` | one row per attributed process, keyed `pid:start_time_ns` |
-| `process_observations` | time series; deltas are computed from it in phase 3 |
+| `process_observations` | lightweight time series from every process scan |
+| `process_activity` | bounded phase-3 deltas and availability flags |
 | `scans` | one row per cycle, including failures |
 | `sessions` | one row per detected session |
 | `session_processes` | durable ownership, never downgraded |
@@ -208,9 +215,9 @@ downgraded, because downgrading would silently drop columns it depends on.
 ```
 
 `idle`, `waiting`, `suspicious`, `hung`, `orphaned` and `crashed` are declared
-and unproduced: they need the activity deltas from phase 3 and the
-classification engine in phase 4. `unknown` is reserved for a session the daemon
-cannot describe, and unknown is protected.
+and unproduced: phase 3 records the activity evidence they need, but only the
+phase-4 classification engine may turn it into state. `unknown` is reserved for
+a session the daemon cannot describe, and unknown is protected.
 
 The transition out of a live state is by process *key*, never PID: a recycled
 PID cannot keep a finished session alive, and the evidence for the transition

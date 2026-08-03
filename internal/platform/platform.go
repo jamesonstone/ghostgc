@@ -80,6 +80,11 @@ type Platform interface {
 	// time before acting on the result.
 	InspectProcess(ctx context.Context, pid int) (process.Process, error)
 
+	// SampleActivity performs the expensive, targeted activity pass for one
+	// already-attributed process. Implementations must validate the exact key
+	// before and after inspection and return partial availability explicitly.
+	SampleActivity(ctx context.Context, key process.Key, repositoryRoot string) (process.ActivitySample, error)
+
 	// SignalProcess always returns ErrSignalingDisabled in this build.
 	SignalProcess(ctx context.Context, pid int, sig Signal) error
 

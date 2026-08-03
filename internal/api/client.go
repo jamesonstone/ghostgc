@@ -137,6 +137,24 @@ func (c *Client) Metrics(ctx context.Context) (MetricsResponse, error) {
 	return get[MetricsResponse](ctx, c, "/metrics", nil)
 }
 
+// Activity fetches targeted activity evidence.
+func (c *Client) Activity(ctx context.Context, opts ActivityOptions) (ActivityResponse, error) {
+	q := url.Values{}
+	if opts.ProcUID != "" {
+		q.Set("process", opts.ProcUID)
+	}
+	if opts.SessionID != "" {
+		q.Set("session", opts.SessionID)
+	}
+	if opts.SinceNs > 0 {
+		q.Set("since_ns", strconv.FormatInt(opts.SinceNs, 10))
+	}
+	if opts.Limit > 0 {
+		q.Set("limit", strconv.Itoa(opts.Limit))
+	}
+	return get[ActivityResponse](ctx, c, "/activity", q)
+}
+
 func listQuery(opts ListOptions) url.Values {
 	q := url.Values{}
 	if opts.SessionID != "" {

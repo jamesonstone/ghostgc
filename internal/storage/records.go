@@ -49,6 +49,38 @@ type ObservationRecord struct {
 	Threads   int
 }
 
+// ActivityRecord is one phase-3 targeted activity sample. Each availability
+// flag is independent so unavailable evidence can never masquerade as zero.
+type ActivityRecord struct {
+	ID         int64  `json:"id"`
+	ProcUID    string `json:"proc_uid"`
+	SessionID  string `json:"session_id"`
+	TsNs       int64  `json:"ts_ns"`
+	IntervalNs int64  `json:"interval_ns"`
+	BaselineOK bool   `json:"baseline_ok"`
+
+	CPUPercent float64 `json:"cpu_percent"`
+	CPUDeltaNs int64   `json:"cpu_delta_ns"`
+	CPUKnown   bool    `json:"cpu_known"`
+
+	DiskReadBytes    int64 `json:"disk_read_bytes"`
+	DiskWrittenBytes int64 `json:"disk_written_bytes"`
+	IOKnown          bool  `json:"io_known"`
+	RSSBytes         int64 `json:"rss_bytes"`
+
+	OpenFiles               int  `json:"open_files"`
+	WritableRepositoryFiles int  `json:"writable_repository_files"`
+	FilesKnown              bool `json:"files_known"`
+
+	Sockets           int    `json:"sockets"`
+	ConnectedSockets  int    `json:"connected_sockets"`
+	ReceiveQueueBytes int64  `json:"receive_queue_bytes"`
+	SendQueueBytes    int64  `json:"send_queue_bytes"`
+	NetworkChanged    bool   `json:"network_changed"`
+	SocketsKnown      bool   `json:"sockets_known"`
+	Note              string `json:"note,omitempty"`
+}
+
 // SessionRecord is a persisted session row.
 type SessionRecord struct {
 	SessionID      string  `json:"session_id"`

@@ -38,9 +38,12 @@ func (d *Daemon) runScan(ctx context.Context) {
 		return
 	}
 	reconcileDuration := time.Since(reconcileStart)
+	activityStart := time.Now()
+	activity := d.collectActivity(ctx, snap, result)
+	activityDuration := time.Since(activityStart)
 
 	persistStart := time.Now()
-	if err := d.persist(ctx, snap, result, start, scanDuration); err != nil {
+	if err := d.persist(ctx, snap, result, activity.records, start, scanDuration); err != nil {
 		if ctx.Err() != nil {
 			return
 		}
@@ -51,6 +54,7 @@ func (d *Daemon) runScan(ctx context.Context) {
 
 	// The in-memory view only advances once the write has landed.
 	d.recon.Commit(result)
+	d.commitActivity(activity)
 
 	d.mu.Lock()
 	d.snapshot = snap
@@ -65,6 +69,8 @@ func (d *Daemon) runScan(ctx context.Context) {
 	}
 	d.metrics.lastReconcile = reconcileDuration
 	d.metrics.lastPersist = persistDuration
+	d.metrics.lastActivity = activityDuration
+	d.metrics.activitySamples += int64(len(activity.records))
 	d.metrics.visibleProcesses = snap.TotalCount
 	d.metrics.inspectedProcesses = snap.Len()
 	d.metrics.attributed = result.AttributedCount
@@ -77,11 +83,13 @@ func (d *Daemon) runScan(ctx context.Context) {
 		"sessions", len(result.Sessions),
 		"scan_ms", scanDuration.Milliseconds(),
 		"reconcile_ms", reconcileDuration.Milliseconds(),
+		"activity_ms", activityDuration.Milliseconds(),
+		"activity_samples", len(activity.records),
 		"persist_ms", persistDuration.Milliseconds(),
 	)
 }
 
-func (d *Daemon) persist(ctx context.Context, snap *process.Snapshot, res *sessions.Result, start time.Time, scanDuration time.Duration) error {
+func (d *Daemon) persist(ctx context.Context, snap *process.Snapshot, res *sessions.Result, activity []storage.ActivityRecord, start time.Time, scanDuration time.Duration) error {
 	nowNs := snap.Taken.UnixNano()
 	return d.store.WithTx(ctx, func(tx *storage.Tx) error {
 		scanID, err := tx.InsertScan(storage.ScanRecord{
@@ -118,6 +126,11 @@ func (d *Daemon) persist(ctx context.Context, snap *process.Snapshot, res *sessi
 		for _, obs := range res.Observations {
 			obs.ScanID = scanID
 			if err := tx.InsertObservation(obs); err != nil {
+				return err
+			}
+		}
+		for _, sample := range activity {
+			if err := tx.InsertActivity(sample); err != nil {
 				return err
 			}
 		}

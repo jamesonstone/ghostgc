@@ -75,6 +75,14 @@ type LogOptions struct {
 	SinceNs int64
 }
 
+// ActivityOptions narrows activity history.
+type ActivityOptions struct {
+	ProcUID   string
+	SessionID string
+	SinceNs   int64
+	Limit     int
+}
+
 // Backend is what the daemon implements to serve the API. Defining it here
 // keeps the transport unaware of the daemon and the daemon unaware of HTTP.
 type Backend interface {
@@ -88,6 +96,7 @@ type Backend interface {
 	Logs(ctx context.Context, opts LogOptions) (LogsResponse, error)
 	Doctor(ctx context.Context) (DoctorResponse, error)
 	Metrics(ctx context.Context) (MetricsResponse, error)
+	Activity(ctx context.Context, opts ActivityOptions) (ActivityResponse, error)
 }
 
 // ErrorResponse is returned for any non-200 status.

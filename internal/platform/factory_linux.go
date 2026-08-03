@@ -31,6 +31,10 @@ func (p *linuxPlatform) InspectProcess(ctx context.Context, pid int) (process.Pr
 	return p.c.InspectProcess(ctx, pid)
 }
 
+func (p *linuxPlatform) SampleActivity(ctx context.Context, key process.Key, repositoryRoot string) (process.ActivitySample, error) {
+	return p.c.SampleActivity(ctx, key, repositoryRoot)
+}
+
 func (p *linuxPlatform) SignalProcess(ctx context.Context, pid int, sig Signal) error {
 	return ErrSignalingDisabled
 }
