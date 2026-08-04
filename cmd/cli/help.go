@@ -86,9 +86,7 @@ func (s helpStyle) muted(text string) string {
 func printUsage(global *flag.FlagSet, out io.Writer) {
 	style := styleForHelp(out)
 
-	_, _ = fmt.Fprintf(out, "%s %s\n", style.title("👻", "ghostgc"), style.accent(version.String()))
-	_, _ = fmt.Fprintln(out, style.muted("Session-aware process observation for coding agents"))
-	_, _ = fmt.Fprintln(out, style.muted("Delivery phase "+rootPhaseSummary(version.Phase)))
+	printRootBanner(out, style)
 	_, _ = fmt.Fprintf(out, "\n%s\n  ghostgc [global flags] <command> [flags]\n", style.title("🚀", "Usage"))
 	_, _ = fmt.Fprintf(out, "\n%s\n", style.title("🧰", "Available Commands"))
 
@@ -107,6 +105,27 @@ func printUsage(global *flag.FlagSet, out io.Writer) {
 	_, _ = fmt.Fprintf(out, "\n%s\n", style.title("🌐", "Global Flags"))
 	printFlagRows(out, global, rootFlagPlaceholder)
 	_, _ = fmt.Fprintf(out, "\n%s \"ghostgc <command> -h\" for detailed command help.\n", helpMoreInfoLabel(style))
+}
+
+func printRootBanner(out io.Writer, style helpStyle) {
+	type bannerLine struct {
+		art  string
+		text string
+	}
+	lines := []bannerLine{
+		{art: "   .-."},
+		{art: "  (o o)", text: style.label("ghostgc") + " " + style.accent(version.String())},
+		{art: "  | O \\", text: style.muted("Session-aware process observation for coding agents")},
+		{art: "   \\   \\", text: style.muted("Delivery phase " + rootPhaseSummary(version.Phase))},
+		{art: "    `~~~'"},
+	}
+	for _, line := range lines {
+		if line.text == "" {
+			_, _ = fmt.Fprintln(out, style.accent(line.art))
+			continue
+		}
+		_, _ = fmt.Fprintf(out, "%s%s\n", style.accent(fmt.Sprintf("%-11s", line.art)), line.text)
+	}
 }
 
 func rootPhaseSummary(phase string) string {
