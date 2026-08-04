@@ -42,7 +42,10 @@ A separate bounded worktree lane uses `internal/worktree` to discover local Git
 registrations from session repositories and configured roots. It reduces Git
 and filesystem inspection to identity, counts and fingerprints, then persists
 the inventory beside process state. Worktree removal is never part of policy
-evaluation or automatic enforcement.
+evaluation or automatic enforcement. A resolved Git binary that is writable by
+the daemon user is copied once into a private, content-addressed execution
+snapshot under the state directory; immutable system Git executes in place.
+Every command revalidates the resolved source and the execution object.
 
 The CLI and daemon are two process roles of the same `ghostgc` executable.
 Short-lived commands use the Unix socket; `ghostgc daemon` owns the persistent
@@ -92,7 +95,10 @@ On the separate five-minute worktree cadence, the daemon parses registered
 worktrees, merges discovery sources, inspects Git and filesystem state, and
 advances an inactivity window only when the entire observation is complete.
 Restart, scan gaps, activity, Git changes or incomplete evidence reset that
-window. The inventory is persisted in the enclosing scan transaction.
+window. The inventory is persisted in the enclosing scan transaction. An
+absent registration keeps its last actual observation timestamp, old absent
+rows expire with action retention, and a hard 500-row current-inventory bound
+always preserves registered rows before the newest absent records.
 
 Manual preview and apply use a second, serialized path. Preview accepts only a
 stored ID or unambiguous prefix and binds two-minute memory-only authority to

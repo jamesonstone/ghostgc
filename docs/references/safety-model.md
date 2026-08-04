@@ -71,6 +71,13 @@ and exact Git executable. Apply consumes it once, serializes with scans and
 other removals, and repeats every check. Any changed or unknown fact is a
 durable rejection.
 
+If the resolved Git executable or one of its parent directories is writable by
+the daemon user, ghostgc executes a private content-addressed snapshot instead
+of the package-managed path. The SHA-256 digest is bound while the source and
+private execution-object identities are revalidated for every Git command and
+again immediately before removal. Immutable system Git executes at its
+canonical path under the same identity checks.
+
 The `attempting` action and audit evidence commit before the side effect. Only
 verified root `.env` or `.envrc` links to matching primary-checkout files may be
 unlinked, and they are restored if native `git worktree remove <path>` fails.
@@ -376,11 +383,12 @@ Tested in `storage_test.go:TestMigrationPreservesRecordedOwnership` and
 | Repository metadata re-read | once per repository per 30 s |
 | `.git/HEAD` and `.git` pointer reads | 4 KiB |
 | Configured worktree roots | 32 absolute roots; four traversal levels; 50,000 entries |
-| Worktree registrations | 500 merged repository inputs per inventory pass |
+| Worktree registrations | 500 merged repository inputs and 500 non-removed inventory rows; registered rows outrank absent history |
 | Local Git commands | 5 s and 4 MiB output per invocation; no prompts, pagers or optional locks |
 | Worktree inventory / manual validation | 30 s per inventory pass / 25 s per preview or apply validation |
 | Manual worktree filesystem inspection | 100,000 entries; no symlink traversal |
 | Manual same-user path-usage inspection | 4,096 processes; 131,072 descriptors total; 4,096 per process |
+| Absent worktree inventory | hard current-row cap plus the existing action-retention window |
 | Database | retention windows plus a hard byte ceiling that triggers an aggressive pass |
 | SQLite connections | 1, so there is no lock-retry logic to get wrong |
 

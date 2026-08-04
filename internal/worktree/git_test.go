@@ -46,7 +46,7 @@ func testRepository(t *testing.T) (primary, secondary string, git *Git) {
 	runGit(t, primary, "remote", "add", "origin", remote)
 	runGit(t, primary, "push", "-u", "origin", "main")
 	runGit(t, primary, "worktree", "add", "-b", "cleanup", secondary, "origin/main")
-	git, err = NewGit()
+	git, err = NewGit(filepath.Join(root, "git-exec"))
 	if err != nil {
 		t.Fatal(err)
 	}

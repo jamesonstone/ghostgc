@@ -2,6 +2,7 @@ package worktree
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"path/filepath"
@@ -20,7 +21,7 @@ func DiscoverRepositories(ctx context.Context, root string) ([]string, error) {
 	entries := 0
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return walkErr
+			return errors.New("worktree: root traversal was incomplete")
 		}
 		if err := ctx.Err(); err != nil {
 			return err
@@ -31,7 +32,7 @@ func DiscoverRepositories(ctx context.Context, root string) ([]string, error) {
 		}
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
-			return err
+			return errors.New("worktree: root traversal relation was unavailable")
 		}
 		depth := 0
 		if rel != "." {

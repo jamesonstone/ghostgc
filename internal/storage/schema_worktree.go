@@ -24,6 +24,7 @@ CREATE TABLE worktrees (
 	evidence TEXT NOT NULL DEFAULT '{}',
 	approved_links TEXT NOT NULL DEFAULT '[]',
 	git_identity TEXT NOT NULL DEFAULT '{}',
+	registered INTEGER NOT NULL DEFAULT 0,
 	complete INTEGER NOT NULL DEFAULT 0,
 	removed_ns INTEGER,
 	recreate_command TEXT NOT NULL DEFAULT ''

@@ -47,7 +47,7 @@ func (d *Daemon) collectWorktrees(ctx context.Context, snap *process.Snapshot, r
 		return batch
 	}
 	batch.due = true
-	existing, err := d.store.ListWorktrees(ctx, storage.WorktreeFilter{Limit: maxInventoryWorktrees})
+	existing, err := d.store.ListCurrentWorktrees(ctx, maxInventoryWorktrees)
 	if err != nil {
 		return d.unknownWorktreeBatch(existing, now, err)
 	}
@@ -220,7 +220,8 @@ func (d *Daemon) worktreeRecord(previous storage.WorktreeRecord, entry *sourcedO
 		InactiveSinceNs: timeOrZero(conclusion.InactiveSince), DaemonStartedNs: d.startedAt.UnixNano(),
 		StatusFingerprint: obs.Status.Fingerprint, ProtectionJSON: marshalJSON(conclusion.Protection, "[]"),
 		EvidenceJSON: string(evidence), ApprovedLinksJSON: marshalJSON(obs.ApprovedLinks, "[]"),
-		GitIdentityJSON: marshalJSON(d.worktreeGit.Identity(), "{}"), Complete: obs.Complete && processEvidenceComplete,
+		GitIdentityJSON: marshalJSON(d.worktreeGit.Identity(), "{}"), Registered: true,
+		Complete: obs.Complete && processEvidenceComplete,
 	}
 }
 

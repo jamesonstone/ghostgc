@@ -2,6 +2,7 @@ package worktree
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -25,12 +26,12 @@ func InspectFilesystem(ctx context.Context, root string) (FilesystemEvidence, er
 func inspectFilesystem(ctx context.Context, root string, identify func(string) (FileIdentity, error)) (FilesystemEvidence, error) {
 	rootID, err := identify(root)
 	if err != nil {
-		return FilesystemEvidence{}, err
+		return FilesystemEvidence{}, errors.New("worktree: filesystem root identity was unavailable")
 	}
 	evidence := FilesystemEvidence{}
 	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return walkErr
+			return errors.New("worktree: filesystem traversal was incomplete")
 		}
 		if err := ctx.Err(); err != nil {
 			return err
@@ -47,7 +48,7 @@ func inspectFilesystem(ctx context.Context, root string, identify func(string) (
 		}
 		identity, err := identify(path)
 		if err != nil {
-			return err
+			return errors.New("worktree: nested filesystem identity was unavailable")
 		}
 		if identity.Device != rootID.Device {
 			evidence.NestedMounts++

@@ -1,7 +1,6 @@
 package worktree
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -21,14 +20,17 @@ const (
 
 // Git is one resolved, bounded, shell-free local Git adapter.
 type Git struct {
-	path     string
-	identity GitIdentity
-	timeout  time.Duration
-	maxBytes int
+	path         string
+	execPath     string
+	identity     GitIdentity
+	execIdentity FileIdentity
+	timeout      time.Duration
+	maxBytes     int
+	beforeExec   func()
 }
 
 // NewGit resolves Git once and binds later approvals to that executable.
-func NewGit() (*Git, error) {
+func NewGit(snapshotDir string) (*Git, error) {
 	path, err := exec.LookPath("git")
 	if err != nil {
 		return nil, fmt.Errorf("worktree: resolving git: %w", err)
@@ -41,11 +43,7 @@ func NewGit() (*Git, error) {
 	if err != nil {
 		return nil, fmt.Errorf("worktree: resolving git executable: %w", err)
 	}
-	identity, err := Identify(path)
-	if err != nil {
-		return nil, fmt.Errorf("worktree: identifying git executable: %w", err)
-	}
-	return &Git{path: path, identity: GitIdentity{identity}, timeout: gitTimeout, maxBytes: maxGitOutput}, nil
+	return newGit(path, snapshotDir)
 }
 
 // Identity returns the exact executable identity used by every command.
@@ -60,70 +58,11 @@ func (g *Git) VerifyIdentity() error {
 	if !SameIdentity(current, g.identity.FileIdentity) {
 		return errors.New("worktree: git executable identity changed")
 	}
+	execution, err := Identify(g.execPath)
+	if err != nil || !SameIdentity(execution, g.execIdentity) {
+		return errors.New("worktree: private git execution snapshot changed")
+	}
 	return nil
-}
-
-func (g *Git) run(ctx context.Context, dir string, args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, g.timeout)
-	defer cancel()
-	base := []string{"-c", "color.ui=false", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false"}
-	if dir != "" {
-		base = append(base, "-C", dir)
-	}
-	cmd := exec.CommandContext(ctx, g.path, append(base, args...)...)
-	cmd.Env = gitEnvironment(os.Environ())
-	out := &boundedBuffer{limit: g.maxBytes}
-	errOut := &boundedBuffer{limit: 32 << 10}
-	cmd.Stdout, cmd.Stderr = out, errOut
-	err := cmd.Run()
-	if ctx.Err() != nil {
-		return nil, fmt.Errorf("worktree: git command timed out: %w", ctx.Err())
-	}
-	if out.overflow || errOut.overflow {
-		return nil, errors.New("worktree: git command exceeded its output bound")
-	}
-	if err != nil {
-		var exit *exec.ExitError
-		if errors.As(err, &exit) {
-			return nil, fmt.Errorf("worktree: git command exited %d", exit.ExitCode())
-		}
-		return nil, fmt.Errorf("worktree: running git: %w", err)
-	}
-	return out.Bytes(), nil
-}
-
-func gitEnvironment(environ []string) []string {
-	clean := make([]string, 0, len(environ)+4)
-	for _, item := range environ {
-		key, _, found := strings.Cut(item, "=")
-		if !found || strings.HasPrefix(key, "GIT_") {
-			continue
-		}
-		clean = append(clean, item)
-	}
-	return append(clean,
-		"GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat", "PAGER=cat", "GIT_OPTIONAL_LOCKS=0")
-}
-
-type boundedBuffer struct {
-	bytes.Buffer
-	limit    int
-	overflow bool
-}
-
-func (b *boundedBuffer) Write(p []byte) (int, error) {
-	n := len(p)
-	remaining := b.limit - b.Len()
-	if remaining <= 0 {
-		b.overflow = true
-		return n, nil
-	}
-	if len(p) > remaining {
-		b.overflow = true
-		p = p[:remaining]
-	}
-	_, _ = b.Buffer.Write(p)
-	return n, nil
 }
 
 // Registrations returns the NUL-delimited registered inventory for a repo.
@@ -250,6 +189,9 @@ func (g *Git) succeeds(ctx context.Context, path string, args ...string) bool {
 
 // Remove invokes only native, non-force worktree removal.
 func (g *Git) Remove(ctx context.Context, repository, canonicalPath string) error {
+	if err := g.VerifyIdentity(); err != nil {
+		return err
+	}
 	_, err := g.run(ctx, repository, "worktree", "remove", canonicalPath)
 	return err
 }

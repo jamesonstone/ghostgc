@@ -70,6 +70,8 @@ filesystem and Git boundaries.
   directories, registration, HEAD/ref/branch, aggregate status fingerprint,
   inactivity evidence, configured authority, approved links, and the resolved
   Git executable identity.
+- Execute user-writable Git only through a private content-addressed snapshot,
+  and revalidate both source and execution identity before every command.
 - Serialize apply with scans and actions, revalidate every fact, persist an
   `attempting` action before invoking ordinary non-force
   `git worktree remove`, restore approved links on failure, and verify both
@@ -165,6 +167,21 @@ the local filesystem operation safer.
 - Ambient `GIT_*` variables can redirect otherwise explicit `git -C` commands.
   The adapter removes them all and supplies only its fixed no-prompt,
   no-pager, no-optional-lock environment.
+- Path-bearing operating-system errors cannot cross the worktree boundary:
+  traversal failures become bounded categories before audit or action storage,
+  and sentinel-filename regressions prove the durable evidence is path-free.
+- A check followed by pathname execution cannot bind user-writable Git across
+  replacement. ghostgc therefore snapshots its exact opened bytes into a
+  private content-addressed state-directory file, binds the SHA-256 digest, and
+  revalidates source and snapshot identities for every command. Immutable
+  system Git does not require a copy.
+- Worktree selectors are literal lowercase hexadecimal IDs or prefixes; SQL
+  wildcard characters never become authority.
+- Registration absence is distinct from a registered-but-missing checkout.
+  The former preserves its last actual observation and is hard-capped and
+  age-retained, while the latter refreshes because Git still registers it.
+- Every persistence failure after a possible native side effect includes the
+  surviving-branch fact and conditional recreation command.
 
 ## VALIDATION
 
@@ -174,6 +191,10 @@ the local filesystem operation safer.
   seven-day transitions, approval expiry/replay/restart/invalidation, link
   restoration, durable pre-side-effect ordering and unresolved post-removal
   persistence evidence.
+- Independent-review regressions passed for path-free durable traversal
+  failures, writable-Git source replacement with a pinned execution snapshot,
+  literal selector validation, more than 500 absent identities with hard and
+  age-based compaction, and combined verification/persistence recovery output.
 - `make check` passed formatting, vet, all package tests and the repository-wide
   300-line source-size gate.
 - `make race` passed every package. The macOS linker emitted its existing
@@ -190,7 +211,7 @@ the local filesystem operation safer.
   action history, and a non-stale preview refusal. The disposable fixture was
   moved to Trash after validation.
 - `kit check 0009-stale-worktree-cleanup` passed before completion curation.
-- `kit reconcile --all --output-only` confirmed 170 eligible handwritten
+- `kit reconcile --all --output-only` confirmed 174 eligible handwritten
   source/test files with zero over 300 lines. It also reported the established
   project baseline of 19 legacy-spec/missing-summary errors and five instruction
   or legacy-spec warnings outside this feature.

@@ -11,6 +11,7 @@ import "C"
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -100,7 +101,7 @@ func pathVnodeIdentities(ctx context.Context, root string) (map[vnodeIdentity]bo
 	entries := 0
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return walkErr
+			return errors.New("darwin: path usage traversal was incomplete")
 		}
 		if err := ctx.Err(); err != nil {
 			return err
@@ -114,7 +115,7 @@ func pathVnodeIdentities(ctx context.Context, root string) (map[vnodeIdentity]bo
 		}
 		var stat unix.Stat_t
 		if err := unix.Lstat(path, &stat); err != nil {
-			return err
+			return errors.New("darwin: path usage metadata inspection was incomplete")
 		}
 		identities[vnodeIdentity{device: uint64(stat.Dev), inode: stat.Ino}] = true
 		return nil

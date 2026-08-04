@@ -186,6 +186,11 @@ func (d *Daemon) persist(ctx context.Context, snap *process.Snapshot, res *sessi
 				return err
 			}
 		}
+		if worktrees.due {
+			if _, err := tx.PruneAbsentWorktrees(maxInventoryWorktrees); err != nil {
+				return err
+			}
+		}
 		for _, audit := range worktrees.audit {
 			if err := tx.AppendAudit(audit); err != nil {
 				return err
@@ -242,6 +247,11 @@ func (d *Daemon) recordScanFailure(ctx context.Context, start time.Time, cause e
 		}
 		for _, record := range worktrees.records {
 			if err := tx.UpsertWorktree(record); err != nil {
+				return err
+			}
+		}
+		if worktrees.due {
+			if _, err := tx.PruneAbsentWorktrees(maxInventoryWorktrees); err != nil {
 				return err
 			}
 		}

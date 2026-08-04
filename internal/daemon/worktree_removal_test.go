@@ -117,6 +117,7 @@ func staleWorktreeRecord(t *testing.T, d *Daemon, primary, secondary string) sto
 		InactiveSinceNs: now.Add(-7*24*time.Hour - time.Minute).UnixNano(), DaemonStartedNs: d.startedAt.UnixNano(),
 		StatusFingerprint: obs.Status.Fingerprint, ProtectionJSON: `[]`, EvidenceJSON: string(evidence),
 		ApprovedLinksJSON: marshalJSON(obs.ApprovedLinks, "[]"), GitIdentityJSON: marshalJSON(d.worktreeGit.Identity(), "{}"), Complete: true,
+		Registered: true,
 	}
 }
 

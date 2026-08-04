@@ -31,6 +31,7 @@ type RetentionResult struct {
 	PolicyEvaluations  int64 `json:"policy_evaluations_deleted"`
 	Actions            int64 `json:"actions_deleted"`
 	WorktreeActions    int64 `json:"worktree_actions_deleted"`
+	WorktreeMissing    int64 `json:"worktree_missing_deleted"`
 	WorktreeTombstones int64 `json:"worktree_tombstones_deleted"`
 	Scans              int64 `json:"scans_deleted"`
 	Audit              int64 `json:"audit_deleted"`
@@ -46,7 +47,7 @@ type RetentionResult struct {
 
 // Total returns the number of rows removed.
 func (r RetentionResult) Total() int64 {
-	return r.Observations + r.ActivitySamples + r.Classifications + r.PolicyDecisions + r.PolicyEvaluations + r.Actions + r.WorktreeActions + r.WorktreeTombstones + r.Scans + r.Audit + r.Processes + r.Ownership + r.Sessions + r.Relationships
+	return r.Observations + r.ActivitySamples + r.Classifications + r.PolicyDecisions + r.PolicyEvaluations + r.Actions + r.WorktreeActions + r.WorktreeMissing + r.WorktreeTombstones + r.Scans + r.Audit + r.Processes + r.Ownership + r.Sessions + r.Relationships
 }
 
 // Compact enforces the retention policy.
@@ -117,6 +118,7 @@ func (s *Store) compactOnce(ctx context.Context, p RetentionPolicy, now time.Tim
 				AND id NOT IN (SELECT DISTINCT evaluation_id FROM policy_decisions)`, []any{cutoff(p.PolicyDecisions)}},
 			{&res.Actions, `DELETE FROM actions WHERE requested_ns < ?`, []any{cutoff(p.Actions)}},
 			{&res.WorktreeActions, `DELETE FROM worktree_actions WHERE requested_ns < ? AND result <> 'attempting'`, []any{cutoff(p.Actions)}},
+			{&res.WorktreeMissing, `DELETE FROM worktrees WHERE registered = 0 AND state <> 'removed' AND last_seen_ns < ?`, []any{cutoff(p.Actions)}},
 			{&res.WorktreeTombstones, `DELETE FROM worktrees WHERE state = 'removed' AND removed_ns < ?`, []any{cutoff(p.Actions)}},
 			{&res.Scans, `DELETE FROM scans WHERE started_ns < ?`, []any{cutoff(p.Scans)}},
 			{&res.Audit, `DELETE FROM audit_log WHERE ts_ns < ?`, []any{cutoff(p.Audit)}},

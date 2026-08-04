@@ -88,7 +88,9 @@ func (d *Daemon) executeWorktreeRemoval(ctx context.Context, actionID string,
 	}
 	links := validation.Observation.ApprovedLinks
 	removedLinks, sideEffectErr := unlinkApprovedLinks(record.Path, links)
+	removeAttempted := false
 	if sideEffectErr == nil {
+		removeAttempted = true
 		sideEffectErr = d.removeWorktree(ctx, validation.PrimaryPath, record.Path)
 	}
 	if sideEffectErr != nil {
@@ -97,10 +99,10 @@ func (d *Daemon) executeWorktreeRemoval(ctx context.Context, actionID string,
 		if restoreErr != nil {
 			reason += "; restoring approved environment links also failed: " + restoreErr.Error()
 		}
-		return d.finishFailedWorktreeAction(ctx, attempt, reason, time.Now())
+		return d.finishFailedWorktreeAction(ctx, attempt, reason, time.Now(), removeAttempted)
 	}
-	if err := d.verifyWorktreeAbsent(ctx, validation.PrimaryPath, record.Path); err != nil {
-		return d.finishFailedWorktreeAction(ctx, attempt, "post-removal verification failed: "+err.Error(), time.Now())
+	if err := d.verifyRemovedWorktree(ctx, validation.PrimaryPath, record.Path); err != nil {
+		return d.finishFailedWorktreeAction(ctx, attempt, "post-removal verification failed: "+err.Error(), time.Now(), true)
 	}
 	completed := time.Now()
 	reason := "registered worktree and directory were removed; the branch remains available"
@@ -109,6 +111,7 @@ func (d *Daemon) executeWorktreeRemoval(ctx context.Context, actionID string,
 	record.Complete = false
 	record.RemovedNs = pointer(completed.UnixNano())
 	record.RecreateCommand = validation.RecreateCommand
+	record.Registered = false
 	record.ProtectionJSON = `[]`
 	record.EvidenceJSON = evidence
 	if err := d.store.WithTx(ctx, func(tx *storage.Tx) error {
@@ -130,7 +133,7 @@ func (d *Daemon) executeWorktreeRemoval(ctx context.Context, actionID string,
 }
 
 func (d *Daemon) finishFailedWorktreeAction(ctx context.Context, attempt storage.WorktreeActionRecord,
-	reason string, at time.Time) (api.WorktreeRemovalApplyResponse, error) {
+	reason string, at time.Time, possiblyRemoved bool) (api.WorktreeRemovalApplyResponse, error) {
 	evidence := attempt.EvidenceJSON
 	if err := d.store.WithTx(ctx, func(tx *storage.Tx) error {
 		if err := tx.UpdateWorktreeAction(attempt.ActionID, worktreeActionFailed, reason, evidence, at.UnixNano()); err != nil {
@@ -141,6 +144,9 @@ func (d *Daemon) finishFailedWorktreeAction(ctx context.Context, attempt storage
 			Summary: fmt.Sprintf("worktree action %s failed: %s", attempt.ActionID, reason), EvidenceJSON: evidence,
 		})
 	}); err != nil {
+		if possiblyRemoved {
+			return api.WorktreeRemovalApplyResponse{}, fmt.Errorf("worktree action %s remains unresolved as attempting: %w; the branch remains; if the checkout is absent, recreate with: %s", attempt.ActionID, err, attempt.RecreateCommand)
+		}
 		return api.WorktreeRemovalApplyResponse{}, fmt.Errorf("worktree action %s remains unresolved as attempting: %w", attempt.ActionID, err)
 	}
 	return worktreeActionResponse(attempt, worktreeActionFailed, reason, evidence, at), nil

@@ -37,6 +37,7 @@ type FileIdentity struct {
 // GitIdentity binds authority to the exact Git executable.
 type GitIdentity struct {
 	FileIdentity
+	Digest string `json:"sha256"`
 }
 
 // Registration is one entry from `git worktree list --porcelain -z`.

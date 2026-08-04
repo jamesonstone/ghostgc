@@ -59,6 +59,41 @@ func TestPostRemovalPersistenceFailureLeavesAttemptingRecord(t *testing.T) {
 	}
 }
 
+func TestVerificationAndPersistenceFailureIncludesRecovery(t *testing.T) {
+	h := newRemovalHarness(t, false)
+	_, preview := previewRemoval(t, h)
+	databasePath := h.store.Path()
+	nativeRemove := h.daemon.removeWorktree
+	h.daemon.removeWorktree = func(ctx context.Context, repository, path string) error {
+		return nativeRemove(ctx, repository, path)
+	}
+	h.daemon.verifyRemovedWorktree = func(context.Context, string, string) error {
+		if err := h.store.Close(); err != nil {
+			return err
+		}
+		return errUnavailable{}
+	}
+	_, err := h.daemon.WorktreeRemovalApply(context.Background(), api.WorktreeRemovalApplyRequest{
+		Approval: preview.Approval,
+	})
+	if err == nil || !strings.Contains(err.Error(), "branch remains") ||
+		!strings.Contains(err.Error(), "worktree add") {
+		t.Fatalf("combined post-side-effect failure omitted recovery: %v", err)
+	}
+	if _, statErr := os.Lstat(h.secondary); !os.IsNotExist(statErr) {
+		t.Fatalf("secondary still exists: %v", statErr)
+	}
+	reopened, openErr := storage.Open(databasePath)
+	if openErr != nil {
+		t.Fatal(openErr)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+	actions, listErr := reopened.ListWorktreeActions(context.Background(), storage.WorktreeActionFilter{})
+	if listErr != nil || len(actions) != 1 || actions[0].Result != worktreeActionAttempting {
+		t.Fatalf("unresolved action = %+v, %v", actions, listErr)
+	}
+}
+
 func assertRejectedApproval(t *testing.T, h *removalHarness, preview api.WorktreeRemovalPreviewResponse) {
 	t.Helper()
 	result, err := h.daemon.WorktreeRemovalApply(context.Background(), api.WorktreeRemovalApplyRequest{

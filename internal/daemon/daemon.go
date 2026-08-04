@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -49,18 +50,19 @@ type Options struct {
 
 // Daemon is the long-running observer.
 type Daemon struct {
-	cfg            config.Config
-	paths          config.Paths
-	store          *storage.Store
-	plat           platform.Platform
-	log            *slog.Logger
-	reg            *adapters.Registry
-	recon          *sessions.Reconciler
-	repos          *repository.Finder
-	worktreeGit    *worktree.Git
-	worktreeGitErr error
-	removeWorktree func(context.Context, string, string) error
-	selfPI         int
+	cfg                   config.Config
+	paths                 config.Paths
+	store                 *storage.Store
+	plat                  platform.Platform
+	log                   *slog.Logger
+	reg                   *adapters.Registry
+	recon                 *sessions.Reconciler
+	repos                 *repository.Finder
+	worktreeGit           *worktree.Git
+	worktreeGitErr        error
+	removeWorktree        func(context.Context, string, string) error
+	verifyRemovedWorktree func(context.Context, string, string) error
+	selfPI                int
 
 	startedAt time.Time
 
@@ -141,7 +143,11 @@ func New(opts Options) (*Daemon, error) {
 	if reg == nil {
 		reg = BuildRegistry(opts.Config, repos)
 	}
-	worktreeGit, worktreeGitErr := worktree.NewGit()
+	snapshotRoot := opts.Paths.StateDir
+	if snapshotRoot == "" {
+		snapshotRoot = filepath.Dir(opts.Paths.Database)
+	}
+	worktreeGit, worktreeGitErr := worktree.NewGit(filepath.Join(snapshotRoot, "git-exec"))
 
 	d := &Daemon{
 		cfg:                    opts.Config,
@@ -162,6 +168,7 @@ func New(opts Options) (*Daemon, error) {
 	}
 	if worktreeGit != nil {
 		d.removeWorktree = worktreeGit.Remove
+		d.verifyRemovedWorktree = d.verifyWorktreeAbsent
 	}
 	d.recon = sessions.New(reg, d.selfPI, opts.Platform.SelfUID(), repos)
 	return d, nil

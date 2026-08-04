@@ -3,6 +3,8 @@ package storage
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -12,7 +14,58 @@ func testWorktree(id, state string, at int64) WorktreeRecord {
 		WorktreeID: id, Path: "/tmp/" + id, SourcesJSON: `["configured_root"]`,
 		State: state, FirstSeenNs: at, LastSeenNs: at, LastActivityNs: at,
 		DaemonStartedNs: at, ProtectionJSON: `[]`, EvidenceJSON: `{}`,
-		ApprovedLinksJSON: `[]`, GitIdentityJSON: `{}`,
+		ApprovedLinksJSON: `[]`, GitIdentityJSON: `{}`, Registered: true,
+	}
+}
+
+func TestAbsentWorktreeInventoryIsHardBoundedAndRetainedByAge(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	if err := s.WithTx(ctx, func(tx *Tx) error {
+		for i := 0; i < 510; i++ {
+			record := testWorktree(fmt.Sprintf("%064x", i+1), "missing", ns(0))
+			record.Registered = false
+			if err := tx.UpsertWorktree(record); err != nil {
+				return err
+			}
+		}
+		for i := 0; i < 2; i++ {
+			record := testWorktree(fmt.Sprintf("%064x", 1000+i), "missing", ns(0))
+			if err := tx.UpsertWorktree(record); err != nil {
+				return err
+			}
+		}
+		removed, err := tx.PruneAbsentWorktrees(500)
+		if err != nil {
+			return err
+		}
+		if removed != 12 {
+			return fmt.Errorf("hard-bound removal = %d, want 12", removed)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	current, err := s.ListCurrentWorktrees(ctx, 500)
+	if err != nil || len(current) != 500 {
+		t.Fatalf("bounded inventory = %d, %v", len(current), err)
+	}
+	registered := 0
+	for _, record := range current {
+		if record.Registered {
+			registered++
+		}
+	}
+	if registered != 2 {
+		t.Fatalf("registered missing rows retained = %d, want 2", registered)
+	}
+	result, err := s.Compact(ctx, RetentionPolicy{Actions: time.Minute}, time.Unix(0, ns(2*time.Minute)))
+	if err != nil || result.WorktreeMissing != 498 {
+		t.Fatalf("missing retention = %+v, %v", result, err)
+	}
+	current, err = s.ListCurrentWorktrees(ctx, 500)
+	if err != nil || len(current) != 2 || !current[0].Registered || !current[1].Registered {
+		t.Fatalf("registered inventory after retention = %+v, %v", current, err)
 	}
 }
 
@@ -49,6 +102,14 @@ func TestWorktreePrefixResolutionAndActionRetention(t *testing.T) {
 	}
 	if got, err := s.GetWorktree(ctx, "abcdef2"); err != nil || got.WorktreeID != live.WorktreeID {
 		t.Fatalf("resolved = %+v, %v", got, err)
+	}
+	if got, err := s.GetWorktree(ctx, live.WorktreeID); err != nil || got.WorktreeID != live.WorktreeID {
+		t.Fatalf("exact id = %+v, %v", got, err)
+	}
+	for _, invalid := range []string{"", "%", "_", "abc/def", "ABCDEF", strings.Repeat("a", 65)} {
+		if _, err := s.GetWorktree(ctx, invalid); err == nil {
+			t.Errorf("invalid selector %q was accepted", invalid)
+		}
 	}
 	result, err := s.Compact(ctx, RetentionPolicy{
 		RawObservations: time.Hour, Scans: time.Hour, Audit: time.Hour,

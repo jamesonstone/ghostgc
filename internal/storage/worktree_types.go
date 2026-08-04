@@ -23,6 +23,7 @@ type WorktreeRecord struct {
 	EvidenceJSON      string `json:"-"`
 	ApprovedLinksJSON string `json:"-"`
 	GitIdentityJSON   string `json:"-"`
+	Registered        bool   `json:"registered"`
 	Complete          bool   `json:"complete"`
 	RemovedNs         *int64 `json:"removed_ns,omitempty"`
 	RecreateCommand   string `json:"recreate_command,omitempty"`

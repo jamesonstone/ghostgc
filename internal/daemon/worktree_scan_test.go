@@ -3,7 +3,10 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -104,5 +107,31 @@ func TestWithinWorktreeBoundaries(t *testing.T) {
 		if got := withinWorktree(root, path); got != want {
 			t.Errorf("withinWorktree(%q, %q) = %t, want %t", root, path, got, want)
 		}
+	}
+}
+
+func TestIncompleteInventoryAuditDoesNotRetainFilename(t *testing.T) {
+	h := newRemovalHarness(t, false)
+	sentinel := "private-client-filename"
+	cause := &os.PathError{Op: "open", Path: filepath.Join(h.root, sentinel), Err: errors.New("denied")}
+	batch := h.daemon.unknownWorktreeBatch(nil, time.Now(), cause)
+	if len(batch.audit) != 1 || strings.Contains(batch.audit[0].EvidenceJSON, sentinel) {
+		t.Fatalf("durable incomplete evidence retained filename: %+v", batch.audit)
+	}
+	if err := h.store.AppendAudit(context.Background(), batch.audit[0]); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := h.store.ListAudit(context.Background(), storage.AuditFilter{Kind: "worktree.scan.incomplete"})
+	if err != nil || len(stored) != 1 || strings.Contains(stored[0].EvidenceJSON, sentinel) {
+		t.Fatalf("persisted incomplete evidence retained filename: %+v, %v", stored, err)
+	}
+}
+
+func TestAbsentRegistrationPreservesLastObservedTime(t *testing.T) {
+	lastSeen := time.Now().Add(-time.Hour).UnixNano()
+	record := storage.WorktreeRecord{State: string(worktree.StateObserving), LastSeenNs: lastSeen, Registered: true}
+	missing := missingWorktreeRecord(record, time.Now(), time.Now())
+	if missing.LastSeenNs != lastSeen || missing.Registered {
+		t.Fatalf("absent registration = %+v", missing)
 	}
 }
