@@ -24,6 +24,19 @@ var (
 	terminalWriterCheck           = isTerminalWriter
 )
 
+var rootGhostArt = [...]string{
+	`       .-""""""""-.`,
+	`     .'            '.`,
+	`    /    _      _    \`,
+	`   |    (@)    (@)    |`,
+	`   |                  |`,
+	`   |       .--.       |`,
+	`   |      /    \      |`,
+	`   |                  |`,
+	`    \   /\  /\  /\   /`,
+	`     '-'  \/  \/  '-'`,
+}
+
 type helpSection struct {
 	title    string
 	commands []string
@@ -108,23 +121,21 @@ func printUsage(global *flag.FlagSet, out io.Writer) {
 }
 
 func printRootBanner(out io.Writer, style helpStyle) {
-	type bannerLine struct {
-		art  string
-		text string
-	}
-	lines := []bannerLine{
-		{art: "   .-."},
-		{art: "  (o o)", text: style.label("ghostgc") + " " + style.accent(version.String())},
-		{art: "  | O \\", text: style.muted("Session-aware process observation for coding agents")},
-		{art: "   \\   \\", text: style.muted("Delivery phase " + rootPhaseSummary(version.Phase))},
-		{art: "    `~~~'"},
-	}
-	for _, line := range lines {
-		if line.text == "" {
-			_, _ = fmt.Fprintln(out, style.accent(line.art))
+	for index, art := range rootGhostArt {
+		var text string
+		switch index {
+		case 1:
+			text = style.label("ghostgc") + " " + style.accent(version.String())
+		case 2:
+			text = style.muted("Session-aware process observation for coding agents")
+		case 3:
+			text = style.muted("Delivery phase " + rootPhaseSummary(version.Phase))
+		}
+		if text == "" {
+			_, _ = fmt.Fprintln(out, style.accent(art))
 			continue
 		}
-		_, _ = fmt.Fprintf(out, "%s%s\n", style.accent(fmt.Sprintf("%-11s", line.art)), line.text)
+		_, _ = fmt.Fprintf(out, "%s%s\n", style.accent(fmt.Sprintf("%-27s", art)), text)
 	}
 }
 

@@ -16,12 +16,15 @@ func TestRootHelpIsGroupedAndCompact(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("no-argument exit code = %d, want 0", code)
 	}
+	for _, line := range rootGhostArt {
+		if !strings.Contains(output, line) {
+			t.Fatalf("root help is missing ghost art %q:\n%s", line, output)
+		}
+	}
 	for _, want := range []string{
-		"   .-.\n",
-		"  (o o)    ghostgc ",
-		"  | O \\    Session-aware process observation for coding agents",
-		"   \\   \\   Delivery phase ",
-		"    `~~~'\n",
+		"ghostgc ",
+		"Session-aware process observation for coding agents",
+		"Delivery phase ",
 		"Usage",
 		"Available Commands",
 		"Observe",
@@ -76,7 +79,7 @@ func TestRootHelpColorsOnlyInteractiveOutput(t *testing.T) {
 	if !helpANSIPattern.MatchString(terminal) {
 		t.Fatalf("interactive help has no ANSI styling: %q", terminal)
 	}
-	for _, want := range []string{"  (o o)    ghostgc", "🚀 Usage", "🧰 Available Commands", "🌐 Global Flags"} {
+	for _, want := range []string{`.-""""""""-.`, "ghostgc", "🚀 Usage", "🧰 Available Commands", "🌐 Global Flags"} {
 		if !strings.Contains(stripHelpANSI(terminal), want) {
 			t.Fatalf("interactive help is missing %q: %q", want, terminal)
 		}
