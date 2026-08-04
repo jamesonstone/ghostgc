@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/jamesonstone/ghostgc/internal/sessions"
 	"github.com/jamesonstone/ghostgc/internal/storage"
 	"github.com/jamesonstone/ghostgc/internal/version"
+	"github.com/jamesonstone/ghostgc/internal/worktree"
 )
 
 // Audit kinds emitted by the daemon itself.
@@ -48,15 +50,20 @@ type Options struct {
 
 // Daemon is the long-running observer.
 type Daemon struct {
-	cfg    config.Config
-	paths  config.Paths
-	store  *storage.Store
-	plat   platform.Platform
-	log    *slog.Logger
-	reg    *adapters.Registry
-	recon  *sessions.Reconciler
-	repos  *repository.Finder
-	selfPI int
+	cfg                   config.Config
+	paths                 config.Paths
+	store                 *storage.Store
+	plat                  platform.Platform
+	log                   *slog.Logger
+	reg                   *adapters.Registry
+	recon                 *sessions.Reconciler
+	repos                 *repository.Finder
+	worktreeGit           *worktree.Git
+	worktreeGitErr        error
+	unlinkWorktreeLinks   func(string, []worktree.ApprovedLink) ([]worktree.ApprovedLink, error)
+	removeWorktree        func(context.Context, string, string) error
+	verifyRemovedWorktree func(context.Context, string, string) error
+	selfPI                int
 
 	startedAt time.Time
 
@@ -73,7 +80,10 @@ type Daemon struct {
 	classificationPrevious map[string]classification.Previous
 	lastClassificationAt   time.Time
 	lastPolicyAt           time.Time
+	lastWorktreeAt         time.Time
 	approvals              map[string]*cleanupApproval
+	worktreeApprovals      map[string]*worktreeApproval
+	worktreeActionMu       sync.Mutex
 }
 
 type metrics struct {
@@ -134,6 +144,11 @@ func New(opts Options) (*Daemon, error) {
 	if reg == nil {
 		reg = BuildRegistry(opts.Config, repos)
 	}
+	snapshotDir, worktreeGitErr := worktreeSnapshotDir(opts.Paths)
+	var worktreeGit *worktree.Git
+	if worktreeGitErr == nil {
+		worktreeGit, worktreeGitErr = worktree.NewGit(snapshotDir)
+	}
 
 	d := &Daemon{
 		cfg:                    opts.Config,
@@ -143,14 +158,30 @@ func New(opts Options) (*Daemon, error) {
 		log:                    log,
 		reg:                    reg,
 		repos:                  repos,
+		worktreeGit:            worktreeGit,
+		worktreeGitErr:         worktreeGitErr,
+		unlinkWorktreeLinks:    unlinkApprovedLinks,
 		selfPI:                 os.Getpid(),
 		startedAt:              time.Now(),
 		activityBaseline:       make(map[string]process.ActivitySample),
 		classificationPrevious: make(map[string]classification.Previous),
 		approvals:              make(map[string]*cleanupApproval),
+		worktreeApprovals:      make(map[string]*worktreeApproval),
+	}
+	if worktreeGit != nil {
+		d.removeWorktree = worktreeGit.Remove
+		d.verifyRemovedWorktree = d.verifyWorktreeAbsent
 	}
 	d.recon = sessions.New(reg, d.selfPI, opts.Platform.SelfUID(), repos)
 	return d, nil
+}
+
+func worktreeSnapshotDir(paths config.Paths) (string, error) {
+	root := paths.StateDir
+	if root == "" {
+		root = filepath.Dir(paths.Database)
+	}
+	return filepath.Abs(filepath.Join(root, "git-exec"))
 }
 
 // AdapterEnvKeys returns the environment variables the enabled adapters need.

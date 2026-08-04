@@ -26,6 +26,8 @@ type Fake struct {
 
 	// UID is the uid the fake claims to run as.
 	UID uint32
+	// PlatformName overrides the default fake name for capability tests.
+	PlatformName string
 	// Err, when set, is returned by the next SnapshotProcesses call.
 	Err error
 	// SignalAttempts counts how many times anything tried to signal a process.
@@ -34,6 +36,8 @@ type Fake struct {
 	SignalAttempts int
 	Signals        []SignalAttempt
 	SignalErr      error
+	PathUsage      platform.PathUsage
+	PathUsageErr   error
 
 	installed bool
 	running   bool
@@ -72,7 +76,12 @@ func (f *Fake) Push(s *process.Snapshot) {
 }
 
 // Name implements platform.Platform.
-func (f *Fake) Name() string { return "fake" }
+func (f *Fake) Name() string {
+	if f.PlatformName != "" {
+		return f.PlatformName
+	}
+	return "fake"
+}
 
 // SelfUID implements platform.Platform.
 func (f *Fake) SelfUID() uint32 { return f.UID }
@@ -141,6 +150,21 @@ func (f *Fake) SampleActivity(ctx context.Context, key process.Key, repositoryRo
 		CPUKnown: p.Detailed, RSSBytes: p.RSSBytes,
 		Note: "file, socket and I/O activity was not scripted",
 	}, nil
+}
+
+// InspectPathUsage returns scripted aggregate evidence.
+func (f *Fake) InspectPathUsage(ctx context.Context, canonicalPath string) (platform.PathUsage, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.PathUsageErr != nil {
+		return platform.PathUsage{}, f.PathUsageErr
+	}
+	result := f.PathUsage
+	result.ProcessKeys = append([]process.Key(nil), result.ProcessKeys...)
+	if !result.Complete && result.InspectedProcesses == 0 && len(result.ProcessKeys) == 0 {
+		result.Complete = true
+	}
+	return result, nil
 }
 
 // SignalAttempt records a test-only exact-key signal request.

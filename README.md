@@ -11,7 +11,8 @@
 ghostgc is a local daemon for developers who run coding agents. It works out
 which operating-system processes belong to which agent session, tracks them
 across reparenting and PID reuse, and explains every conclusion it reaches with
-the evidence behind it.
+the evidence behind it. It also inventories registered Git worktrees and can
+manually remove one only after seven continuous days of complete inactivity.
 
 <!-- BEGIN KIT-MANAGED README BADGES -->
 
@@ -26,6 +27,10 @@ candidate per evaluation. Both fully revalidate, and each authorized action can
 send only one SIGTERM.
 Audit remains the default. See
 [docs/references/safety-model.md](docs/references/safety-model.md).
+
+Worktree removal is a separate manual-only authority. It never deletes a
+branch, never uses force, and refuses dirty, active, uncertain, primary, locked,
+or otherwise protected worktrees.
 
 ```
 $ ghostgc sessions
@@ -145,6 +150,11 @@ service is registered successfully, installation also removes a sibling legacy
 | `ghostgc cleanup --dry-run ...`              | issue an exact, expiring manual cleanup preview                       |
 | `ghostgc cleanup --apply ...`                | consume one approval after full fresh revalidation                    |
 | `ghostgc actions`                            | durable attempted, rejected, signalled and failed actions             |
+| `ghostgc worktrees`                          | registered worktree inventory and stale/protected state                |
+| `ghostgc worktree show <id>`                 | one worktree's identity, inactivity evidence and protections           |
+| `ghostgc worktree remove --dry-run ...`      | preview one exact stale worktree and issue an expiring approval        |
+| `ghostgc worktree remove --apply ...`        | revalidate and remove one approved secondary worktree                  |
+| `ghostgc worktree actions`                   | durable worktree removal attempts and outcomes                         |
 | `ghostgc classifications`                    | latest deterministic process states and detachment                    |
 | `ghostgc policies`                           | loaded YAML policies and their exact scope                            |
 | `ghostgc logs`                               | the audit trail                                                       |
@@ -197,6 +207,25 @@ ghostgc logs --kind action.signalled
 See [the manual cleanup guide](docs/references/manual-cleanup.md) for a complete
 configuration and fixture walkthrough.
 
+### Remove one stale worktree
+
+Worktree inventory is enabled by default for repositories associated with
+observed sessions. Optional configured roots add operator-declared workspace
+discovery. After seven uninterrupted days of complete inactivity evidence, an
+unprotected secondary worktree can become stale:
+
+```bash
+ghostgc worktrees --state stale
+ghostgc worktree show '<id-or-prefix>'
+ghostgc worktree remove --dry-run --worktree '<id-or-prefix>'
+```
+
+Read the preview and paste its generated apply command within two minutes.
+Apply consumes the approval once, repeats every filesystem, process, Git,
+configuration and identity check, commits durable attempting evidence, and
+invokes native `git worktree remove` without force. The branch remains. See
+[the manual worktree cleanup guide](docs/references/manual-worktree-cleanup.md).
+
 ### Narrow automatic cleanup
 
 Phase 7 accepts `globalMode: enforce`, but only one enabled enforce policy may
@@ -225,15 +254,17 @@ The socket is the only interface. No TCP port is opened.
 
 ## What is stored
 
-Only processes attributed to an agent session are persisted. Everything else on
-the machine is counted during a scan and then forgotten: monitoring activity
-outside coding-agent sessions is an explicit non-goal.
+Only processes attributed to an agent session and registered worktree inventory
+are persisted. Everything else on the machine is counted during a scan and
+then forgotten: monitoring activity outside coding-agent sessions is an
+explicit non-goal.
 
 Before anything reaches SQLite, command-line arguments pass through a redactor
 that removes credentials by flag name, by value shape (`sk-`, `ghp_`, `AKIA`,
 JWTs, …) and by rewriting URLs carrying passwords or presigned signatures;
-environment variables are reduced to the small allowlist the adapters need; and
-file contents are never read at all.
+environment variables are reduced to the small allowlist the adapters need.
+Worktree inspection stores paths, Git identities, aggregate dirty counts and a
+one-way status fingerprint; filenames and file contents are never persisted.
 
 The separate activity pass runs once a minute by default and only for live
 processes already attributed to an agent session. It persists deltas and counts,
@@ -286,7 +317,10 @@ make run     # daemon in the foreground with debug logging
 The suite includes a source-level check that exactly one literal SIGTERM site exists,
 adversarial detection cases taken from a real machine, and tests for PID reuse,
 reparenting, redaction, schema migration and every relationship kind that must
-not establish ownership. A safety test is never weakened to make it pass.
+not establish ownership. Disposable real Git repositories additionally prove
+the seven-day state machine, every removal protection, approval invalidation,
+native non-force removal and branch preservation. A safety test is never
+weakened to make it pass.
 
 `fixtures/fixture-agent.sh` builds a real process tree — a session root, a
 worker shell, idle and periodic-work children, a helper orphaned to `launchd`,
@@ -307,8 +341,10 @@ ghostgc activity
 - [docs/references/safety-model.md](docs/references/safety-model.md) — every guarantee and how it is enforced
 - [docs/references/testing.md](docs/references/testing.md) — commands, suites and evidence expectations
 - [docs/references/dogfooding.md](docs/references/dogfooding.md) — immediate audit, manual and fixture enforcement walkthrough
+- [docs/references/manual-worktree-cleanup.md](docs/references/manual-worktree-cleanup.md) — stale-worktree inventory, preview, removal and recovery
 - [docs/specs/0001-session-aware-process-observation/SPEC.md](docs/specs/0001-session-aware-process-observation/SPEC.md) — feature rationale, discoveries and deferred risks
 - [docs/specs/0006-phase-7-narrow-enforcement/SPEC.md](docs/specs/0006-phase-7-narrow-enforcement/SPEC.md) — automatic authority contract and acceptance evidence
+- [docs/specs/0009-stale-worktree-cleanup/SPEC.md](docs/specs/0009-stale-worktree-cleanup/SPEC.md) — worktree staleness, protection and removal contract
 
 ## Maintainers
 
