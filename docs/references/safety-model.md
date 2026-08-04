@@ -79,6 +79,51 @@ is an error rather than a silently ignored setting.
 
 Tested in `internal/config/config_test.go`.
 
+Worktree roots add discovery, never removal authority. Validation permits at
+most 32 absolute canonical directories, refuses symlinks, filesystem roots and
+the invoking user's whole home, and limits traversal to four levels without
+following symlinks. `staleAfter` cannot be shorter than seven days.
+
+## Worktree removal is manual and branch-preserving
+
+No policy or daemon scan can remove a worktree. A candidate must be a present,
+registered secondary worktree with seven continuous days of complete evidence.
+Primary, locked, missing, prunable, dirty, unreadable, symlinked, active or
+operation-in-progress worktrees are protected. Local-only commits, unsafe
+detached commits, submodule metadata, nested mounts, same-user path use and any
+incomplete inspection also protect it.
+
+The macOS inspector normally compares vnode paths. If SIP withholds a path, it
+can compare the vnode's device/inode metadata with a bounded scan-local identity
+set for the candidate without retaining a filename. If both forms are denied,
+the inspection remains incomplete and removal is refused.
+
+Preview accepts only a persisted ID or unambiguous prefix. Its random
+memory-only token expires after two minutes and binds the directory inode,
+common and administrative Git directories, HEAD/ref/branch, status
+fingerprint, inactivity window, discovery authority, allowed environment links
+and exact Git executable. Apply consumes it once, serializes with scans and
+other removals, and repeats every check. Any changed or unknown fact is a
+durable rejection.
+
+If the resolved Git executable or one of its parent directories is writable by
+the daemon user, ghostgc executes a private content-addressed snapshot instead
+of the package-managed path. The SHA-256 digest is bound while the source and
+private execution-object identities are revalidated for every Git command and
+again immediately before removal. Snapshot reads accept only regular files up
+to 128 MiB and reject size changes. Immutable system Git executes at its
+canonical path under the same identity checks.
+
+The `attempting` action and audit evidence commit before the side effect. Only
+verified root `.env` or `.envrc` links to matching primary-checkout files may be
+unlinked, and they are restored if native `git worktree remove <path>` fails.
+There is no force, prune, branch deletion, network request, shell invocation or
+recursive filesystem delete. Removal succeeds only after both the directory
+and Git registration disappear; the branch remains available for recreation.
+
+Tested by `internal/worktree/*_test.go` and daemon worktree removal, scan and
+approval tests using disposable real repositories.
+
 ## Policies cannot widen authority
 
 Policies accept `disabled`, `audit`, `recommend` or `enforce`. Their schema is strict and
@@ -307,11 +352,13 @@ non-allowlisted values are never copied into the daemon's memory at all.
 Tested in `redact_test.go`, and end-to-end in
 `sessions_test.go:TestStoredCommandLinesAreRedacted`.
 
-## File contents are never read
+## Source contents never enter ghostgc
 
-The repository package calls `os.Lstat` on `.git` and nothing else. No code path
-opens a file inside a repository. `privacy.storeSourceContents` exists only so
-that setting it to `true` can be refused.
+The repository metadata path reads only bounded Git plumbing. Worktree
+inspection invokes local Git with machine-readable output and reduces status to
+aggregate dirty counts plus a one-way fingerprint. Filenames and file contents
+are never retained, returned, logged or persisted. The process activity path
+likewise reduces discovered paths to counts before storage.
 
 ## Activity evidence fails closed
 
@@ -359,16 +406,6 @@ finished. A database written by a newer build is refused rather than downgraded.
 Tested in `storage_test.go:TestMigrationPreservesRecordedOwnership` and
 `TestDatabaseFromANewerBuildIsRefused`.
 
-## File contents are never read — including in repositories
-
-The repository package stats `.git` entries and reads exactly two pieces of
-plumbing: the symbolic ref in `.git/HEAD`, and the `gitdir:` pointer in a `.git`
-file for worktrees. Both are a few dozen bytes and both are capped at 4 KiB. No
-file inside a working tree is ever opened, and
-`repository_test.go:TestDescribeNeverReadsWorkingTreeContents` plants a secret
-in several working-tree files and in `.git/COMMIT_EDITMSG` and asserts that
-none of it reaches the metadata ghostgc keeps.
-
 ## Bounded by construction
 
 | Bound | Value |
@@ -381,6 +418,14 @@ none of it reaches the metadata ghostgc keeps.
 | Audit query default limit | 100 |
 | Repository metadata re-read | once per repository per 30 s |
 | `.git/HEAD` and `.git` pointer reads | 4 KiB |
+| Configured worktree roots | 32 absolute roots; four traversal levels; 50,000 entries |
+| Worktree registrations | 500 merged repository inputs and 500 non-removed inventory rows; registered rows outrank absent history |
+| Local Git executable | regular file, at most 128 MiB; private snapshot for user-writable paths |
+| Local Git commands | 5 s and 4 MiB output per invocation; no prompts, pagers or optional locks |
+| Worktree inventory / manual validation | 30 s per inventory pass / 25 s per preview or apply validation |
+| Manual worktree filesystem inspection | 100,000 entries; no symlink traversal |
+| Manual same-user path-usage inspection | 4,096 processes; 131,072 descriptors total; 4,096 per process |
+| Absent worktree inventory | hard current-row cap plus action retention; unresolved action subjects are preserved |
 | Database | retention windows plus a hard byte ceiling that triggers an aggressive pass |
 | SQLite connections | 1, so there is no lock-retry logic to get wrong |
 | Cache roots | exact `CODEX_HOME/shell_snapshots` roots from known sessions only |

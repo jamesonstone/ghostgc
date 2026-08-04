@@ -53,6 +53,11 @@ func (c *Collector) SampleActivity(ctx context.Context, key process.Key, reposit
 	return process.ActivitySample{}, ErrNotImplemented
 }
 
+// InspectPathUsage refuses removal authority on Linux.
+func (c *Collector) InspectPathUsage(ctx context.Context, canonicalPath string) (process.PathUsage, error) {
+	return process.PathUsage{}, ErrNotImplemented
+}
+
 // SignalProcess implements the platform contract and always refuses.
 func (c *Collector) SignalProcess(ctx context.Context, key process.Key,
 	executable process.ExecutableIdentity, sig syscall.Signal) error {

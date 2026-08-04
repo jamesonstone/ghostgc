@@ -34,6 +34,42 @@ func TestDefaultsAreAuditOnly(t *testing.T) {
 	if !cfg.Privacy.RedactEnvironmentValues {
 		t.Fatal("redactEnvironmentValues must default to true")
 	}
+	if !cfg.Worktrees.Enabled || cfg.Worktrees.StaleAfter.D() != 7*24*time.Hour {
+		t.Fatalf("worktree defaults = %+v", cfg.Worktrees)
+	}
+}
+
+func TestWorktreeAuthorityValidation(t *testing.T) {
+	cfg := Default()
+	cfg.Worktrees.StaleAfter = Duration(167 * time.Hour)
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("staleAfter below seven days must be rejected")
+	}
+	cfg = Default()
+	cfg.Worktrees.Roots = []string{"/"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("filesystem-root authority must be rejected")
+	}
+	cfg = Default()
+	cfg.Worktrees.Roots = []string{filepath.Join(t.TempDir(), "..")}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("non-canonical roots must be rejected")
+	}
+	cfg = Default()
+	realRoot := t.TempDir()
+	linkRoot := filepath.Join(t.TempDir(), "linked")
+	if err := os.Symlink(realRoot, linkRoot); err != nil {
+		t.Fatal(err)
+	}
+	cfg.Worktrees.Roots = []string{linkRoot}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("symlink roots must be rejected")
+	}
+	cfg = Default()
+	cfg.Worktrees.Roots = make([]string, maxWorktreeRoots+1)
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("more than 32 roots must be rejected")
+	}
 }
 
 // The generated example is what users start from, so it must not merely be

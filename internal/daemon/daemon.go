@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/jamesonstone/ghostgc/internal/adapters"
-	"github.com/jamesonstone/ghostgc/internal/adapters/codex"
 	"github.com/jamesonstone/ghostgc/internal/api"
 	"github.com/jamesonstone/ghostgc/internal/cachefs"
 	"github.com/jamesonstone/ghostgc/internal/cacheprovider"
@@ -27,6 +26,7 @@ import (
 	"github.com/jamesonstone/ghostgc/internal/sessions"
 	"github.com/jamesonstone/ghostgc/internal/storage"
 	"github.com/jamesonstone/ghostgc/internal/version"
+	"github.com/jamesonstone/ghostgc/internal/worktree"
 )
 
 // Audit kinds emitted by the daemon itself.
@@ -54,19 +54,24 @@ type Options struct {
 
 // Daemon is the long-running observer.
 type Daemon struct {
-	cfg           config.Config
-	paths         config.Paths
-	store         *storage.Store
-	plat          platform.Platform
-	log           *slog.Logger
-	reg           *adapters.Registry
-	cacheFS       cachefs.Filesystem
-	cacheProvider cacheprovider.Provider
-	cacheClock    func() time.Time
-	cacheHealthy  bool
-	recon         *sessions.Reconciler
-	repos         *repository.Finder
-	selfPI        int
+	cfg                   config.Config
+	paths                 config.Paths
+	store                 *storage.Store
+	plat                  platform.Platform
+	log                   *slog.Logger
+	reg                   *adapters.Registry
+	recon                 *sessions.Reconciler
+	repos                 *repository.Finder
+	cacheFS               cachefs.Filesystem
+	cacheProvider         cacheprovider.Provider
+	cacheClock            func() time.Time
+	cacheHealthy          bool
+	worktreeGit           *worktree.Git
+	worktreeGitErr        error
+	unlinkWorktreeLinks   func(string, []worktree.ApprovedLink) ([]worktree.ApprovedLink, error)
+	removeWorktree        func(context.Context, string, string) error
+	verifyRemovedWorktree func(context.Context, string, string) error
+	selfPI                int
 
 	startedAt time.Time
 
@@ -84,8 +89,11 @@ type Daemon struct {
 	classificationPrevious map[string]classification.Previous
 	lastClassificationAt   time.Time
 	lastPolicyAt           time.Time
+	lastWorktreeAt         time.Time
 	approvals              map[string]*cleanupApproval
 	cacheApprovals         map[string]*cacheApproval
+	worktreeApprovals      map[string]*worktreeApproval
+	worktreeActionMu       sync.Mutex
 }
 
 type metrics struct {
@@ -113,25 +121,6 @@ type metrics struct {
 	visibleProcesses      int
 	inspectedProcesses    int
 	attributed            int
-}
-
-// BuildRegistry constructs the adapter registry from configuration.
-func BuildRegistry(cfg config.Config, repos *repository.Finder) *adapters.Registry {
-	var list []adapters.AgentAdapter
-	for id, agent := range cfg.Agents {
-		if !agent.Enabled {
-			continue
-		}
-		switch id {
-		case codex.ID:
-			list = append(list, codex.New(repos))
-		default:
-			// An unknown adapter id is a configuration statement the daemon
-			// cannot honour. It is reported by `ghostgc doctor` rather than
-			// silently ignored, but it must not stop observation.
-		}
-	}
-	return adapters.NewRegistry(list...)
 }
 
 // New constructs a Daemon.
@@ -167,6 +156,12 @@ func New(opts Options) (*Daemon, error) {
 		cacheClock = time.Now
 	}
 
+	snapshotDir, worktreeGitErr := worktreeSnapshotDir(opts.Paths)
+	var worktreeGit *worktree.Git
+	if worktreeGitErr == nil {
+		worktreeGit, worktreeGitErr = worktree.NewGit(snapshotDir)
+	}
+
 	d := &Daemon{
 		cfg:                    opts.Config,
 		paths:                  opts.Paths,
@@ -178,22 +173,23 @@ func New(opts Options) (*Daemon, error) {
 		cacheProvider:          cacheProvider,
 		cacheClock:             cacheClock,
 		repos:                  repos,
+		worktreeGit:            worktreeGit,
+		worktreeGitErr:         worktreeGitErr,
+		unlinkWorktreeLinks:    unlinkApprovedLinks,
 		selfPI:                 os.Getpid(),
 		startedAt:              time.Now(),
 		activityBaseline:       make(map[string]process.ActivitySample),
 		classificationPrevious: make(map[string]classification.Previous),
 		approvals:              make(map[string]*cleanupApproval),
 		cacheApprovals:         make(map[string]*cacheApproval),
+		worktreeApprovals:      make(map[string]*worktreeApproval),
+	}
+	if worktreeGit != nil {
+		d.removeWorktree = worktreeGit.Remove
+		d.verifyRemovedWorktree = d.verifyWorktreeAbsent
 	}
 	d.recon = sessions.New(reg, d.selfPI, opts.Platform.SelfUID(), repos)
 	return d, nil
-}
-
-// AdapterEnvKeys returns the environment variables the enabled adapters need.
-// The daemon command calls this before constructing the platform so that the
-// collector extracts nothing else.
-func AdapterEnvKeys(cfg config.Config) []string {
-	return BuildRegistry(cfg, repository.NewFinder()).EnvKeys()
 }
 
 // Run starts the API server and the observation loop and blocks until ctx is

@@ -23,7 +23,8 @@ func TestStatusResponseOmitsDevelopmentMetadata(t *testing.T) {
 		"sessions": true, "cleanup_candidates": true, "signalling_enabled": true,
 		"manual_cleanup_enabled": true, "automatic_cleanup_enabled": true,
 		"cache_enabled": true, "cache_mode": true, "cache_candidates": true,
-		"cache_quarantined": true,
+		"cache_quarantined":  true,
+		"worktrees_by_state": true, "stale_worktrees": true, "protected_worktrees": true,
 	}
 	if len(fields) != len(expected) {
 		t.Fatalf("status response fields = %v, want %v", fields, expected)

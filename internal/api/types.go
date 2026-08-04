@@ -36,15 +36,18 @@ type StatusResponse struct {
 	Sessions               int            `json:"sessions"`
 	CleanupCandidates      int            `json:"cleanup_candidates"`
 	// SignallingEnabled is the compatibility alias for manual cleanup.
-	SignallingEnabled       bool         `json:"signalling_enabled"`
-	ManualCleanupEnabled    bool         `json:"manual_cleanup_enabled"`
-	AutomaticCleanupEnabled bool         `json:"automatic_cleanup_enabled"`
-	CacheEnabled            bool         `json:"cache_enabled"`
-	CacheMode               string       `json:"cache_mode"`
-	CacheCandidates         int          `json:"cache_candidates"`
-	CacheQuarantined        int          `json:"cache_quarantined"`
-	LastScan                *ScanSummary `json:"last_scan,omitempty"`
-	Degraded                []string     `json:"degraded_reasons,omitempty"`
+	SignallingEnabled       bool           `json:"signalling_enabled"`
+	ManualCleanupEnabled    bool           `json:"manual_cleanup_enabled"`
+	AutomaticCleanupEnabled bool           `json:"automatic_cleanup_enabled"`
+	CacheEnabled            bool           `json:"cache_enabled"`
+	CacheMode               string         `json:"cache_mode"`
+	CacheCandidates         int            `json:"cache_candidates"`
+	CacheQuarantined        int            `json:"cache_quarantined"`
+	WorktreesByState        map[string]int `json:"worktrees_by_state"`
+	StaleWorktrees          int            `json:"stale_worktrees"`
+	ProtectedWorktrees      int            `json:"protected_worktrees"`
+	LastScan                *ScanSummary   `json:"last_scan,omitempty"`
+	Degraded                []string       `json:"degraded_reasons,omitempty"`
 }
 
 // ScanSummary describes the most recent observation cycle.
@@ -129,6 +132,11 @@ type Backend interface {
 	CachePurgePreview(ctx context.Context, req CachePreviewRequest) (CachePreviewResponse, error)
 	CachePurgeApply(ctx context.Context, req CacheApplyRequest) (CacheApplyResponse, error)
 	CacheActions(ctx context.Context, opts CacheActionOptions) (CacheActionsResponse, error)
+	Worktrees(ctx context.Context, opts WorktreeOptions) (WorktreesResponse, error)
+	Worktree(ctx context.Context, idOrPrefix string) (WorktreeView, error)
+	WorktreeRemovalPreview(ctx context.Context, req WorktreeRemovalPreviewRequest) (WorktreeRemovalPreviewResponse, error)
+	WorktreeRemovalApply(ctx context.Context, req WorktreeRemovalApplyRequest) (WorktreeRemovalApplyResponse, error)
+	WorktreeActions(ctx context.Context, opts WorktreeActionOptions) (WorktreeActionsResponse, error)
 }
 
 // ErrorResponse is returned for any non-200 status.

@@ -35,6 +35,10 @@ func (p *linuxPlatform) SampleActivity(ctx context.Context, key process.Key, rep
 	return p.c.SampleActivity(ctx, key, repositoryRoot)
 }
 
+func (p *linuxPlatform) InspectPathUsage(ctx context.Context, canonicalPath string) (PathUsage, error) {
+	return p.c.InspectPathUsage(ctx, canonicalPath)
+}
+
 func (p *linuxPlatform) SignalProcess(ctx context.Context, key process.Key,
 	executable process.ExecutableIdentity, sig Signal) error {
 	return ErrSignalingDisabled

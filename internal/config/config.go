@@ -94,6 +94,14 @@ type Privacy struct {
 	NetworkTelemetry        bool `yaml:"networkTelemetry"`
 }
 
+// Worktrees controls bounded, read-only inventory and manual removal authority.
+type Worktrees struct {
+	Enabled      bool     `yaml:"enabled"`
+	ScanInterval Duration `yaml:"scanInterval"`
+	StaleAfter   Duration `yaml:"staleAfter"`
+	Roots        []string `yaml:"roots"`
+}
+
 // Agent enables or disables a single agent adapter.
 type Agent struct {
 	Enabled bool `yaml:"enabled"`
@@ -115,6 +123,7 @@ type Config struct {
 	Retention     Retention        `yaml:"retention"`
 	Notifications Notifications    `yaml:"notifications"`
 	Privacy       Privacy          `yaml:"privacy"`
+	Worktrees     Worktrees        `yaml:"worktrees"`
 	Agents        map[string]Agent `yaml:"agents"`
 	Policies      []Policy         `yaml:"policies"`
 	Cache         Cache            `yaml:"cache"`
@@ -159,6 +168,11 @@ func Default() Config {
 			RedactEnvironmentValues: true,
 			StoreSourceContents:     false,
 			NetworkTelemetry:        false,
+		},
+		Worktrees: Worktrees{
+			Enabled:      true,
+			ScanInterval: Duration(5 * time.Minute),
+			StaleAfter:   Duration(7 * 24 * time.Hour),
 		},
 		Agents: map[string]Agent{
 			"codex": {Enabled: true},
@@ -205,10 +219,13 @@ func (c Config) Validate() error {
 		return fmt.Errorf("globalMode %q is not one of disabled, audit, recommend, enforce", c.GlobalMode)
 	}
 	if c.Privacy.StoreSourceContents {
-		return errors.New("privacy.storeSourceContents must be false: ghostgc never reads or stores source-code contents")
+		return errors.New("privacy.storeSourceContents must be false: ghostgc never retains or stores source-code contents")
 	}
 	if c.Privacy.NetworkTelemetry {
 		return errors.New("privacy.networkTelemetry must be false: this build has no telemetry transport")
+	}
+	if err := c.validateWorktrees(); err != nil {
+		return err
 	}
 
 	minimums := []struct {

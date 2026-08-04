@@ -99,6 +99,48 @@ func TestMigrationPreservesRecordedOwnership(t *testing.T) {
 	}
 }
 
+func TestCacheSchemaMigratesFromShippedWorktreeV9(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ghostgc.db")
+	ctx := context.Background()
+	v9 := &Store{}
+	db, err := openRaw(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v9.db, v9.path = db, path
+	for _, migration := range migrations {
+		if migration.version > 9 {
+			break
+		}
+		if err := v9.applyMigration(ctx, migration); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := v9.db.ExecContext(ctx, `INSERT INTO worktrees
+		(worktree_id, path, state, first_seen_ns, last_seen_ns, last_activity_ns, daemon_started_ns)
+		VALUES ('wt-existing', '/tmp/existing', 'protected', 1, 2, 2, 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := v9.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	upgraded, err := Open(path)
+	if err != nil {
+		t.Fatalf("upgrading schema v9: %v", err)
+	}
+	defer func() { _ = upgraded.Close() }()
+	var state string
+	if err := upgraded.db.QueryRowContext(ctx,
+		`SELECT state FROM worktrees WHERE worktree_id = 'wt-existing'`).Scan(&state); err != nil || state != "protected" {
+		t.Fatalf("worktree state after v10 migration = %q, err %v", state, err)
+	}
+	var cacheRows int
+	if err := upgraded.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM cache_evaluations`).Scan(&cacheRows); err != nil {
+		t.Fatalf("cache schema after v10 migration: %v", err)
+	}
+}
+
 func TestDatabaseFromANewerBuildIsRefused(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()

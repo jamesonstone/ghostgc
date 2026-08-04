@@ -127,7 +127,8 @@ numbered `0010` to preserve lane isolation and avoid a future merge conflict.
   `os.RemoveAll`, shell `rm`, path-prefix authority, symlink following or mount
   crossing.
 - SQLite migrations only add artifacts, observations, evaluations, decisions,
-  quarantine records and actions. In-memory state advances only after commits.
+  quarantine records and actions. Cache storage follows the shipped worktree v9
+  schema as v10. In-memory state advances only after commits.
 - API and CLI expose stable human and JSON forms for artifacts, explanation,
   candidates, cleanup, quarantine, restore, purge and action history.
 - Cache scanning has an independent bounded cadence and metrics for duration,
@@ -230,6 +231,14 @@ commits completely. A provider or persistence failure revokes in-memory cache
 authority even if SQLite cannot record a replacement evaluation. Restart also
 starts without cache authority until the immediate cache scan succeeds.
 
+### The cache migration follows the shipped worktree schema
+
+The worktree lifecycle merged to `main` first and therefore owns schema v9.
+Cache storage is the independent v10 migration. This ordering is required for
+existing v9 databases to retain their worktree records while gaining every
+cache table; folding both branches into one v9 migration would silently leave
+already-upgraded databases without the cache schema.
+
 ## DISCOVERIES
 
 - Codex snapshot file names can repeat one thread ID across generations; the
@@ -250,6 +259,10 @@ starts without cache authority until the immediate cache scan succeeds.
 - Retention must preserve the latest evaluation, active quarantine, partial
   state and unresolved `attempting` or `purging` actions while still removing
   stale non-current recommendations.
+- Parallel feature branches can claim the same next schema number without a Git
+  content conflict. Integration must compare migration identifiers as well as
+  conflict-marked files and add an explicit upgrade test from the version that
+  has already shipped on `main`.
 
 ## VALIDATION
 
@@ -274,6 +287,22 @@ Implementation source: `4fd32628163bdd9b0a54b7f9a9367c042d8e65c8`.
   missing project progress summary, legacy spec-section gaps and instruction
   refresh warnings. No finding names this feature or a file introduced by it.
 
+Conflict integration was revalidated on local macOS at
+2026-08-04T20:50:49Z after merging `origin/main` at
+`84a32dea0fb1bf33ccd41206ac3ed40cd4d32418`:
+
+- Focused storage, API, daemon and CLI tests — PASS, including migration from
+  the shipped worktree schema v9 to cache schema v10.
+- `make check`, `make race`, `make lint`, `git diff --check` and the cache
+  lifecycle high-level fixture — PASS. The race run emitted only the existing
+  non-failing macOS cgo linker warnings.
+- `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -exec=true ./...` — PASS as a
+  compile-only portability check.
+- `kit check 0010-session-cache-lifecycle` — PASS.
+- `kit check --project` — FAIL with the same pre-existing 19 errors and five
+  warnings: missing project summary, legacy spec gaps and instruction refresh
+  debt. No finding names the cache feature or its changed files.
+
 ## OUTCOME
 
 ghostgc now has a separate default-disabled lifecycle for the single proven
@@ -289,7 +318,7 @@ grace-gated purge. No automatic cache mutation or observed-path deletion path
 exists. Interrupted and partial actions stay durable and the repository safety
 gate admits exactly one quarantine-only `unlinkat` primitive.
 
-The API, CLI, metrics, strict configuration, additive SQLite migration,
+The API, CLI, metrics, strict configuration, additive SQLite v10 migration,
 retention, operator documentation and temporary high-level fixture expose and
 validate the complete lifecycle. Quarantine is consistently described as
 reversible containment that reclaims no disk space.

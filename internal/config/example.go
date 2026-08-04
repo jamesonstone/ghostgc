@@ -43,7 +43,7 @@ privacy:
   # Environment values are redacted; only agent-relevant variable names are
   # retained at all.
   redactEnvironmentValues: true
-  # Must remain false. ghostgc records paths and metadata, never file contents.
+  # Must remain false. ghostgc retains metadata, never source file contents.
   storeSourceContents: false
   # Must remain false. This build has no telemetry transport.
   networkTelemetry: false
@@ -64,6 +64,16 @@ cache:
   maxEntriesPerAction: 1000
   maxBytesPerAction: 10GiB
   policies: []
+
+worktrees:
+  # Inventory is read-only. Removal always requires a fresh manual preview.
+  enabled: true
+  scanInterval: 5m
+  # Values below seven days are rejected.
+  staleAfter: 168h
+  # Optional absolute canonical coding-agent workspace roots (maximum 32).
+  # Agent-associated repository paths are discovered independently.
+  roots: []
 
 # Keep this example disabled until its exact executable scope fits your local
 # workload. To dogfood manual cleanup, set globalMode and this policy mode to

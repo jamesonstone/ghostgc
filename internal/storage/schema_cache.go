@@ -1,7 +1,7 @@
 package storage
 
-// schemaV9 adds the independent cache-artifact observation and action lane.
-const schemaV9 = `
+// schemaV10 adds the independent cache-artifact observation and action lane.
+const schemaV10 = `
 CREATE TABLE cache_evaluations (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	observed_ns INTEGER NOT NULL,

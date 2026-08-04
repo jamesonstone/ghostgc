@@ -38,6 +38,10 @@ func (p *darwinPlatform) SampleActivity(ctx context.Context, key process.Key, re
 	return p.c.SampleActivity(ctx, key, repositoryRoot)
 }
 
+func (p *darwinPlatform) InspectPathUsage(ctx context.Context, canonicalPath string) (PathUsage, error) {
+	return p.c.InspectPathUsage(ctx, canonicalPath)
+}
+
 func (p *darwinPlatform) SignalProcess(ctx context.Context, key process.Key,
 	executable process.ExecutableIdentity, sig Signal) error {
 	if sig != SIGTERM {

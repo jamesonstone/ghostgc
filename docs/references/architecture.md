@@ -60,6 +60,17 @@ production code has one descriptor-anchored purge primitive. The cache lane has
 its own cadence, configuration digest, policy evaluator, approval map and mutex,
 and therefore cannot inherit process recommendation or SIGTERM authority.
 
+A separate bounded worktree lane uses `internal/worktree` to discover local Git
+registrations from session repositories and configured roots. It reduces Git
+and filesystem inspection to identity, counts and fingerprints, then persists
+the inventory beside process state. Worktree removal is never part of policy
+evaluation or automatic enforcement. A resolved Git binary that is writable by
+the daemon user is copied once into a private, content-addressed execution
+snapshot under the canonicalized state directory; immutable system Git executes
+in place. The regular executable copy is capped at 128 MiB and detects size
+changes while reading. Every command revalidates the resolved source and the
+execution object.
+
 The CLI and daemon are two process roles of the same `ghostgc` executable.
 Short-lived commands use the Unix socket; `ghostgc daemon` owns the persistent
 observation loop. Keeping the process boundary preserves isolation while one
@@ -103,6 +114,23 @@ between attribution and persistence. It validates the exact process key before
 and after collection, then samples cumulative CPU and disk counters plus bounded
 file and socket counts. Only derived counts and deltas enter the same transaction
 as the scan; discovered paths and socket endpoints remain scan-local.
+
+On the separate five-minute worktree cadence, the daemon parses registered
+worktrees, merges discovery sources, inspects Git and filesystem state, and
+advances an inactivity window only when the entire observation is complete.
+Restart, scan gaps, activity, Git changes or incomplete evidence reset that
+window. The inventory is persisted in the enclosing scan transaction. An
+absent registration keeps its last actual observation timestamp, old absent
+rows expire with action retention, and a hard 500-row current-inventory bound
+always preserves registered rows before the newest absent records. Rows that
+anchor unresolved `attempting` actions survive both hard and age pruning.
+
+Manual preview and apply use a second, serialized path. Preview accepts only a
+stored ID or unambiguous prefix and binds two-minute memory-only authority to
+every identity, Git, filesystem, process, configuration and inactivity fact.
+Apply consumes the token once, holds the scan lane, repeats those checks,
+commits `attempting`, then calls native non-force `git worktree remove`. It
+verifies both the path and registration are absent before recording `removed`.
 
 Retention compacts every 6 hours.
 
@@ -228,6 +256,7 @@ automatic pre-action revalidation plus the final platform gate depend on it too.
 | `internal/adapters` | the adapter contract, evidence, confidence combination | `process` |
 | `internal/adapters/codex` | Codex detection and attribution | `adapters`, `process`, `repository` |
 | `internal/repository` | repository root, branch and lock metadata | nothing |
+| `internal/worktree` | bounded Git discovery, stable identity, status reduction and staleness | nothing |
 | `internal/storage` | SQLite schema, writes, queries, retention | nothing |
 | `internal/sessions` | reconciliation, durable ownership, audit emission | `adapters`, `process`, `storage` |
 | `internal/protection` | hard protections | `adapters`, `process` |
@@ -238,7 +267,7 @@ automatic pre-action revalidation plus the final platform gate depend on it too.
 | `internal/cacheprovider/codex` | exact Codex shell-snapshot attribution and protections | `cacheprovider` |
 | `internal/cachepolicy` | two-observation settling and independent exact cache authority | `cacheartifact`, `config` |
 | `internal/cachefs` | descriptor-anchored metadata, quarantine, restore and sole purge seam | `cacheartifact` |
-| `internal/config` | configuration, paths, phase guards | nothing |
+| `internal/config` | configuration, path validation and authority bounds | nothing |
 | `internal/api` | socket transport, request and response types | `adapters`, `protection`, `storage` |
 | `internal/daemon` | the loop, the API backend, diagnostics | everything above |
 
@@ -268,6 +297,8 @@ HTTP.
 | `cache_decisions` | exact cache policy results and rationale |
 | `cache_quarantines` | reversible location, identity, manifest, grace and current status |
 | `cache_actions` | preview-bound cleanup, restore and purge outcomes, including unresolved work |
+| `worktrees` | registered inventory, discovery sources, inactivity window, protections and removal tombstones |
+| `worktree_actions` | manual worktree attempts and removed, rejected or failed outcomes |
 | `scans` | one row per cycle, including failures |
 | `sessions` | one row per detected session |
 | `session_processes` | durable ownership, never downgraded |

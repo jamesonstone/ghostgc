@@ -46,6 +46,7 @@ var rootHelpSections = []helpSection{
 	{title: "Observe", commands: []string{"status", "sessions", "session", "processes", "explain", "activity", "classifications"}},
 	{title: "Policy & Cleanup", commands: []string{"candidates", "policies", "policy", "cleanup", "actions"}},
 	{title: "Cache Lifecycle", commands: []string{"cache"}},
+	{title: "Worktrees", commands: []string{"worktrees", "worktree"}},
 	{title: "Inspect", commands: []string{"logs", "metrics", "doctor"}},
 	{title: "Setup", commands: []string{"config", "service", "daemon"}},
 	{title: "Utilities", commands: []string{"version"}},

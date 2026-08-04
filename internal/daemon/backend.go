@@ -47,6 +47,7 @@ func (d *Daemon) Status(ctx context.Context) (api.StatusResponse, error) {
 		Agents:                  d.agentIDs(),
 		SessionsByState:         map[string]int{},
 		ClassificationsByState:  map[string]int{},
+		WorktreesByState:        map[string]int{},
 		CleanupCandidates:       0,
 		SignallingEnabled:       manualCleanup,
 		ManualCleanupEnabled:    manualCleanup,
@@ -75,6 +76,13 @@ func (d *Daemon) Status(ctx context.Context) (api.StatusResponse, error) {
 		return api.StatusResponse{}, err
 	}
 	resp.ClassificationsByState = classCounts
+	worktreeCounts, err := d.store.WorktreeStateCounts(ctx)
+	if err != nil {
+		return api.StatusResponse{}, err
+	}
+	resp.WorktreesByState = worktreeCounts
+	resp.StaleWorktrees = worktreeCounts["stale"]
+	resp.ProtectedWorktrees = worktreeCounts["protected"]
 	decisions, err := d.currentPolicyDecisions(ctx)
 	if err != nil {
 		return api.StatusResponse{}, err

@@ -13,6 +13,8 @@
   daemon did not observe is a fabrication.
 - Missing activity evidence is not inactivity. Deltas require two ordered,
   available samples for the same exact process key.
+- Worktree staleness is continuous evidence, never age alone. Removal is manual,
+  non-force and branch-preserving; incomplete evidence protects the worktree.
 - Record what was observed when it was observed. Do not re-derive a fact each
   cycle that the operating system can destroy between cycles.
 - Run with the least privilege that can do the job, and inspect only what that
@@ -49,8 +51,9 @@
   not be downgraded, and the original parent is written once.
 - Detection matches executable basenames exactly and path components as whole
   segments. Ownership is never established by matching a command-line substring.
-- Source-code contents are never read. The daemon records paths and metadata,
-  and reads version-control plumbing only.
+- Source-code contents are never read or retained. The daemon records paths and
+  metadata and reads version-control plumbing only; worktree inspection retains
+  aggregate dirty evidence, never filenames.
 - Cache artifact contents are never read. A cache provider must prove one exact
   root, file contract and exclusive session owner from primary-source-backed
   metadata; an unproven, shared, linked, changed or incomplete artifact is
@@ -66,6 +69,26 @@
   bounded by construction.
 - Schema migrations only add. Recorded ownership cannot be recomputed from a
   fresh observation, so no migration may destroy it.
+- A worktree is identified by its canonical common and administrative Git
+  directories. Moving the registration preserves identity; recreating it does
+  not.
+- A worktree needs at least seven uninterrupted days of complete inactivity to
+  become stale. Restart, scan gaps, activity, Git changes and unknown evidence
+  reset the window.
+- Primary, locked, missing, prunable, dirty, active, unreadable or operational
+  worktrees are protected, as are local-only commits, unsafe detached commits,
+  submodules, nested mounts and incomplete path-usage inspection.
+- Worktree removal never uses force, prune, branch deletion, network access, a
+  shell or recursive filesystem deletion. Durable attempting evidence precedes
+  the native Git side effect, and the branch remains.
+- Worktree Git commands revalidate their resolved executable identity for every
+  invocation. User-writable Git is executed only from a private
+  content-addressed snapshot of at most 128 MiB bound to the same approval;
+  immutable system Git executes at its canonical path.
+- An absent worktree record preserves its last actual registration observation.
+  Absent inventory is both hard-capped and age-retained; removed tombstones and
+  non-attempting actions share the configured action-retention window. A record
+  anchoring an unresolved `attempting` action cannot be pruned.
 
 ### Kit-Managed Baseline Rules
 
@@ -110,7 +133,8 @@
 - A general macOS or cache cleaner. ghostgc does not scan broad cache roots,
   optimise settings, invoke package-manager cleanup or manage unattributed
   files. Cache lifecycle is limited to explicitly implemented provider
-  contracts with exclusive coding-session ownership.
+  contracts with exclusive coding-session ownership; worktree inventory is
+  limited to coding-agent sessions and explicitly configured local roots.
 - Monitoring user activity outside coding-agent sessions. Unattributed
   processes are counted during a scan and then forgotten.
 - Replacing Activity Monitor, `ps`, `top` or `launchctl`.
@@ -141,6 +165,10 @@
   exactly to one known agent session; a name or location alone is insufficient.
 - **Quarantine** — a reversible same-filesystem rename into a private
   provider-root location. It is containment and does not reclaim disk space.
+- **Worktree** — one registered checkout identified by its canonical common and
+  administrative Git directories, independently of its current path.
+- **Stale worktree** — a present, registered, unprotected secondary worktree
+  with at least seven continuous days of complete inactivity evidence.
 - **Identity evidence** — evidence that a process *is* an agent program.
   Executable and argument derived.
 - **Membership evidence** — evidence that a process is *inside* an agent
