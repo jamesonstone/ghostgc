@@ -21,7 +21,7 @@ func (d *Daemon) Candidates(ctx context.Context) (api.CandidatesResponse, error)
 		Enforceable: make([]api.CandidateEntry, 0),
 		Recommended: make([]api.CandidateEntry, 0),
 		Audited:     make([]api.CandidateEntry, 0, len(records)),
-		Note:        phaseNote,
+		Note:        authorityNote,
 	}
 	for _, rec := range records {
 		entry := candidateEntry(rec)
@@ -128,7 +128,7 @@ func (d *Daemon) currentPolicyDecisions(ctx context.Context) ([]storage.PolicyDe
 
 // Policies implements api.Backend.
 func (d *Daemon) Policies(ctx context.Context) (api.PoliciesResponse, error) {
-	resp := api.PoliciesResponse{GlobalMode: string(d.cfg.GlobalMode), Note: phaseNote}
+	resp := api.PoliciesResponse{GlobalMode: string(d.cfg.GlobalMode), Note: authorityNote}
 	for _, def := range d.cfg.Policies {
 		resp.Policies = append(resp.Policies, api.PolicySummary{
 			ID: def.ID, Description: def.Description, Enabled: def.Enabled, Mode: string(def.Mode), Automatic: def.Automatic,

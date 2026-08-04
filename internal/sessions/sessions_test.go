@@ -182,5 +182,5 @@ func ownershipMap(rows []storage.OwnershipRecord) map[string]storage.OwnershipRe
 }
 
 // ---------------------------------------------------------------------------
-// Delivery phase 2: the session graph.
+// Session graph behavior.
 // ---------------------------------------------------------------------------

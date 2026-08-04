@@ -49,7 +49,7 @@ type ObservationRecord struct {
 	Threads   int
 }
 
-// ActivityRecord is one phase-3 targeted activity sample. Each availability
+// ActivityRecord is one targeted activity sample. Each availability
 // flag is independent so unavailable evidence can never masquerade as zero.
 type ActivityRecord struct {
 	ID         int64  `json:"id"`

@@ -20,6 +20,8 @@
 - Keep everything local. No telemetry transport exists in the binary.
 - Ship one `ghostgc` executable. `ghostgc daemon` owns the persistent process;
   ordinary commands remain short-lived clients over the local Unix socket.
+- Product output describes current capabilities and safety boundaries.
+  Delivery phases are development history and belong in documentation only.
 
 ## CONSTRAINTS
 

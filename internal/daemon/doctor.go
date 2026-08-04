@@ -60,7 +60,7 @@ func (d *Daemon) Doctor(ctx context.Context) (api.DoctorResponse, error) {
 		if !knownAdapters[id] {
 			add("adapter:"+id, api.CheckWarn,
 				fmt.Sprintf("configuration enables agent %q, for which this build has no adapter", id),
-				"remove the entry, or wait for delivery phase 8 which adds Claude Code, Cursor and OpenCode adapters")
+				"remove the entry; this build supports only the Codex adapter")
 		}
 	}
 	if len(d.reg.All()) == 0 {

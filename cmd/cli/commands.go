@@ -229,6 +229,5 @@ func cmdMetrics(ctx context.Context, e *env, args []string) error {
 
 func cmdVersion(ctx context.Context, e *env, args []string) error {
 	fmt.Printf("ghostgc %s\n", version.String())
-	fmt.Printf("delivery phase %s\n", version.Phase)
 	return nil
 }

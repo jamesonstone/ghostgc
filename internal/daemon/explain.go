@@ -26,7 +26,7 @@ func (d *Daemon) Explain(ctx context.Context, pid int) (api.ExplainResponse, err
 	last := d.last
 	d.mu.RUnlock()
 
-	resp := api.ExplainResponse{PID: pid, PolicyNote: phaseNote}
+	resp := api.ExplainResponse{PID: pid, PolicyNote: authorityNote}
 	if snap == nil {
 		resp.Classification = "unknown"
 		resp.Message = "no snapshot has been taken yet; the daemon has just started"

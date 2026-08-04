@@ -31,7 +31,7 @@ func cmdDaemon(ctx context.Context, e *env, args []string) error {
 		return fmt.Errorf("unexpected daemon argument %q", fs.Arg(0))
 	}
 	if *showVersion {
-		fmt.Printf("ghostgc %s (delivery phase %s)\n", version.String(), version.Phase)
+		fmt.Printf("ghostgc %s\n", version.String())
 		return nil
 	}
 

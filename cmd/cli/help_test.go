@@ -24,7 +24,7 @@ func TestRootHelpIsGroupedAndCompact(t *testing.T) {
 	for _, want := range []string{
 		"ghostgc ",
 		"Session-aware process observation for coding agents",
-		"Delivery phase ",
+		"Local-first • explainable • fail-closed",
 		"Usage",
 		"Available Commands",
 		"Observe",

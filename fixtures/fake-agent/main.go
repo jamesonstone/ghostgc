@@ -66,7 +66,7 @@ func main() {
 	}
 	fmt.Printf("fixture crashed-child %d\n", crashed.Process.Pid)
 
-	// A direct, non-broad helper gives later phases one controlled process that
+	// A direct, non-broad helper gives cleanup tests one controlled process that
 	// can become detached while remaining active. Teardown owns its recorded PID.
 	candidate := exec.Command(helper, "--tick", filepath.Join(repo, "candidate.log"))
 	candidate.Dir = repo

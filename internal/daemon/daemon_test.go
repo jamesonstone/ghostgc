@@ -148,7 +148,7 @@ func TestUnattributedProcessIsExplainedAsProtected(t *testing.T) {
 	}
 }
 
-func TestCleanupSurfacesAreEmptyAndSayWhy(t *testing.T) {
+func TestCleanupSurfacesAreEmptyAndStateAuthority(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t, snapshot(time.Minute, mk(1, 0, "/sbin/launchd", 0)))
 
@@ -159,8 +159,9 @@ func TestCleanupSurfacesAreEmptyAndSayWhy(t *testing.T) {
 	if len(candidates.Enforceable) != 0 || len(candidates.Audited) != 0 {
 		t.Fatal("this build must report no cleanup candidates of any kind")
 	}
-	if !strings.Contains(strings.ToLower(candidates.Note), "phase") {
-		t.Fatalf("the empty result must explain itself: %q", candidates.Note)
+	note := strings.ToLower(candidates.Note)
+	if !strings.Contains(note, "one exact current orphaned candidate") || !strings.Contains(note, "sigterm only") {
+		t.Fatalf("the empty result must state the cleanup authority boundary: %q", candidates.Note)
 	}
 
 	policies, err := h.d.Policies(ctx)

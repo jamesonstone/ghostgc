@@ -1,9 +1,8 @@
 # Reference user-level systemd unit for Linux.
 #
-# Linux support is delivery phase 9: the /proc collector is not implemented, so
-# installing this unit today would start a daemon that cannot observe anything.
-# The file is here so the service shape is settled before the collector lands,
-# and so the daemon core stays free of any launchd assumption.
+# Linux process collection is not implemented, so installing this unit would
+# start a daemon that cannot observe anything. The file is a packaging reference
+# that keeps the daemon core free of any launchd assumption.
 #
 # Install to ~/.config/systemd/user/ghostgc.service, then:
 #   systemctl --user daemon-reload

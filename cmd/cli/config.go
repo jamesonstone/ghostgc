@@ -44,7 +44,7 @@ func configInit(e *env, args []string) error {
 		return err
 	}
 	fmt.Printf("Wrote %s\n", e.paths.Config)
-	fmt.Println("The generated configuration is in audit mode, which is the only mode this build accepts.")
+	fmt.Println("The generated configuration starts in audit mode; cleanup authority must be enabled explicitly.")
 	return nil
 }
 

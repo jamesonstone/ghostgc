@@ -25,7 +25,6 @@ const (
 type StatusResponse struct {
 	Health                 Health         `json:"health"`
 	Mode                   string         `json:"mode"`
-	Phase                  string         `json:"phase"`
 	Version                string         `json:"version"`
 	Platform               string         `json:"platform"`
 	PID                    int            `json:"pid"`
@@ -36,7 +35,7 @@ type StatusResponse struct {
 	ClassificationsByState map[string]int `json:"classifications_by_state"`
 	Sessions               int            `json:"sessions"`
 	CleanupCandidates      int            `json:"cleanup_candidates"`
-	// SignallingEnabled is the Phase 6 compatibility alias for manual cleanup.
+	// SignallingEnabled is the compatibility alias for manual cleanup.
 	SignallingEnabled       bool         `json:"signalling_enabled"`
 	ManualCleanupEnabled    bool         `json:"manual_cleanup_enabled"`
 	AutomaticCleanupEnabled bool         `json:"automatic_cleanup_enabled"`

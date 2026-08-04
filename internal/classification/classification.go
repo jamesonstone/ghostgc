@@ -33,7 +33,7 @@ type Evidence struct {
 	Detail string `json:"detail"`
 }
 
-// Activity is the subset of a Phase 3 sample used by the classifier.
+// Activity is the subset of a process activity sample used by the classifier.
 type Activity struct {
 	Taken                   time.Time
 	BaselineOK              bool

@@ -25,7 +25,7 @@ var migrations = []migration{
 	{version: 8, stmts: schemaV8},
 }
 
-// schemaV1 is the delivery phase 1 schema.
+// schemaV1 is the initial storage schema.
 //
 // Only agent-attributed processes are persisted. The whole process table is
 // scanned every cycle, but writing all of it would both violate the
@@ -70,7 +70,7 @@ CREATE INDEX processes_session_idx    ON processes(session_id);
 CREATE INDEX processes_last_seen_idx  ON processes(last_seen_ns);
 CREATE INDEX processes_live_idx       ON processes(exited_at_ns) WHERE exited_at_ns IS NULL;
 
--- Time series. Deltas are computed from consecutive rows in delivery phase 3.
+-- Time series. Deltas are computed from consecutive rows.
 CREATE TABLE process_observations (
 	id           INTEGER PRIMARY KEY AUTOINCREMENT,
 	proc_uid     TEXT NOT NULL,
@@ -206,7 +206,7 @@ CREATE INDEX session_relationships_session_idx ON session_relationships(session_
 CREATE INDEX session_relationships_from_idx    ON session_relationships(from_proc_uid);
 `
 
-// schemaV3 adds bounded phase-3 activity evidence. It stores derived counts
+// schemaV3 adds bounded activity evidence. It stores derived counts
 // and deltas only; raw file paths and socket endpoints never reach storage.
 const schemaV3 = `
 CREATE TABLE process_activity (

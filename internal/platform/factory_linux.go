@@ -49,5 +49,5 @@ func (p *linuxPlatform) UninstallService(ctx context.Context, label string) erro
 }
 
 func (p *linuxPlatform) ServiceStatus(ctx context.Context, label string) (ServiceState, error) {
-	return ServiceState{Label: label, Description: "linux service management arrives in delivery phase 9"}, nil
+	return ServiceState{Label: label, Description: "linux service management is not implemented"}, nil
 }

@@ -57,7 +57,7 @@ func TestActionRetentionUsesDedicatedWindow(t *testing.T) {
 	}
 }
 
-func TestPhaseSevenMigrationDefaultsExistingActionsToManual(t *testing.T) {
+func TestEnforcementMigrationDefaultsExistingActionsToManual(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
 	_, err := s.db.ExecContext(ctx, `INSERT INTO actions (

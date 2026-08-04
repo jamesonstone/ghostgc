@@ -147,5 +147,5 @@ func writeFile(path string) error {
 }
 
 // ---------------------------------------------------------------------------
-// Delivery phase 2: the session graph, end to end.
+// Session graph behavior, end to end.
 // ---------------------------------------------------------------------------

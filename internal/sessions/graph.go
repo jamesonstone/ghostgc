@@ -42,9 +42,7 @@ const (
 	// session identifier.
 	RelEnvironment RelationshipKind = "environment"
 
-	// RelSocket and RelFileLock are declared so the storage format is settled;
-	// they are populated in delivery phase 3, when socket and open-file
-	// inspection exists.
+	// RelSocket and RelFileLock record socket and open-file inspection evidence.
 	RelSocket   RelationshipKind = "socket"
 	RelFileLock RelationshipKind = "file-lock"
 )

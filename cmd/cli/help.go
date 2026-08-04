@@ -129,7 +129,7 @@ func printRootBanner(out io.Writer, style helpStyle) {
 		case 2:
 			text = style.muted("Session-aware process observation for coding agents")
 		case 3:
-			text = style.muted("Delivery phase " + rootPhaseSummary(version.Phase))
+			text = style.muted("Local-first • explainable • fail-closed")
 		}
 		if text == "" {
 			_, _ = fmt.Fprintln(out, style.accent(art))
@@ -137,13 +137,6 @@ func printRootBanner(out io.Writer, style helpStyle) {
 		}
 		_, _ = fmt.Fprintf(out, "%s%s\n", style.accent(fmt.Sprintf("%-28s", art)), text)
 	}
-}
-
-func rootPhaseSummary(phase string) string {
-	if detail := strings.Index(phase, " ("); detail >= 0 {
-		return phase[:detail]
-	}
-	return phase
 }
 
 func rootHelpNamePadding() int {
