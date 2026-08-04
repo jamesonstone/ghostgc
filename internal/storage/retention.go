@@ -24,27 +24,29 @@ type RetentionPolicy struct {
 
 // RetentionResult reports what a compaction pass removed.
 type RetentionResult struct {
-	Observations      int64 `json:"observations_deleted"`
-	ActivitySamples   int64 `json:"activity_samples_deleted"`
-	Classifications   int64 `json:"classifications_deleted"`
-	PolicyDecisions   int64 `json:"policy_decisions_deleted"`
-	PolicyEvaluations int64 `json:"policy_evaluations_deleted"`
-	Actions           int64 `json:"actions_deleted"`
-	Scans             int64 `json:"scans_deleted"`
-	Audit             int64 `json:"audit_deleted"`
-	Processes         int64 `json:"processes_deleted"`
-	Ownership         int64 `json:"ownership_deleted"`
-	Sessions          int64 `json:"sessions_deleted"`
-	Relationships     int64 `json:"relationships_deleted"`
-	Aggressive        bool  `json:"aggressive"`
-	SizeBeforeBytes   int64 `json:"size_before_bytes"`
-	SizeAfterBytes    int64 `json:"size_after_bytes"`
-	OverBudgetBefore  bool  `json:"over_budget_before"`
+	Observations       int64 `json:"observations_deleted"`
+	ActivitySamples    int64 `json:"activity_samples_deleted"`
+	Classifications    int64 `json:"classifications_deleted"`
+	PolicyDecisions    int64 `json:"policy_decisions_deleted"`
+	PolicyEvaluations  int64 `json:"policy_evaluations_deleted"`
+	Actions            int64 `json:"actions_deleted"`
+	WorktreeActions    int64 `json:"worktree_actions_deleted"`
+	WorktreeTombstones int64 `json:"worktree_tombstones_deleted"`
+	Scans              int64 `json:"scans_deleted"`
+	Audit              int64 `json:"audit_deleted"`
+	Processes          int64 `json:"processes_deleted"`
+	Ownership          int64 `json:"ownership_deleted"`
+	Sessions           int64 `json:"sessions_deleted"`
+	Relationships      int64 `json:"relationships_deleted"`
+	Aggressive         bool  `json:"aggressive"`
+	SizeBeforeBytes    int64 `json:"size_before_bytes"`
+	SizeAfterBytes     int64 `json:"size_after_bytes"`
+	OverBudgetBefore   bool  `json:"over_budget_before"`
 }
 
 // Total returns the number of rows removed.
 func (r RetentionResult) Total() int64 {
-	return r.Observations + r.ActivitySamples + r.Classifications + r.PolicyDecisions + r.PolicyEvaluations + r.Actions + r.Scans + r.Audit + r.Processes + r.Ownership + r.Sessions + r.Relationships
+	return r.Observations + r.ActivitySamples + r.Classifications + r.PolicyDecisions + r.PolicyEvaluations + r.Actions + r.WorktreeActions + r.WorktreeTombstones + r.Scans + r.Audit + r.Processes + r.Ownership + r.Sessions + r.Relationships
 }
 
 // Compact enforces the retention policy.
@@ -114,6 +116,8 @@ func (s *Store) compactOnce(ctx context.Context, p RetentionPolicy, now time.Tim
 				AND id <> (SELECT MAX(id) FROM policy_evaluations)
 				AND id NOT IN (SELECT DISTINCT evaluation_id FROM policy_decisions)`, []any{cutoff(p.PolicyDecisions)}},
 			{&res.Actions, `DELETE FROM actions WHERE requested_ns < ?`, []any{cutoff(p.Actions)}},
+			{&res.WorktreeActions, `DELETE FROM worktree_actions WHERE requested_ns < ? AND result <> 'attempting'`, []any{cutoff(p.Actions)}},
+			{&res.WorktreeTombstones, `DELETE FROM worktrees WHERE state = 'removed' AND removed_ns < ?`, []any{cutoff(p.Actions)}},
 			{&res.Scans, `DELETE FROM scans WHERE started_ns < ?`, []any{cutoff(p.Scans)}},
 			{&res.Audit, `DELETE FROM audit_log WHERE ts_ns < ?`, []any{cutoff(p.Audit)}},
 			{&res.Ownership, `DELETE FROM session_processes WHERE proc_uid IN (

@@ -190,6 +190,35 @@ func (s *Server) routes() http.Handler {
 		opts.SinceNs, _ = strconv.ParseInt(q.Get("since_ns"), 10, 64)
 		return s.Backend.Classifications(r.Context(), opts)
 	}))
+	mux.HandleFunc("GET "+p+"/worktrees", s.handle(func(r *http.Request) (any, error) {
+		q := r.URL.Query()
+		opts := WorktreeOptions{State: q.Get("state"), Source: q.Get("source")}
+		opts.Limit, _ = strconv.Atoi(q.Get("limit"))
+		return s.Backend.Worktrees(r.Context(), opts)
+	}))
+	mux.HandleFunc("GET "+p+"/worktrees/{id}", s.handle(func(r *http.Request) (any, error) {
+		return s.Backend.Worktree(r.Context(), r.PathValue("id"))
+	}))
+	mux.HandleFunc("POST "+p+"/worktrees/removal/preview", s.handle(func(r *http.Request) (any, error) {
+		var req WorktreeRemovalPreviewRequest
+		if err := decodeRequest(r, &req); err != nil {
+			return nil, err
+		}
+		return s.Backend.WorktreeRemovalPreview(r.Context(), req)
+	}))
+	mux.HandleFunc("POST "+p+"/worktrees/removal/apply", s.handle(func(r *http.Request) (any, error) {
+		var req WorktreeRemovalApplyRequest
+		if err := decodeRequest(r, &req); err != nil {
+			return nil, err
+		}
+		return s.Backend.WorktreeRemovalApply(r.Context(), req)
+	}))
+	mux.HandleFunc("GET "+p+"/worktree-actions", s.handle(func(r *http.Request) (any, error) {
+		q := r.URL.Query()
+		opts := WorktreeActionOptions{WorktreeID: q.Get("worktree"), Result: q.Get("result")}
+		opts.Limit, _ = strconv.Atoi(q.Get("limit"))
+		return s.Backend.WorktreeActions(r.Context(), opts)
+	}))
 
 	return mux
 }

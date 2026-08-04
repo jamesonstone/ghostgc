@@ -1,6 +1,6 @@
 // Command ghostgc runs, inspects and controls the ghostgc daemon.
 //
-// Most commands read. Cleanup is the sole action command and requires a
+// Most commands read. Process cleanup and worktree removal each require a
 // short-lived approval emitted by an exact preview; runtime policy mutation
 // remains unavailable.
 package main
@@ -178,6 +178,18 @@ func init() {
 			summary: "show durable cleanup action history",
 			usage:   "[--process <pid:start>] [--policy <id>] [--result <result>] [--limit <n>]",
 			run:     cmdActions,
+		},
+		{
+			name:    "worktrees",
+			summary: "list local Git worktree inventory",
+			usage:   "[--state <state>] [--source <source>] [--limit <n>]",
+			run:     cmdWorktrees,
+		},
+		{
+			name:    "worktree",
+			summary: "inspect or manually remove one stale worktree",
+			usage:   "show <id-or-prefix> | remove [flags] | actions [flags]",
+			run:     cmdWorktree,
 		},
 		{
 			name:    "logs",

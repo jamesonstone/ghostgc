@@ -119,6 +119,8 @@ func renderMetrics(m api.MetricsResponse) {
 		{"sessions", fmt.Sprintf("%d active", m.ActiveSessions)},
 		{"cleanup candidates", fmt.Sprintf("%d", m.CleanupCandidates)},
 		{"actions", fmt.Sprintf("%d attempted, %d rejected, %d completed", m.ActionsAttempted, m.ActionsRejected, m.ActionsCompleted)},
+		{"worktrees", fmt.Sprintf("%d inventoried, %d stale, %d protected", m.WorktreeInventory, m.WorktreeStale, m.WorktreeProtected)},
+		{"worktree removals", fmt.Sprintf("%d attempted, %d rejected, %d removed, %d failed", m.WorktreeActionsAttempted, m.WorktreeActionsRejected, m.WorktreeActionsRemoved, m.WorktreeActionsFailed)},
 		{"database", fmt.Sprintf("%s (%d sessions, %d processes, %d observations, %d activity, %d classifications, %d policy decisions, %d edges, %d audit)",
 			humanBytes(uint64(m.DatabaseBytes)), m.DatabaseCounts.Sessions, m.DatabaseCounts.Processes,
 			m.DatabaseCounts.Observations, m.DatabaseCounts.ActivitySamples, m.DatabaseCounts.Classifications, m.DatabaseCounts.PolicyDecisions, m.DatabaseCounts.Relationships, m.DatabaseCounts.AuditEntries)},

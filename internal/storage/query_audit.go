@@ -138,6 +138,8 @@ type Counts struct {
 	Classifications int64 `json:"classifications"`
 	PolicyDecisions int64 `json:"policy_decisions"`
 	Actions         int64 `json:"actions"`
+	Worktrees       int64 `json:"worktrees"`
+	WorktreeActions int64 `json:"worktree_actions"`
 	Scans           int64 `json:"scans"`
 	AuditEntries    int64 `json:"audit_entries"`
 	Relationships   int64 `json:"relationships"`
@@ -159,6 +161,8 @@ func (s *Store) Counts(ctx context.Context) (Counts, error) {
 		{&c.Classifications, `SELECT COUNT(*) FROM process_classifications`},
 		{&c.PolicyDecisions, `SELECT COUNT(*) FROM policy_decisions`},
 		{&c.Actions, `SELECT COUNT(*) FROM actions`},
+		{&c.Worktrees, `SELECT COUNT(*) FROM worktrees`},
+		{&c.WorktreeActions, `SELECT COUNT(*) FROM worktree_actions`},
 		{&c.Scans, `SELECT COUNT(*) FROM scans`},
 		{&c.AuditEntries, `SELECT COUNT(*) FROM audit_log`},
 		{&c.Relationships, `SELECT COUNT(*) FROM session_relationships`},

@@ -24,6 +24,7 @@ import (
 	"github.com/jamesonstone/ghostgc/internal/sessions"
 	"github.com/jamesonstone/ghostgc/internal/storage"
 	"github.com/jamesonstone/ghostgc/internal/version"
+	"github.com/jamesonstone/ghostgc/internal/worktree"
 )
 
 // Audit kinds emitted by the daemon itself.
@@ -48,15 +49,18 @@ type Options struct {
 
 // Daemon is the long-running observer.
 type Daemon struct {
-	cfg    config.Config
-	paths  config.Paths
-	store  *storage.Store
-	plat   platform.Platform
-	log    *slog.Logger
-	reg    *adapters.Registry
-	recon  *sessions.Reconciler
-	repos  *repository.Finder
-	selfPI int
+	cfg            config.Config
+	paths          config.Paths
+	store          *storage.Store
+	plat           platform.Platform
+	log            *slog.Logger
+	reg            *adapters.Registry
+	recon          *sessions.Reconciler
+	repos          *repository.Finder
+	worktreeGit    *worktree.Git
+	worktreeGitErr error
+	removeWorktree func(context.Context, string, string) error
+	selfPI         int
 
 	startedAt time.Time
 
@@ -73,7 +77,10 @@ type Daemon struct {
 	classificationPrevious map[string]classification.Previous
 	lastClassificationAt   time.Time
 	lastPolicyAt           time.Time
+	lastWorktreeAt         time.Time
 	approvals              map[string]*cleanupApproval
+	worktreeApprovals      map[string]*worktreeApproval
+	worktreeActionMu       sync.Mutex
 }
 
 type metrics struct {
@@ -134,6 +141,7 @@ func New(opts Options) (*Daemon, error) {
 	if reg == nil {
 		reg = BuildRegistry(opts.Config, repos)
 	}
+	worktreeGit, worktreeGitErr := worktree.NewGit()
 
 	d := &Daemon{
 		cfg:                    opts.Config,
@@ -143,11 +151,17 @@ func New(opts Options) (*Daemon, error) {
 		log:                    log,
 		reg:                    reg,
 		repos:                  repos,
+		worktreeGit:            worktreeGit,
+		worktreeGitErr:         worktreeGitErr,
 		selfPI:                 os.Getpid(),
 		startedAt:              time.Now(),
 		activityBaseline:       make(map[string]process.ActivitySample),
 		classificationPrevious: make(map[string]classification.Previous),
 		approvals:              make(map[string]*cleanupApproval),
+		worktreeApprovals:      make(map[string]*worktreeApproval),
+	}
+	if worktreeGit != nil {
+		d.removeWorktree = worktreeGit.Remove
 	}
 	d.recon = sessions.New(reg, d.selfPI, opts.Platform.SelfUID(), repos)
 	return d, nil

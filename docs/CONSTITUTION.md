@@ -13,6 +13,8 @@
   daemon did not observe is a fabrication.
 - Missing activity evidence is not inactivity. Deltas require two ordered,
   available samples for the same exact process key.
+- Worktree staleness is continuous evidence, never age alone. Removal is manual,
+  non-force and branch-preserving; incomplete evidence protects the worktree.
 - Record what was observed when it was observed. Do not re-derive a fact each
   cycle that the operating system can destroy between cycles.
 - Run with the least privilege that can do the job, and inspect only what that
@@ -45,8 +47,9 @@
   not be downgraded, and the original parent is written once.
 - Detection matches executable basenames exactly and path components as whole
   segments. Ownership is never established by matching a command-line substring.
-- Source-code contents are never read. The daemon records paths and metadata,
-  and reads version-control plumbing only.
+- Source-code contents are never retained. The daemon records paths and
+  metadata, and worktree inspection retains only aggregate dirty evidence,
+  never filenames or file contents.
 - Expensive activity inspection is restricted to live, same-user processes
   already attributed to a coding-agent session. File paths and socket endpoints
   discovered during that pass never reach storage.
@@ -58,6 +61,18 @@
   bounded by construction.
 - Schema migrations only add. Recorded ownership cannot be recomputed from a
   fresh observation, so no migration may destroy it.
+- A worktree is identified by its canonical common and administrative Git
+  directories. Moving the registration preserves identity; recreating it does
+  not.
+- A worktree needs at least seven uninterrupted days of complete inactivity to
+  become stale. Restart, scan gaps, activity, Git changes and unknown evidence
+  reset the window.
+- Primary, locked, missing, prunable, dirty, active, unreadable or operational
+  worktrees are protected, as are local-only commits, unsafe detached commits,
+  submodules, nested mounts and incomplete path-usage inspection.
+- Worktree removal never uses force, prune, branch deletion, network access, a
+  shell or recursive filesystem deletion. Durable attempting evidence precedes
+  the native Git side effect, and the branch remains.
 
 ### Kit-Managed Baseline Rules
 
@@ -100,7 +115,8 @@
 ## NON-GOALS
 
 - A general macOS cleaner. ghostgc does not delete caches, optimise settings, or
-  manage anything outside coding-agent sessions.
+  manage anything outside coding-agent sessions and explicitly configured
+  local worktree roots.
 - Monitoring user activity outside coding-agent sessions. Unattributed
   processes are counted during a scan and then forgotten.
 - Replacing Activity Monitor, `ps`, `top` or `launchctl`.
@@ -127,6 +143,10 @@
 - **Protected** — a process that must never be terminated automatically.
 - **Cleanup candidate** — a process matching an enabled cleanup policy, which
   is not the same as a process that will be acted on.
+- **Worktree** — one registered checkout identified by its canonical common and
+  administrative Git directories, independently of its current path.
+- **Stale worktree** — a present, registered, unprotected secondary worktree
+  with at least seven continuous days of complete inactivity evidence.
 - **Identity evidence** — evidence that a process *is* an agent program.
   Executable and argument derived.
 - **Membership evidence** — evidence that a process is *inside* an agent

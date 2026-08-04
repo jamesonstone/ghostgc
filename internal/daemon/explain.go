@@ -170,6 +170,18 @@ func (d *Daemon) Metrics(ctx context.Context) (api.MetricsResponse, error) {
 	if err != nil {
 		return api.MetricsResponse{}, err
 	}
+	worktreeCounts, err := d.store.WorktreeStateCounts(ctx)
+	if err != nil {
+		return api.MetricsResponse{}, err
+	}
+	resp.WorktreeInventory = counts.Worktrees
+	resp.WorktreeStale = int64(worktreeCounts["stale"])
+	resp.WorktreeProtected = int64(worktreeCounts["protected"])
+	resp.WorktreeActionsAttempted, resp.WorktreeActionsRejected, resp.WorktreeActionsRemoved,
+		resp.WorktreeActionsFailed, err = d.store.WorktreeActionCounts(ctx)
+	if err != nil {
+		return api.MetricsResponse{}, err
+	}
 	decisions, err := d.currentPolicyDecisions(ctx)
 	if err != nil {
 		return api.MetricsResponse{}, err

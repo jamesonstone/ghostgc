@@ -52,10 +52,11 @@ func (d *Daemon) runScan(ctx context.Context) {
 		d.recordScanFailure(ctx, start, fmt.Errorf("policy: %w", err))
 		return
 	}
+	worktrees := d.collectWorktrees(ctx, snap, result)
 	activityDuration := time.Since(activityStart)
 
 	persistStart := time.Now()
-	if err := d.persist(ctx, snap, result, activity.records, classifications.records, policies, start, scanDuration); err != nil {
+	if err := d.persist(ctx, snap, result, activity.records, classifications.records, policies, worktrees, start, scanDuration); err != nil {
 		if ctx.Err() != nil {
 			return
 		}
@@ -69,6 +70,9 @@ func (d *Daemon) runScan(ctx context.Context) {
 	d.commitActivity(activity)
 	d.commitClassifications(classifications)
 	d.commitPolicies(policies)
+	if worktrees.due {
+		d.lastWorktreeAt = worktrees.at
+	}
 
 	d.mu.Lock()
 	d.snapshot = snap
@@ -109,7 +113,7 @@ func (d *Daemon) runScan(ctx context.Context) {
 	)
 }
 
-func (d *Daemon) persist(ctx context.Context, snap *process.Snapshot, res *sessions.Result, activity []storage.ActivityRecord, classifications []storage.ClassificationRecord, policies policyBatch, start time.Time, scanDuration time.Duration) error {
+func (d *Daemon) persist(ctx context.Context, snap *process.Snapshot, res *sessions.Result, activity []storage.ActivityRecord, classifications []storage.ClassificationRecord, policies policyBatch, worktrees worktreeBatch, start time.Time, scanDuration time.Duration) error {
 	nowNs := snap.Taken.UnixNano()
 	return d.store.WithTx(ctx, func(tx *storage.Tx) error {
 		scanID, err := tx.InsertScan(storage.ScanRecord{
@@ -177,6 +181,16 @@ func (d *Daemon) persist(ctx context.Context, snap *process.Snapshot, res *sessi
 				return err
 			}
 		}
+		for _, record := range worktrees.records {
+			if err := tx.UpsertWorktree(record); err != nil {
+				return err
+			}
+		}
+		for _, audit := range worktrees.audit {
+			if err := tx.AppendAudit(audit); err != nil {
+				return err
+			}
+		}
 		if _, err := tx.MarkExitedBefore(nowNs, nowNs); err != nil {
 			return err
 		}
@@ -203,6 +217,10 @@ func (d *Daemon) recordScanFailure(ctx context.Context, start time.Time, cause e
 	d.mu.Unlock()
 
 	d.log.Error("scan failed", "error", cause)
+	worktrees := d.collectWorktrees(ctx, process.NewSnapshot(start, nil, 0), &sessions.Result{})
+	if worktrees.due {
+		worktrees = d.incompleteProcessWorktreeBatch(worktrees, cause)
+	}
 	err := d.store.WithTx(ctx, func(tx *storage.Tx) error {
 		if _, err := tx.InsertScan(storage.ScanRecord{
 			StartedNs:  start.UnixNano(),
@@ -219,11 +237,26 @@ func (d *Daemon) recordScanFailure(ctx context.Context, start time.Time, cause e
 		}); err != nil {
 			return err
 		}
+		if err := tx.ResetWorktreeInactivity(start.UnixNano(), d.startedAt.UnixNano()); err != nil {
+			return err
+		}
+		for _, record := range worktrees.records {
+			if err := tx.UpsertWorktree(record); err != nil {
+				return err
+			}
+		}
+		for _, audit := range worktrees.audit {
+			if err := tx.AppendAudit(audit); err != nil {
+				return err
+			}
+		}
 		_, err := tx.InsertPolicyEvaluation(start.UnixNano())
 		return err
 	})
 	if err != nil {
 		d.log.Error("recording scan failure failed", "error", err)
+	} else if worktrees.due {
+		d.lastWorktreeAt = worktrees.at
 	}
 }
 

@@ -36,11 +36,14 @@ type StatusResponse struct {
 	Sessions               int            `json:"sessions"`
 	CleanupCandidates      int            `json:"cleanup_candidates"`
 	// SignallingEnabled is the compatibility alias for manual cleanup.
-	SignallingEnabled       bool         `json:"signalling_enabled"`
-	ManualCleanupEnabled    bool         `json:"manual_cleanup_enabled"`
-	AutomaticCleanupEnabled bool         `json:"automatic_cleanup_enabled"`
-	LastScan                *ScanSummary `json:"last_scan,omitempty"`
-	Degraded                []string     `json:"degraded_reasons,omitempty"`
+	SignallingEnabled       bool           `json:"signalling_enabled"`
+	ManualCleanupEnabled    bool           `json:"manual_cleanup_enabled"`
+	AutomaticCleanupEnabled bool           `json:"automatic_cleanup_enabled"`
+	WorktreesByState        map[string]int `json:"worktrees_by_state"`
+	StaleWorktrees          int            `json:"stale_worktrees"`
+	ProtectedWorktrees      int            `json:"protected_worktrees"`
+	LastScan                *ScanSummary   `json:"last_scan,omitempty"`
+	Degraded                []string       `json:"degraded_reasons,omitempty"`
 }
 
 // ScanSummary describes the most recent observation cycle.
@@ -114,6 +117,11 @@ type Backend interface {
 	Metrics(ctx context.Context) (MetricsResponse, error)
 	Activity(ctx context.Context, opts ActivityOptions) (ActivityResponse, error)
 	Classifications(ctx context.Context, opts ClassificationOptions) (ClassificationsResponse, error)
+	Worktrees(ctx context.Context, opts WorktreeOptions) (WorktreesResponse, error)
+	Worktree(ctx context.Context, idOrPrefix string) (WorktreeView, error)
+	WorktreeRemovalPreview(ctx context.Context, req WorktreeRemovalPreviewRequest) (WorktreeRemovalPreviewResponse, error)
+	WorktreeRemovalApply(ctx context.Context, req WorktreeRemovalApplyRequest) (WorktreeRemovalApplyResponse, error)
+	WorktreeActions(ctx context.Context, opts WorktreeActionOptions) (WorktreeActionsResponse, error)
 }
 
 // ErrorResponse is returned for any non-200 status.

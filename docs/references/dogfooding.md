@@ -18,12 +18,28 @@ ghostgc status
 ghostgc sessions
 ghostgc processes --all
 ghostgc classifications --latest
+ghostgc worktrees
 ```
 
 Let the daemon run for at least two activity intervals (two minutes with the
 default configuration), then inspect `ghostgc activity`, `ghostgc explain
 <pid>`, `ghostgc metrics` and `ghostgc logs`. Nothing can be signalled while
 `globalMode: audit` remains in place.
+
+Worktree inventory is also safe to inspect immediately. Registered worktrees
+from observed session repositories appear automatically; configured roots are
+optional. A new record begins in `observing`, and there is no command or
+configuration shortcut around seven continuous days of complete inactivity:
+
+```bash
+ghostgc worktrees --state observing
+ghostgc worktree show '<id-or-prefix>'
+ghostgc metrics
+```
+
+After a worktree becomes `stale`, follow
+`manual-worktree-cleanup.md` to preview and manually remove exactly that ID.
+Leave the branch in place until you independently decide its lifecycle.
 
 The daemon reads configuration only at startup. After an edit, reinstall the
 LaunchAgent in place to restart it without deleting configuration, SQLite

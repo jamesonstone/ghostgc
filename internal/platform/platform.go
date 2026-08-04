@@ -56,6 +56,9 @@ type ServiceState struct {
 	Description string
 }
 
+// PathUsage aliases the platform-neutral aggregate evidence type.
+type PathUsage = process.PathUsage
+
 // Platform is the complete set of operating-system operations ghostgc needs.
 //
 // Implementations must be safe for concurrent use.
@@ -77,6 +80,10 @@ type Platform interface {
 	// already-attributed process. Implementations must validate the exact key
 	// before and after inspection and return partial availability explicitly.
 	SampleActivity(ctx context.Context, key process.Key, repositoryRoot string) (process.ActivitySample, error)
+
+	// InspectPathUsage inspects every same-user process for a working directory
+	// or open vnode inside one exact candidate and fails closed when incomplete.
+	InspectPathUsage(ctx context.Context, canonicalPath string) (PathUsage, error)
 
 	// SignalProcess validates the exact key and bound executable image
 	// immediately before sending SIGTERM. The daemon must independently

@@ -29,6 +29,7 @@ func TestRootHelpIsGroupedAndCompact(t *testing.T) {
 		"Available Commands",
 		"Observe",
 		"Policy & Cleanup",
+		"Worktrees",
 		"Inspect",
 		"Setup",
 		"Utilities",
