@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -11,6 +12,7 @@ import (
 	"github.com/jamesonstone/ghostgc/internal/config"
 	"github.com/jamesonstone/ghostgc/internal/platform"
 	"github.com/jamesonstone/ghostgc/internal/platform/platformtest"
+	"github.com/jamesonstone/ghostgc/internal/version"
 )
 
 func TestResolveSelfBinaryCanonicalizesSymlink(t *testing.T) {
@@ -84,10 +86,19 @@ func TestServiceInstallPreservesLegacyExecutableWhenRegistrationFails(t *testing
 	}
 }
 
-func TestRunRoutesDaemonVersion(t *testing.T) {
+func TestVersionCommandsReportBuildOnly(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	if code := run(context.Background(), []string{"daemon", "--version"}); code != 0 {
-		t.Fatalf("run daemon version exit code = %d, want 0", code)
+	for _, args := range [][]string{{"version"}, {"daemon", "--version"}} {
+		output, code := captureStdout(t, func() int {
+			return run(context.Background(), args)
+		})
+		if code != 0 {
+			t.Fatalf("run %v exit code = %d, want 0", args, code)
+		}
+		want := "ghostgc " + version.String() + "\n"
+		if output != want {
+			t.Fatalf("run %v output = %q, want %q", args, output, want)
+		}
 	}
 }
 
@@ -127,6 +138,29 @@ func stubExecutablePath(t *testing.T, path string) {
 	previous := executablePath
 	executablePath = func() (string, error) { return path, nil }
 	t.Cleanup(func() { executablePath = previous })
+}
+
+func captureStdout(t *testing.T, runCommand func() int) (string, int) {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := os.Stdout
+	os.Stdout = writer
+	code := runCommand()
+	os.Stdout = original
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return string(output), code
 }
 
 type installFailurePlatform struct {

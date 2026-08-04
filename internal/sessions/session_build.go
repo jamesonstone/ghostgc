@@ -30,7 +30,7 @@ type sessionRootInfo struct {
 // identity evidence too. A session has exactly one root, so the earliest-started
 // claimant wins and the rest are recorded as members. Writing two roots for one
 // session would leave "which process is this session" unanswerable, which is
-// the question every later phase depends on.
+// the ownership question every later capability depends on.
 func (r *Reconciler) buildSessions(ctx context.Context, graph adapters.Graph, res *Result, nowNs int64) (map[string]sessionRootInfo, map[int]string) {
 	live := make(map[string]sessionRootInfo)
 	secondary := make(map[int]string)

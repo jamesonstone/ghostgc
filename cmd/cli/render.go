@@ -99,7 +99,6 @@ func renderStatus(s api.StatusResponse) {
 	} else {
 		fmt.Println("Automatic cleanup disabled.")
 	}
-	fmt.Printf("Delivery phase %s\n", s.Phase)
 }
 
 func renderSessions(r api.SessionsResponse) {

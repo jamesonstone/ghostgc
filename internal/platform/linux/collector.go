@@ -1,11 +1,9 @@
 //go:build linux
 
-// Package linux is the placeholder for the /proc-based collector.
-//
-// Linux support is delivery phase 9. The package exists now so that the
-// platform abstraction is exercised by the compiler on both targets and so
-// that no darwin-specific type leaks into the daemon core. It must never
-// pretend to have observed something it did not.
+// Package linux is the placeholder for the /proc-based collector. The package
+// keeps the platform abstraction compiling on both targets without allowing a
+// darwin-specific type to leak into the daemon core. It must never pretend to
+// have observed something it did not.
 package linux
 
 import (
@@ -18,7 +16,7 @@ import (
 )
 
 // ErrNotImplemented is returned by every collection method.
-var ErrNotImplemented = errors.New("linux: process collection arrives in delivery phase 9")
+var ErrNotImplemented = errors.New("linux: process collection is not implemented")
 
 // Options mirrors the darwin collector options.
 type Options struct {
@@ -50,7 +48,7 @@ func (c *Collector) InspectProcess(ctx context.Context, pid int) (process.Proces
 }
 
 // SampleActivity implements the platform contract without fabricating Linux
-// support before delivery phase 9.
+// support.
 func (c *Collector) SampleActivity(ctx context.Context, key process.Key, repositoryRoot string) (process.ActivitySample, error) {
 	return process.ActivitySample{}, ErrNotImplemented
 }
@@ -58,5 +56,5 @@ func (c *Collector) SampleActivity(ctx context.Context, key process.Key, reposit
 // SignalProcess implements the platform contract and always refuses.
 func (c *Collector) SignalProcess(ctx context.Context, key process.Key,
 	executable process.ExecutableIdentity, sig syscall.Signal) error {
-	return errors.New("platform: process signalling is not available on linux before delivery phase 9")
+	return errors.New("platform: process signalling is not available on linux")
 }

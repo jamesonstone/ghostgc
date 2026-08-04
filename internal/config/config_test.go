@@ -55,11 +55,11 @@ func TestExampleConfigLoadsAndIsAudit(t *testing.T) {
 func TestRecommendAndEnforceModesAreAccepted(t *testing.T) {
 	path := writeConfig(t, "version: 1\nglobalMode: recommend\n")
 	if _, err := Load(path); err != nil {
-		t.Fatalf("recommend mode must be available in phase 6: %v", err)
+		t.Fatalf("recommend mode must be available: %v", err)
 	}
 	path = writeConfig(t, "version: 1\nglobalMode: enforce\n")
 	if _, err := Load(path); err != nil {
-		t.Fatalf("enforce mode must be available in phase 7: %v", err)
+		t.Fatalf("enforce mode must be available: %v", err)
 	}
 }
 

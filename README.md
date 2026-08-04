@@ -14,7 +14,9 @@ across reparenting and PID reuse, and explains every conclusion it reaches with
 the evidence behind it.
 
 <!-- BEGIN KIT-MANAGED README BADGES -->
+
 [![Last commit](https://img.shields.io/github/last-commit/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/commits) [![Open issues](https://img.shields.io/github/issues/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/issues) [![Pull requests](https://img.shields.io/github/issues-pr/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/pulls) [![CI](https://github.com/jamesonstone/ghostgc/actions/workflows/ci.yml/badge.svg)](https://github.com/jamesonstone/ghostgc/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/jamesonstone/ghostgc)](https://github.com/jamesonstone/ghostgc/releases)
+
 <!-- END KIT-MANAGED README BADGES -->
 
 **Cleanup is available only when explicitly configured.** Manual cleanup needs
@@ -66,8 +68,8 @@ usual reaction is to reach for `pkill` and a name pattern, which is how people
 end up killing the language server their editor was using, or a database that
 happened to be started from an agent shell.
 
-The difficult part is not termination. It is knowing, with evidence, *which
-session a process belongs to* — after the operating system has reparented it to
+The difficult part is not termination. It is knowing, with evidence, _which
+session a process belongs to_ — after the operating system has reparented it to
 `launchd`, after its PID has been recycled, and when several unrelated things on
 the machine have the agent's name somewhere in their command line.
 
@@ -91,7 +93,7 @@ happens. Unknown is protected — including a process the daemon did not manage 
 inspect.
 
 **Never identify a process by PID alone.** Every process is keyed by
-`pid:start_time_ns`, and a parent link whose "parent" started *after* its child
+`pid:start_time_ns`, and a parent link whose "parent" started _after_ its child
 is not believed at all.
 
 **Ownership is written down, not re-derived.** When a parent exits and the
@@ -131,26 +133,26 @@ service is registered successfully, installation also removes a sibling legacy
 
 ## Commands
 
-| Command | What it does |
-| --- | --- |
-| `ghostgc status` | daemon health, mode, session counts, last scan |
-| `ghostgc sessions` | every observed agent session |
-| `ghostgc session show <id>` | one session: evidence, processes, relationship graph, audit trail |
-| `ghostgc processes` | processes attributed to a session |
-| `ghostgc explain <pid>` | what was concluded about a PID and why — works for *any* PID |
-| `ghostgc activity` | bounded CPU, disk, file and socket evidence for attributed processes |
-| `ghostgc candidates` | current enforceable, recommended and audit/refusal/cooldown decisions |
-| `ghostgc cleanup --dry-run ...` | issue an exact, expiring manual cleanup preview |
-| `ghostgc cleanup --apply ...` | consume one approval after full fresh revalidation |
-| `ghostgc actions` | durable attempted, rejected, signalled and failed actions |
-| `ghostgc classifications` | latest deterministic process states and detachment |
-| `ghostgc policies` | loaded YAML policies and their exact scope |
-| `ghostgc logs` | the audit trail |
-| `ghostgc metrics` | scan timings, counts, database size, daemon memory |
-| `ghostgc doctor` | diagnose the installation; works when the daemon is down |
-| `ghostgc daemon` | run the persistent observer in the foreground |
-| `ghostgc config init\|path\|show` | manage the configuration file |
-| `ghostgc service install\|uninstall\|status` | manage the LaunchAgent |
+| Command                                      | What it does                                                          |
+| -------------------------------------------- | --------------------------------------------------------------------- |
+| `ghostgc status`                             | daemon health, mode, session counts, last scan                        |
+| `ghostgc sessions`                           | every observed agent session                                          |
+| `ghostgc session show <id>`                  | one session: evidence, processes, relationship graph, audit trail     |
+| `ghostgc processes`                          | processes attributed to a session                                     |
+| `ghostgc explain <pid>`                      | what was concluded about a PID and why — works for _any_ PID          |
+| `ghostgc activity`                           | bounded CPU, disk, file and socket evidence for attributed processes  |
+| `ghostgc candidates`                         | current enforceable, recommended and audit/refusal/cooldown decisions |
+| `ghostgc cleanup --dry-run ...`              | issue an exact, expiring manual cleanup preview                       |
+| `ghostgc cleanup --apply ...`                | consume one approval after full fresh revalidation                    |
+| `ghostgc actions`                            | durable attempted, rejected, signalled and failed actions             |
+| `ghostgc classifications`                    | latest deterministic process states and detachment                    |
+| `ghostgc policies`                           | loaded YAML policies and their exact scope                            |
+| `ghostgc logs`                               | the audit trail                                                       |
+| `ghostgc metrics`                            | scan timings, counts, database size, daemon memory                    |
+| `ghostgc doctor`                             | diagnose the installation; works when the daemon is down              |
+| `ghostgc daemon`                             | run the persistent observer in the foreground                         |
+| `ghostgc config init\|path\|show`            | manage the configuration file                                         |
+| `ghostgc service install\|uninstall\|status` | manage the LaunchAgent                                                |
 
 Add `--json` to any command for machine-readable output.
 
@@ -211,13 +213,13 @@ fixture before suggesting any real policy.
 
 ## Where things live
 
-| | macOS |
-| --- | --- |
-| Configuration | `~/.config/ghostgc/config.yaml` |
-| State and database | `~/Library/Application Support/ghostgc/` |
-| Logs | `~/Library/Logs/ghostgc/` |
-| Control socket | `~/Library/Application Support/ghostgc/ghostgc.sock` (mode 0600) |
-| LaunchAgent | `~/Library/LaunchAgents/com.github.jamesonstone.ghostgc.plist` |
+|                    | macOS                                                            |
+| ------------------ | ---------------------------------------------------------------- |
+| Configuration      | `~/.config/ghostgc/config.yaml`                                  |
+| State and database | `~/Library/Application Support/ghostgc/`                         |
+| Logs               | `~/Library/Logs/ghostgc/`                                        |
+| Control socket     | `~/Library/Application Support/ghostgc/ghostgc.sock` (mode 0600) |
+| LaunchAgent        | `~/Library/LaunchAgents/com.github.jamesonstone.ghostgc.plist`   |
 
 The socket is the only interface. No TCP port is opened.
 
@@ -242,13 +244,13 @@ was unavailable or lacks a valid baseline; it never means observed zero.
 
 On a machine with 1471 running processes, 1127 of them the current user's:
 
-| Target | Measured |
-| --- | --- |
-| Base process scan under 250 ms | 17 ms mean, 26 ms max |
-| Average CPU under 1% | 0.83% |
-| Idle daemon memory under 50 MB | 35 MB RSS |
+| Target                                     | Measured              |
+| ------------------------------------------ | --------------------- |
+| Base process scan under 250 ms             | 17 ms mean, 26 ms max |
+| Average CPU under 1%                       | 0.83%                 |
+| Idle daemon memory under 50 MB             | 35 MB RSS             |
 | Database under 250 MB at default retention | 4.4 MB after 36 scans |
-| Runs without `sudo` | yes |
+| Runs without `sudo`                        | yes                   |
 
 Run `ghostgc metrics` to see these on your own machine.
 
@@ -256,17 +258,17 @@ Run `ghostgc metrics` to see these on your own machine.
 
 Each phase is completed, tested and documented before the next begins.
 
-| Phase | Contents | Status |
-| --- | --- | --- |
-| 1 | Observation foundation: daemon, CLI, SQLite, macOS collection, process trees, Codex detection, audit log | **done** |
-| 2 | Session graph: typed relationships, launch context, environment membership, repository and terminal association, session state machine | **done** |
-| 3 | Activity tracking: CPU/IO/network deltas, open files, sockets | **done** |
-| 4 | Classification: active, idle, waiting, detached, suspicious, orphaned, unknown | **done** |
-| 5 | Policy engine: YAML policies, audit evaluation, safety refusals, cooldowns | **done** |
-| 6 | Recommended cleanup: manual approval, exact command preview, pre-action revalidation, SIGTERM only | **done** |
-| 7 | Narrow enforcement: one singular orphan-only automatic policy, one candidate per evaluation | **done** |
-| 8 | Adapters for Claude Code, Cursor, OpenCode | |
-| 9 | Linux: `/proc` collector, user systemd unit, parity tests | |
+| Phase | Contents                                                                                                                               | Status   |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| 1     | Observation foundation: daemon, CLI, SQLite, macOS collection, process trees, Codex detection, audit log                               | **done** |
+| 2     | Session graph: typed relationships, launch context, environment membership, repository and terminal association, session state machine | **done** |
+| 3     | Activity tracking: CPU/IO/network deltas, open files, sockets                                                                          | **done** |
+| 4     | Classification: active, idle, waiting, detached, suspicious, orphaned, unknown                                                         | **done** |
+| 5     | Policy engine: YAML policies, audit evaluation, safety refusals, cooldowns                                                             | **done** |
+| 6     | Recommended cleanup: manual approval, exact command preview, pre-action revalidation, SIGTERM only                                     | **done** |
+| 7     | Narrow enforcement: one singular orphan-only automatic policy, one candidate per evaluation                                            | **done** |
+| 8     | Adapters for Claude Code, Cursor, OpenCode                                                                                             |          |
+| 9     | Linux: `/proc` collector, user systemd unit, parity tests                                                                              |          |
 
 Phase 7 automatic termination is singular-policy, one-candidate-per-evaluation
 and SIGTERM-only. Audit remains the default; manual recommendation remains

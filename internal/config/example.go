@@ -13,11 +13,11 @@ globalMode: audit
 sampling:
   # Cheap system-wide process scan.
   processScan: 15s
-  # Detailed per-process activity sample. Delivery phase 3.
+  # Detailed per-process activity sample.
   activitySample: 60s
-  # Classification evaluation. Delivery phase 4.
+  # Classification evaluation.
   classification: 60s
-  # Policy evaluation. Delivery phase 5.
+  # Policy evaluation.
   policyEvaluation: 5m
   # Retention compaction.
   retention: 6h

@@ -173,8 +173,8 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 
 	d.audit(ctx, AuditDaemonStarted, "daemon",
-		fmt.Sprintf("ghostgc %s started in %s mode on %s (pid %d); delivery phase %s",
-			version.String(), d.cfg.GlobalMode, d.plat.Name(), d.selfPI, version.Phase))
+		fmt.Sprintf("ghostgc %s started in %s mode on %s (pid %d)",
+			version.String(), d.cfg.GlobalMode, d.plat.Name(), d.selfPI))
 	d.log.Info("daemon started",
 		"version", version.String(),
 		"mode", string(d.cfg.GlobalMode),

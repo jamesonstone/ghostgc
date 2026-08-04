@@ -18,8 +18,8 @@ import (
 // silently resolved.
 const shortIDLength = 8
 
-// phaseNote states the current action-authority boundary.
-const phaseNote = "Phase 7 can enforce at most one exact current orphaned candidate per evaluation when global and policy automatic authority are explicit. Manual cleanup remains available; every path fully revalidates and sends SIGTERM only."
+// authorityNote states the current action-authority boundary.
+const authorityNote = "Automatic cleanup can enforce at most one exact current orphaned candidate per evaluation when global and policy automatic authority are explicit. Manual cleanup remains available; every path fully revalidates and sends SIGTERM only."
 
 func shortID(id string) string {
 	if len(id) <= shortIDLength {
@@ -39,7 +39,6 @@ func (d *Daemon) Status(ctx context.Context) (api.StatusResponse, error) {
 	resp := api.StatusResponse{
 		Health:                  api.HealthHealthy,
 		Mode:                    string(d.cfg.GlobalMode),
-		Phase:                   version.Phase,
 		Version:                 version.String(),
 		Platform:                d.plat.Name(),
 		PID:                     d.selfPI,

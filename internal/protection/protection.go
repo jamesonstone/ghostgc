@@ -1,11 +1,8 @@
 // Package protection evaluates the hard protections from the specification.
 //
-// A hard protection is a reason a process must never be terminated
-// automatically, and it cannot be overridden by an ordinary policy file. In
-// this delivery phase nothing can terminate anything at all, so these rules do
-// not gate an action — they are evaluated and reported so that `ghostgc
-// explain` can tell the user, today, why a process would be refused once
-// cleanup policies exist.
+// A hard protection is a reason a process must never be terminated, and it
+// cannot be overridden by a policy file. Every cleanup path evaluates these
+// rules, and `ghostgc explain` reports why a process would be refused.
 //
 // Every rule here fails closed: when a fact needed to clear a protection is
 // unavailable, the protection applies.

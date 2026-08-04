@@ -7,10 +7,9 @@
 // exits, the live process tree loses the relationship — but the daemon does
 // not, because it wrote it down.
 //
-// Delivery phase 2 turns that flat association into a graph. Each reason a
-// process belongs is a separate typed edge, so losing one reason does not lose
-// the session; and each edge is explicit about whether it may establish
-// ownership at all.
+// Each reason a process belongs is a separate typed edge, so losing one reason
+// does not lose the session; each edge is explicit about whether it may
+// establish ownership at all.
 package sessions
 
 import (
@@ -24,10 +23,8 @@ import (
 
 // State is the lifecycle state of a session.
 //
-// Delivery phase 2 produces starting, active, completed and unknown. The
-// remaining states need the activity deltas that arrive in phase 3 and the
-// classification engine in phase 4. A state is never guessed at: a session the
-// daemon cannot describe is unknown, and unknown is protected.
+// A state is never guessed at: a session the daemon cannot describe is
+// unknown, and unknown is protected.
 type State string
 
 const (

@@ -12,7 +12,7 @@
 #   fixtures/fixture-agent.sh stop      remove everything this fixture created
 #
 # The fixture only ever signals processes it started itself, whose pids it
-# recorded at creation. The one Phase 6 ghostgc action target is likewise a
+# recorded at creation. The one ghostgc action target is likewise a
 # dedicated fixture-owned process with an exact recorded identity.
 
 set -euo pipefail

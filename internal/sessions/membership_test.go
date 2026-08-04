@@ -9,7 +9,7 @@ import (
 	"github.com/jamesonstone/ghostgc/internal/adapters"
 )
 
-// The process-compose case from the phase 1 field test, resolved: a process
+// The process-compose field case, resolved: a process
 // that inherited a Codex session identifier is a member of that session's
 // lineage, and now says so.
 func TestEnvironmentMembershipAttributesToTheOwningSession(t *testing.T) {

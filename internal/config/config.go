@@ -1,9 +1,9 @@
 // Package config loads and validates the ghostgc configuration.
 //
 // The configuration is the only place a user can widen what the daemon is
-// allowed to do, so validation is where several of the phase-1 safety
-// invariants are enforced. Anything that would permit an action is rejected
-// with an error that names the delivery phase in which it becomes available.
+// allowed to do, so validation enforces every configuration safety invariant.
+// Anything that would permit an unsafe or unsupported action is rejected with
+// an explicit error.
 package config
 
 import (
@@ -194,8 +194,7 @@ func Load(path string) (Config, error) {
 	return cfg, nil
 }
 
-// Validate enforces both ordinary correctness and the phase-1 safety
-// invariants.
+// Validate enforces both ordinary correctness and cleanup safety invariants.
 func (c Config) Validate() error {
 	if c.Version != 1 {
 		return fmt.Errorf("unsupported version %d, expected 1", c.Version)
