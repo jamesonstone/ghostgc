@@ -255,6 +255,8 @@ starts without cache authority until the immediate cache scan succeeds.
 
 Validated on local macOS at 2026-08-04T18:46:16Z:
 
+Implementation source: `4fd32628163bdd9b0a54b7f9a9367c042d8e65c8`.
+
 - `make check` — PASS; gofmt, vet, all package tests and the source-size gate.
 - `make race` — PASS; all packages including concurrent single-use approval
   consumption. The host linker emitted its existing non-failing
