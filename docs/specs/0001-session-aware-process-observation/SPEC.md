@@ -23,7 +23,8 @@ the answer.
 
 Delivered:
 
-- A persistent local daemon (`ghostgcd`) and CLI (`ghostgc`) over a Unix socket.
+- A persistent local daemon (`ghostgc daemon`) and short-lived CLI commands from
+  the same `ghostgc` executable, communicating over a Unix socket.
 - macOS process collection via `sysctl(kern.proc.all)` and `libproc`.
 - PID-reuse-safe process identity and process-tree reconstruction.
 - Codex session detection with evidence-scored attribution.

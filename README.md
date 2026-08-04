@@ -120,10 +120,12 @@ ghostgc service install
 ghostgc status
 ```
 
-`make install` puts `ghostgc` and `ghostgcd` in `~/.local/bin`, and
-`ghostgc service install` writes a LaunchAgent so the daemon starts at login and
-restarts after an unsuccessful exit with a 30 second throttle. To run it in the
-foreground instead: `ghostgcd --log-level debug`.
+`make install` puts the single `ghostgc` executable in `~/.local/bin`.
+`ghostgc service install` registers that same executable as a LaunchAgent so
+the daemon starts at login and restarts after an unsuccessful exit with a 30
+second throttle. Running the install command again migrates a legacy service
+definition without deleting configuration or state. To run the daemon in the
+foreground instead: `ghostgc daemon --log-level debug`.
 
 ## Commands
 
@@ -144,6 +146,7 @@ foreground instead: `ghostgcd --log-level debug`.
 | `ghostgc logs` | the audit trail |
 | `ghostgc metrics` | scan timings, counts, database size, daemon memory |
 | `ghostgc doctor` | diagnose the installation; works when the daemon is down |
+| `ghostgc daemon` | run the persistent observer in the foreground |
 | `ghostgc config init\|path\|show` | manage the configuration file |
 | `ghostgc service install\|uninstall\|status` | manage the LaunchAgent |
 

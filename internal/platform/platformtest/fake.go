@@ -37,6 +37,7 @@ type Fake struct {
 
 	installed bool
 	running   bool
+	service   platform.ServiceOptions
 }
 
 // New builds a Fake that replays the given snapshots in order, repeating the
@@ -174,19 +175,35 @@ func (f *Fake) SignalProcess(ctx context.Context, key process.Key,
 
 // InstallService implements platform.Platform.
 func (f *Fake) InstallService(ctx context.Context, opts platform.ServiceOptions) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.installed = true
+	f.service = opts
 	return nil
 }
 
 // UninstallService implements platform.Platform.
 func (f *Fake) UninstallService(ctx context.Context, label string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.installed = false
 	return nil
 }
 
 // ServiceStatus implements platform.Platform.
 func (f *Fake) ServiceStatus(ctx context.Context, label string) (platform.ServiceState, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return platform.ServiceState{Installed: f.installed, Running: f.running, Label: label}, nil
+}
+
+// InstalledService returns the most recently registered service options.
+func (f *Fake) InstalledService() platform.ServiceOptions {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	opts := f.service
+	opts.Arguments = append([]string(nil), opts.Arguments...)
+	return opts
 }
 
 var _ platform.Platform = (*Fake)(nil)

@@ -28,9 +28,7 @@ const launchdPlist = `<?xml version="1.0" encoding="UTF-8"?>
 	<string>%s</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>%s</string>
-		<string>--config</string>
-		<string>%s</string>
+%s
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
@@ -73,8 +71,21 @@ func esc(s string) string {
 	return b.String()
 }
 
+func renderLaunchdPlist(label, binaryPath string, arguments []string, logDir string) string {
+	var program strings.Builder
+	for _, arg := range append([]string{binaryPath}, arguments...) {
+		_, _ = fmt.Fprintf(&program, "\t\t<string>%s</string>\n", esc(arg))
+	}
+	return fmt.Sprintf(launchdPlist,
+		esc(label),
+		strings.TrimSuffix(program.String(), "\n"),
+		esc(filepath.Join(logDir, "ghostgc.out.log")),
+		esc(filepath.Join(logDir, "ghostgc.err.log")),
+	)
+}
+
 // InstallService writes the LaunchAgent property list and bootstraps it.
-func (c *Collector) InstallService(ctx context.Context, label, binaryPath, configPath, logDir string) error {
+func (c *Collector) InstallService(ctx context.Context, label, binaryPath string, arguments []string, logDir string) error {
 	if label == "" || binaryPath == "" {
 		return fmt.Errorf("darwin: service label and binary path are required")
 	}
@@ -83,7 +94,7 @@ func (c *Collector) InstallService(ctx context.Context, label, binaryPath, confi
 		return err
 	}
 	if _, err := os.Stat(abs); err != nil {
-		return fmt.Errorf("darwin: daemon binary %s: %w", abs, err)
+		return fmt.Errorf("darwin: service executable %s: %w", abs, err)
 	}
 	path, err := plistPath(label)
 	if err != nil {
@@ -95,13 +106,7 @@ func (c *Collector) InstallService(ctx context.Context, label, binaryPath, confi
 	if err := os.MkdirAll(logDir, 0o750); err != nil {
 		return err
 	}
-	content := fmt.Sprintf(launchdPlist,
-		esc(label),
-		esc(abs),
-		esc(configPath),
-		esc(filepath.Join(logDir, "ghostgcd.out.log")),
-		esc(filepath.Join(logDir, "ghostgcd.err.log")),
-	)
+	content := renderLaunchdPlist(label, abs, arguments, logDir)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		return err
 	}

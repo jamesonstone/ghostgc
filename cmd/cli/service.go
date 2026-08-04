@@ -5,14 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/jamesonstone/ghostgc/internal/config"
 	"github.com/jamesonstone/ghostgc/internal/platform"
 )
 
-const daemonBinaryName = "ghostgcd"
+var executablePath = os.Executable
 
 func cmdService(ctx context.Context, e *env, args []string) error {
 	if len(args) == 0 {
@@ -62,13 +61,15 @@ func cmdService(ctx context.Context, e *env, args []string) error {
 }
 
 func serviceInstall(ctx context.Context, e *env, plat platform.Platform, args []string) error {
-	fs := newFlagSet(e, "service install", "[--binary <path>]")
-	binary := fs.String("binary", "", "path to the ghostgcd binary")
+	fs := newFlagSet(e, "service install", "")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if fs.NArg() != 0 {
+		return fmt.Errorf("unexpected service install argument %q", fs.Arg(0))
+	}
 
-	path, err := resolveDaemonBinary(*binary)
+	path, err := resolveSelfBinary()
 	if err != nil {
 		return err
 	}
@@ -85,38 +86,39 @@ func serviceInstall(ctx context.Context, e *env, plat platform.Platform, args []
 	if err := plat.InstallService(ctx, platform.ServiceOptions{
 		Label:      config.ServiceLabel,
 		BinaryPath: path,
-		ConfigPath: e.paths.Config,
+		Arguments:  []string{"daemon", "--config", e.paths.Config},
 		LogDir:     e.paths.LogDir,
 		StateDir:   e.paths.StateDir,
 	}); err != nil {
 		return err
 	}
 	fmt.Printf("Installed %s\n", config.ServiceLabel)
-	fmt.Printf("  binary: %s\n  config: %s\n  logs:   %s\n", path, e.paths.Config, e.paths.LogDir)
+	fmt.Printf("  binary: %s\n  command: %s daemon --config %s\n  logs:   %s\n",
+		path, path, e.paths.Config, e.paths.LogDir)
 	fmt.Println("\nThe daemon starts at login and restarts only after an unsuccessful exit, with a 30 second throttle.")
 	return nil
 }
 
-// resolveDaemonBinary finds ghostgcd next to the CLI, then on PATH.
-func resolveDaemonBinary(override string) (string, error) {
-	if override != "" {
-		abs, err := filepath.Abs(override)
-		if err != nil {
-			return "", err
-		}
-		if _, err := os.Stat(abs); err != nil {
-			return "", fmt.Errorf("daemon binary %s: %w", abs, err)
-		}
-		return abs, nil
+// resolveSelfBinary returns the canonical path to the running ghostgc artifact.
+func resolveSelfBinary() (string, error) {
+	self, err := executablePath()
+	if err != nil {
+		return "", fmt.Errorf("resolve ghostgc executable: %w", err)
 	}
-	if self, err := os.Executable(); err == nil {
-		candidate := filepath.Join(filepath.Dir(self), daemonBinaryName)
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate, nil
-		}
+	abs, err := filepath.Abs(self)
+	if err != nil {
+		return "", fmt.Errorf("resolve ghostgc executable %s: %w", self, err)
 	}
-	if found, err := exec.LookPath(daemonBinaryName); err == nil {
-		return filepath.Abs(found)
+	canonical, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", fmt.Errorf("resolve ghostgc executable %s: %w", abs, err)
 	}
-	return "", fmt.Errorf("could not find the %s binary next to %s or on PATH; pass --binary", daemonBinaryName, "ghostgc")
+	info, err := os.Stat(canonical)
+	if err != nil {
+		return "", fmt.Errorf("inspect ghostgc executable %s: %w", canonical, err)
+	}
+	if !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
+		return "", fmt.Errorf("ghostgc executable %s is not an executable regular file", canonical)
+	}
+	return canonical, nil
 }
