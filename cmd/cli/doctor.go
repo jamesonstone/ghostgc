@@ -24,7 +24,7 @@ func cmdDoctor(ctx context.Context, e *env, args []string) error {
 			Name:   "daemon",
 			Status: api.CheckWarn,
 			Detail: "the daemon is not reachable on " + e.socket,
-			Remedy: "run `ghostgc service install`, or start `ghostgcd` in the foreground to see why it exits",
+			Remedy: "run `ghostgc service install`, or start `ghostgc daemon` in the foreground to see why it exits",
 		})
 	}
 

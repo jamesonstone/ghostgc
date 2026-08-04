@@ -26,7 +26,7 @@
 | Policy audit | integration + live | local macOS | enable a fixture-scoped audit policy and wait through its stable window | manual | `ghostgc policies`, `ghostgc candidates`, policy audit log; zero enforceable entries and signals |
 | Manual cleanup | live-integration | local macOS | orphan the fixture, wait for `action-child` to be classified orphaned, preview and apply its exact recommendation | manual | one SIGTERM, exact target exits, durable action evidence, all other fixture pids survive until teardown |
 | Narrow enforcement | live-integration | local macOS | enable the singular fixture-only enforce policy, orphan the fixture and wait through the stable window | automatic by daemon | one automatic action per evaluation, exact target exits, durable authority/evidence, all non-target fixture processes survive |
-| Resource budget | live-integration | local macOS | run `ghostgcd`, then `ghostgc metrics` | manual | scan duration, CPU, RSS, database size |
+| Resource budget | live-integration | local macOS | run `ghostgc daemon`, then `ghostgc metrics` | manual | scan duration, CPU, RSS, database size |
 
 ## Environment Preflights
 

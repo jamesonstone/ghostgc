@@ -40,7 +40,7 @@ type Options struct {
 type ServiceOptions struct {
 	Label      string
 	BinaryPath string
-	ConfigPath string
+	Arguments  []string
 	LogDir     string
 	StateDir   string
 }

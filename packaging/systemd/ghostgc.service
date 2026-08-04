@@ -16,7 +16,7 @@ After=default.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/ghostgcd --config %h/.config/ghostgc/config.yaml
+ExecStart=%h/.local/bin/ghostgc daemon --config %h/.config/ghostgc/config.yaml
 Restart=on-failure
 RestartSec=30s
 # Bound the restart loop the same way the launchd agent does.

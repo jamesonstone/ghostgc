@@ -19,10 +19,10 @@
 ## Canonical Commands
 
 - `make help` — list targets.
-- `make build` — build `ghostgcd` and `ghostgc` into `./bin`.
+- `make build` — build the single `ghostgc` executable into `./bin`.
 - `make check` — format check, `go vet`, and the test suite. The default gate.
 - `make race`, `make lint`, `make size`, `make cover` — individual gates.
-- `make install` — install both binaries into `~/.local/bin`.
+- `make install` — install `ghostgc` into `~/.local/bin`.
 - `make run` — run the daemon in the foreground with debug logging.
 
 ## Local Conventions

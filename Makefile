@@ -15,9 +15,9 @@ help:
 	@printf '%s\n' ''
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
-build: ## build the daemon and the CLI into ./bin
+build: ## build the ghostgc executable into ./bin
 	@mkdir -p $(BIN_DIR)
-	$(GO) build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/ghostgcd ./cmd/daemon
+	@rm -f $(BIN_DIR)/ghostgcd
 	$(GO) build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/ghostgc  ./cmd/cli
 
 test: ## run the unit and integration tests
@@ -57,18 +57,17 @@ size: ## fail if any source or test file exceeds the 300-line limit
 
 check: fmt-check vet size test ## everything required before delivery
 
-install: build ## install the binaries into ~/.local/bin
+install: build ## install ghostgc into ~/.local/bin
 	@mkdir -p $(HOME)/.local/bin
-	install -m 0755 $(BIN_DIR)/ghostgcd $(HOME)/.local/bin/ghostgcd
 	install -m 0755 $(BIN_DIR)/ghostgc  $(HOME)/.local/bin/ghostgc
 	@echo "Installed to $(HOME)/.local/bin. Run 'ghostgc service install' to start the daemon at login."
 
-uninstall: ## remove the service registration and the installed binaries
+uninstall: ## remove the service registration and installed executable
 	-$(HOME)/.local/bin/ghostgc service uninstall
 	rm -f $(HOME)/.local/bin/ghostgcd $(HOME)/.local/bin/ghostgc
 
 run: build ## run the daemon in the foreground with debug logging
-	$(BIN_DIR)/ghostgcd --log-level debug
+	$(BIN_DIR)/ghostgc daemon --log-level debug
 
 clean: ## remove build output
 	rm -rf $(BIN_DIR) coverage.out

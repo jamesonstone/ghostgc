@@ -154,7 +154,7 @@ func New(opts Options) (*Daemon, error) {
 }
 
 // AdapterEnvKeys returns the environment variables the enabled adapters need.
-// The daemon binary calls this before constructing the platform so that the
+// The daemon command calls this before constructing the platform so that the
 // collector extracts nothing else.
 func AdapterEnvKeys(cfg config.Config) []string {
 	return BuildRegistry(cfg, repository.NewFinder()).EnvKeys()
