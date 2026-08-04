@@ -79,7 +79,7 @@ func TestRootHelpColorsOnlyInteractiveOutput(t *testing.T) {
 	if !helpANSIPattern.MatchString(terminal) {
 		t.Fatalf("interactive help has no ANSI styling: %q", terminal)
 	}
-	for _, want := range []string{`.-""""""""-.`, "ghostgc", "🚀 Usage", "🧰 Available Commands", "🌐 Global Flags"} {
+	for _, want := range []string{strings.TrimSpace(rootGhostArt[0]), "ghostgc", "🚀 Usage", "🧰 Available Commands", "🌐 Global Flags"} {
 		if !strings.Contains(stripHelpANSI(terminal), want) {
 			t.Fatalf("interactive help is missing %q: %q", want, terminal)
 		}

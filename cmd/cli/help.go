@@ -25,16 +25,16 @@ var (
 )
 
 var rootGhostArt = [...]string{
-	`       .-""""""""-.`,
-	`     .'            '.`,
-	`    /    _      _    \`,
-	`   |    (@)    (@)    |`,
-	`   |                  |`,
-	`   |       .--.       |`,
-	`   |      /    \      |`,
-	`   |                  |`,
-	`    \   /\  /\  /\   /`,
-	`     '-'  \/  \/  '-'`,
+	`        .-""""""-.`,
+	`      .'          '.`,
+	`     /   (O)  (o)   \`,
+	`    |       ^        |`,
+	` .--|    \_____/     |--.`,
+	` /  |       U        |  \`,
+	` \  |                |  /`,
+	"  `-'\\              /'-'",
+	`      \   /\  /\   /`,
+	"       `-'  \\/  `-'",
 }
 
 type helpSection struct {
@@ -135,7 +135,7 @@ func printRootBanner(out io.Writer, style helpStyle) {
 			_, _ = fmt.Fprintln(out, style.accent(art))
 			continue
 		}
-		_, _ = fmt.Fprintf(out, "%s%s\n", style.accent(fmt.Sprintf("%-27s", art)), text)
+		_, _ = fmt.Fprintf(out, "%s%s\n", style.accent(fmt.Sprintf("%-28s", art)), text)
 	}
 }
 
