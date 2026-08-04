@@ -12,12 +12,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sort"
 	"syscall"
 
 	"github.com/jamesonstone/ghostgc/internal/api"
 	"github.com/jamesonstone/ghostgc/internal/config"
-	"github.com/jamesonstone/ghostgc/internal/version"
 )
 
 const usageExitCode = 2
@@ -56,40 +54,43 @@ func main() {
 func run(ctx context.Context, argv []string) int {
 	e := &env{}
 	global := flag.NewFlagSet("ghostgc", flag.ContinueOnError)
-	global.SetOutput(os.Stderr)
+	global.SetOutput(cliErrorOutput)
 	global.StringVar(&e.configPath, "config", "", "path to config.yaml")
 	global.StringVar(&e.socket, "socket", "", "path to the daemon socket")
 	global.BoolVar(&e.jsonOut, "json", false, "emit JSON instead of human-readable output")
-	global.Usage = func() { printUsage(global) }
+	global.Usage = func() { printUsage(global, cliHelpOutput) }
 
 	if err := global.Parse(argv); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return usageExitCode
 	}
 	args := global.Args()
 	if len(args) == 0 {
-		printUsage(global)
-		return usageExitCode
+		printUsage(global, cliHelpOutput)
+		return 0
 	}
 
 	if err := e.resolvePaths(); err != nil {
-		fmt.Fprintln(os.Stderr, "ghostgc:", err)
+		_, _ = fmt.Fprintln(cliErrorOutput, "ghostgc:", err)
 		return 1
 	}
 
 	name := args[0]
 	cmd, ok := commands[name]
 	if !ok {
-		fmt.Fprintf(os.Stderr, "ghostgc: unknown command %q\n\n", name)
-		printUsage(global)
+		_, _ = fmt.Fprintf(cliErrorOutput, "ghostgc: unknown command %q\n\n", name)
+		printUsage(global, cliErrorOutput)
 		return usageExitCode
 	}
 	if err := cmd.run(ctx, e, args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			return usageExitCode
+			return 0
 		}
-		fmt.Fprintln(os.Stderr, "ghostgc:", err)
+		_, _ = fmt.Fprintln(cliErrorOutput, "ghostgc:", err)
 		if errors.Is(err, api.ErrDaemonUnreachable) {
-			fmt.Fprintln(os.Stderr, "\nStart it with `ghostgc service install`, or run `ghostgc daemon` in the foreground.")
+			_, _ = fmt.Fprintln(cliErrorOutput, "\nStart it with `ghostgc service install`, or run `ghostgc daemon` in the foreground.")
 		}
 		return 1
 	}
@@ -234,39 +235,4 @@ func init() {
 	for _, c := range list {
 		commands[c.name] = c
 	}
-}
-
-func printUsage(global *flag.FlagSet) {
-	out := os.Stderr
-	_, _ = fmt.Fprintf(out, "ghostgc %s — session-aware process observation for coding agents\n\n", version.String())
-	_, _ = fmt.Fprintf(out, "Delivery phase %s\n\n", version.Phase)
-	_, _ = fmt.Fprintln(out, "Usage:")
-	_, _ = fmt.Fprintln(out, "  ghostgc [global flags] <command> [flags]")
-	_, _ = fmt.Fprintln(out, "\nCommands:")
-
-	names := make([]string, 0, len(commands))
-	for name := range commands {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		c := commands[name]
-		line := "  " + name
-		if c.usage != "" {
-			line += " " + c.usage
-		}
-		_, _ = fmt.Fprintf(out, "%-46s %s\n", line, c.summary)
-	}
-	_, _ = fmt.Fprintln(out, "\nGlobal flags:")
-	global.PrintDefaults()
-}
-
-func newFlagSet(e *env, name, usage string) *flag.FlagSet {
-	fs := flag.NewFlagSet("ghostgc "+name, flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: ghostgc %s %s\n\n", name, usage)
-		fs.PrintDefaults()
-	}
-	return fs
 }
