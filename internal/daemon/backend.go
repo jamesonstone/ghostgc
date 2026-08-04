@@ -51,6 +51,8 @@ func (d *Daemon) Status(ctx context.Context) (api.StatusResponse, error) {
 		SignallingEnabled:       manualCleanup,
 		ManualCleanupEnabled:    manualCleanup,
 		AutomaticCleanupEnabled: d.automaticCleanupEnabled(),
+		CacheEnabled:            d.cfg.Cache.Enabled,
+		CacheMode:               string(d.cfg.Cache.GlobalMode),
 		Degraded:                degraded,
 	}
 	switch {
@@ -82,6 +84,16 @@ func (d *Daemon) Status(ctx context.Context) (api.StatusResponse, error) {
 			resp.CleanupCandidates++
 		}
 	}
+	cacheCandidates, err := d.CacheCandidates(ctx)
+	if err != nil {
+		return api.StatusResponse{}, err
+	}
+	resp.CacheCandidates = len(cacheCandidates.Artifacts)
+	quarantines, err := d.store.ListCacheQuarantines(ctx, "quarantined")
+	if err != nil {
+		return api.StatusResponse{}, err
+	}
+	resp.CacheQuarantined = len(quarantines)
 
 	if scan, err := d.store.LastScan(ctx); err == nil {
 		resp.LastScan = &api.ScanSummary{

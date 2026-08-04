@@ -141,6 +141,10 @@ type Counts struct {
 	Scans           int64 `json:"scans"`
 	AuditEntries    int64 `json:"audit_entries"`
 	Relationships   int64 `json:"relationships"`
+	CacheArtifacts  int64 `json:"cache_artifacts"`
+	CacheCandidates int64 `json:"cache_candidates"`
+	CacheQuarantine int64 `json:"cache_quarantined"`
+	CacheActions    int64 `json:"cache_actions"`
 }
 
 // Counts returns row counts for the status and doctor commands.
@@ -162,6 +166,12 @@ func (s *Store) Counts(ctx context.Context) (Counts, error) {
 		{&c.Scans, `SELECT COUNT(*) FROM scans`},
 		{&c.AuditEntries, `SELECT COUNT(*) FROM audit_log`},
 		{&c.Relationships, `SELECT COUNT(*) FROM session_relationships`},
+		{&c.CacheArtifacts, `SELECT COUNT(*) FROM cache_artifacts`},
+		{&c.CacheCandidates, `SELECT COUNT(*) FROM cache_artifacts
+			WHERE lifecycle IN ('stale_candidate', 'recommended')
+			AND evaluation_id = (SELECT MAX(id) FROM cache_evaluations)`},
+		{&c.CacheQuarantine, `SELECT COUNT(*) FROM cache_quarantines WHERE status = 'quarantined'`},
+		{&c.CacheActions, `SELECT COUNT(*) FROM cache_actions`},
 	}
 	for _, q := range queries {
 		if err := s.db.QueryRowContext(ctx, q.q).Scan(q.dst); err != nil {

@@ -52,6 +52,19 @@ agents:
   codex:
     enabled: true
 
+# Cache observation is a separate, default-disabled authority lane. The only
+# supported provider is Codex shell snapshots with exact session ownership.
+cache:
+  enabled: false
+  globalMode: audit
+  scanInterval: 30m
+  minStable: 24h
+  quarantineGrace: 168h
+  maxEntriesPerScan: 10000
+  maxEntriesPerAction: 1000
+  maxBytesPerAction: 10GiB
+  policies: []
+
 # Keep this example disabled until its exact executable scope fits your local
 # workload. To dogfood manual cleanup, set globalMode and this policy mode to
 # recommend, enable it, inspect ghostgc candidates, then request a preview.

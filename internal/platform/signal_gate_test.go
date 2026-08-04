@@ -115,3 +115,59 @@ func TestNoSourceFileShellsOutToATerminator(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestCacheDeletionPrimitiveIsSingleAuthorizedPurge(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	allowed := filepath.Join(root, "internal", "cachefs", "purge_unix.go")
+	var unlinkSites int
+	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", "vendor", "node_modules":
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		text := string(body)
+		if strings.Contains(text, "os.RemoveAll(") {
+			t.Errorf("%s contains forbidden broad recursive deletion", path)
+		}
+		for _, shellDelete := range []string{`exec.Command("rm"`, `exec.CommandContext(ctx, "rm"`} {
+			if strings.Contains(text, shellDelete) {
+				t.Errorf("%s shells out to rm", path)
+			}
+		}
+		if strings.Contains(path, filepath.Join("internal", "cachefs")) {
+			for _, forbidden := range []string{"os.Remove(", "os.RemoveAll(", "syscall.Unlink(", "unix.Unlink("} {
+				if strings.Contains(text, forbidden) {
+					t.Errorf("%s bypasses the authorized cache purge seam with %q", path, forbidden)
+				}
+			}
+		}
+		count := strings.Count(text, "unix.Unlinkat(")
+		unlinkSites += count
+		if count > 0 && (path != allowed || count != 1) {
+			t.Errorf("%s contains a non-authorized cache unlink site", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unlinkSites != 1 {
+		t.Fatalf("found %d production cache unlink sites, want exactly one", unlinkSites)
+	}
+}

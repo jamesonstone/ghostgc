@@ -22,6 +22,10 @@
   ordinary commands remain short-lived clients over the local Unix socket.
 - Product output describes current capabilities and safety boundaries.
   Delivery phases are development history and belong in documentation only.
+- Filesystem lifecycle authority is provider-specific and independent from
+  process signalling authority. Observation never grants deletion: one proven
+  artifact may be quarantined reversibly, while permanent purge requires a new
+  approval after a grace period.
 
 ## CONSTRAINTS
 
@@ -47,6 +51,10 @@
   segments. Ownership is never established by matching a command-line substring.
 - Source-code contents are never read. The daemon records paths and metadata,
   and reads version-control plumbing only.
+- Cache artifact contents are never read. A cache provider must prove one exact
+  root, file contract and exclusive session owner from primary-source-backed
+  metadata; an unproven, shared, linked, changed or incomplete artifact is
+  protected.
 - Expensive activity inspection is restricted to live, same-user processes
   already attributed to a coding-agent session. File paths and socket endpoints
   discovered during that pass never reach storage.
@@ -99,8 +107,10 @@
 
 ## NON-GOALS
 
-- A general macOS cleaner. ghostgc does not delete caches, optimise settings, or
-  manage anything outside coding-agent sessions.
+- A general macOS or cache cleaner. ghostgc does not scan broad cache roots,
+  optimise settings, invoke package-manager cleanup or manage unattributed
+  files. Cache lifecycle is limited to explicitly implemented provider
+  contracts with exclusive coding-session ownership.
 - Monitoring user activity outside coding-agent sessions. Unattributed
   processes are counted during a scan and then forgotten.
 - Replacing Activity Monitor, `ps`, `top` or `launchctl`.
@@ -127,6 +137,10 @@
 - **Protected** — a process that must never be terminated automatically.
 - **Cleanup candidate** — a process matching an enabled cleanup policy, which
   is not the same as a process that will be acted on.
+- **Cache artifact** — one provider-contracted regular file whose metadata maps
+  exactly to one known agent session; a name or location alone is insufficient.
+- **Quarantine** — a reversible same-filesystem rename into a private
+  provider-root location. It is containment and does not reclaim disk space.
 - **Identity evidence** — evidence that a process *is* an agent program.
   Executable and argument derived.
 - **Membership evidence** — evidence that a process is *inside* an agent

@@ -180,6 +180,12 @@ func init() {
 			run:     cmdActions,
 		},
 		{
+			name:    "cache",
+			summary: "inspect and manage exact session-owned cache artifacts",
+			usage:   "artifacts|explain|candidates|cleanup|quarantined|restore|purge|actions",
+			run:     cmdCache,
+		},
+		{
 			name:    "logs",
 			summary: "show the audit log",
 			usage:   "[--limit <n>] [--kind <kind>] [--subject <subject>]",

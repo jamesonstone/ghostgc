@@ -39,6 +39,10 @@ type StatusResponse struct {
 	SignallingEnabled       bool         `json:"signalling_enabled"`
 	ManualCleanupEnabled    bool         `json:"manual_cleanup_enabled"`
 	AutomaticCleanupEnabled bool         `json:"automatic_cleanup_enabled"`
+	CacheEnabled            bool         `json:"cache_enabled"`
+	CacheMode               string       `json:"cache_mode"`
+	CacheCandidates         int          `json:"cache_candidates"`
+	CacheQuarantined        int          `json:"cache_quarantined"`
 	LastScan                *ScanSummary `json:"last_scan,omitempty"`
 	Degraded                []string     `json:"degraded_reasons,omitempty"`
 }
@@ -114,6 +118,17 @@ type Backend interface {
 	Metrics(ctx context.Context) (MetricsResponse, error)
 	Activity(ctx context.Context, opts ActivityOptions) (ActivityResponse, error)
 	Classifications(ctx context.Context, opts ClassificationOptions) (ClassificationsResponse, error)
+	CacheArtifacts(ctx context.Context, opts CacheArtifactOptions) (CacheArtifactsResponse, error)
+	CacheArtifact(ctx context.Context, id string) (CacheArtifactResponse, error)
+	CacheCandidates(ctx context.Context) (CacheArtifactsResponse, error)
+	CacheCleanupPreview(ctx context.Context, req CachePreviewRequest) (CachePreviewResponse, error)
+	CacheCleanupApply(ctx context.Context, req CacheApplyRequest) (CacheApplyResponse, error)
+	CacheQuarantines(ctx context.Context) (CacheQuarantinesResponse, error)
+	CacheRestorePreview(ctx context.Context, req CachePreviewRequest) (CachePreviewResponse, error)
+	CacheRestoreApply(ctx context.Context, req CacheApplyRequest) (CacheApplyResponse, error)
+	CachePurgePreview(ctx context.Context, req CachePreviewRequest) (CachePreviewResponse, error)
+	CachePurgeApply(ctx context.Context, req CacheApplyRequest) (CacheApplyResponse, error)
+	CacheActions(ctx context.Context, opts CacheActionOptions) (CacheActionsResponse, error)
 }
 
 // ErrorResponse is returned for any non-200 status.

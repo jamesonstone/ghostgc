@@ -64,6 +64,9 @@ func configShow(e *env) error {
 	fmt.Printf("Global mode: %s\n", cfg.GlobalMode)
 	fmt.Printf("Agents: %v\n", cfg.EnabledAgents())
 	fmt.Printf("Process scan: %s\n", cfg.Sampling.ProcessScan.D())
+	fmt.Printf("Cache lifecycle: enabled=%t mode=%s scan=%s stable=%s grace=%s policies=%d\n",
+		cfg.Cache.Enabled, cfg.Cache.GlobalMode, cfg.Cache.ScanInterval.D(), cfg.Cache.MinStable.D(),
+		cfg.Cache.QuarantineGrace.D(), len(cfg.Cache.Policies))
 	fmt.Printf("Retention: raw %s, aggregated %s, actions %s, ceiling %s\n",
 		cfg.Retention.RawObservations.D(), cfg.Retention.AggregatedObservations.D(),
 		cfg.Retention.Actions.D(), humanBytes(uint64(cfg.Retention.MaxDatabaseBytes)))

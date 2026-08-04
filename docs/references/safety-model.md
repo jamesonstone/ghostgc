@@ -33,6 +33,41 @@ post-call transaction records `signalled` or `failed`; a preflight refusal
 records `rejected`. `signalled` means the operating system accepted the signal,
 not that ghostgc has fabricated proof of process exit.
 
+## Cache authority is independent and provider-specific
+
+Cache handling does not reuse process policy, signal approvals or executable
+authority. It is disabled by default, has no automatic mode, and accepts only
+`disabled`, `audit` or `recommend`. Mutation needs cache-global `recommend`, one
+enabled exact policy and a fresh single-artifact approval.
+
+The sole real provider is pinned to Codex 0.146.0 shell snapshots. It derives
+only `CODEX_HOME/shell_snapshots` roots from observed Codex sessions and accepts
+only an immediate regular `<thread-id>.<generation>.sh|ps1` whose thread ID maps
+to exactly one completed session with zero live claimants. It observes names and
+filesystem metadata without opening file contents. Location, age, size or a
+plausible name never establishes ownership.
+
+| Check | Where |
+| --- | --- |
+| Exact provider names, ownership, ambiguity, links, UID/device and traversal limits | `internal/cacheprovider/codex/provider_test.go` |
+| Two committed unchanged observations are required | `internal/cachepolicy/evaluate_test.go` |
+| Descriptor-anchored quarantine/restore/purge and link/destination refusals | `internal/cachefs/real_unix_test.go` |
+| Approval expiry, replay, concurrency, config/identity/session drift and PID reuse | `internal/daemon/cache_*_test.go` |
+| Full reversible lifecycle and grace-gated purge | `TestCacheLifecycleFixture` and `tests/end-to-end/local/cache-lifecycle-test.sh` |
+| Interrupted and partial actions remain durable | `internal/storage/cache_test.go`, `TestPartialPurgeRemainsVisible` |
+| Exactly one permanent cache unlink; no broad deletion or shell `rm` | `TestCacheDeletionPrimitiveIsSingleAuthorizedPurge` |
+
+Cleanup never deletes the observed path. After full fresh revalidation it first
+commits `attempting`, then atomically renames exactly one inode into a private
+0700 provider-local quarantine. `EXDEV` has no fallback. Quarantine is
+reversible containment and explicitly reclaims zero bytes. Restore requires an
+absent original destination and a separate approval.
+
+Permanent deletion can name only an exact quarantined file. It requires elapsed
+grace, unchanged policy/configuration/identity/manifest, a second approval and a
+durable `purging` record before the one `unlinkat` seam. Partial, failed and
+interrupted actions remain visible and never reuse an approval.
+
 ## Configuration cannot widen what the daemon does
 
 `config.Validate` accepts `disabled`, `audit`, `recommend` and `enforce` while
@@ -348,6 +383,11 @@ none of it reaches the metadata ghostgc keeps.
 | `.git/HEAD` and `.git` pointer reads | 4 KiB |
 | Database | retention windows plus a hard byte ceiling that triggers an aggressive pass |
 | SQLite connections | 1, so there is no lock-retry logic to get wrong |
+| Cache roots | exact `CODEX_HOME/shell_snapshots` roots from known sessions only |
+| Cache traversal | `maxEntriesPerScan`, immediate children only |
+| Cache action | one artifact per approval, plus entry and byte bounds |
+| Cache approvals | 128 memory-only tokens, each single-use and two minutes |
+| Cache stable/grace windows | explicit `minStable` and `quarantineGrace` durations |
 
 ## Least privilege
 

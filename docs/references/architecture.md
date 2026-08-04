@@ -38,6 +38,28 @@ combines its current exact-key conclusions with hard protections to produce
 audit, recommendation or narrowly enforceable decisions before the scan
 transaction is persisted.
 
+Cache artifacts use a separate lane and authority model:
+
+```text
+durable sessions ──▶ exact cache provider ──▶ metadata-only filesystem snapshot
+                              │                           │
+                              └──── protection + settling┘
+                                           │
+                                   committed evaluation
+                                           │
+                         preview + fresh revalidation + approval
+                                           │
+                     quarantine ⇄ restore      quarantine ──▶ purge
+```
+
+`internal/cacheprovider/codex` is the only real provider. It can derive only
+`CODEX_HOME/shell_snapshots` roots from persisted Codex session facts and maps
+the UUID prefix in one immediate child name to exactly one native session ID.
+`internal/cachefs` owns metadata observation and every filesystem side effect;
+production code has one descriptor-anchored purge primitive. The cache lane has
+its own cadence, configuration digest, policy evaluator, approval map and mutex,
+and therefore cannot inherit process recommendation or SIGTERM authority.
+
 The CLI and daemon are two process roles of the same `ghostgc` executable.
 Short-lived commands use the Unix socket; `ghostgc daemon` owns the persistent
 observation loop. Keeping the process boundary preserves isolation while one
@@ -83,6 +105,32 @@ file and socket counts. Only derived counts and deltas enter the same transactio
 as the scan; discovered paths and socket endpoints remain scan-local.
 
 Retention compacts every 6 hours.
+
+## The cache observation cycle
+
+When explicitly enabled, the independent cache cadence:
+
+1. Loads durable Codex native session IDs, lifecycle, `CODEX_HOME` and exact
+   live-process counts.
+2. Opens each derived `shell_snapshots` root without following symlinks and
+   observes only a bounded number of immediate entries.
+3. Maps exact `<thread-id>.<generation>.sh|ps1` names to one completed session;
+   malformed, ambiguous, live, linked, foreign, cross-device or incomplete
+   entries become protected.
+4. Compares the complete metadata identity and manifest with the last committed
+   projection. Any change restarts settling; two unchanged committed
+   observations must span `minStable`.
+5. Persists the evaluation, artifacts, observations and decisions atomically.
+   A failed or incomplete newest evaluation grants no current authority.
+
+Manual cleanup binds one recommended artifact, evaluation, policy,
+configuration, identity, manifest and destination into a two-minute single-use
+approval. Apply serializes with cache observation, repeats every provider and
+session check, writes an `attempting` action, then atomically renames one file
+into a private same-filesystem quarantine. Restore is another approved rename
+to an absent origin. Purge operates only in quarantine, after grace and a new
+approval, with `purging` committed before the sole permanent unlink. An
+interruption or partial failure remains visible in durable action evidence.
 
 ## Why staged collection
 
@@ -185,6 +233,11 @@ automatic pre-action revalidation plus the final platform gate depend on it too.
 | `internal/protection` | hard protections | `adapters`, `process` |
 | `internal/classification` | deterministic evidence-to-state rules; no policy or action | `process` |
 | `internal/policy` | bounded YAML policy matching, hard refusals and cooldown decisions | `config`, `protection` |
+| `internal/cacheartifact` | metadata identities, manifests, lifecycle and durable cache evidence | nothing |
+| `internal/cacheprovider` | provider discovery contract over session facts and a narrow filesystem | `cacheartifact`, `cachefs` |
+| `internal/cacheprovider/codex` | exact Codex shell-snapshot attribution and protections | `cacheprovider` |
+| `internal/cachepolicy` | two-observation settling and independent exact cache authority | `cacheartifact`, `config` |
+| `internal/cachefs` | descriptor-anchored metadata, quarantine, restore and sole purge seam | `cacheartifact` |
 | `internal/config` | configuration, paths, phase guards | nothing |
 | `internal/api` | socket transport, request and response types | `adapters`, `protection`, `storage` |
 | `internal/daemon` | the loop, the API backend, diagnostics | everything above |
@@ -209,6 +262,12 @@ HTTP.
 | `policy_evaluations` | unique committed phase-5 projections, including empty results |
 | `policy_decisions` | phase-5+ candidates, refusals, cooldowns and evidence |
 | `actions` | phase-6+ pre-side-effect attempts, manual/automatic authority and final outcomes with evidence |
+| `cache_evaluations` | bounded independent cache scans, configuration digest and completeness |
+| `cache_artifacts` | current exact metadata projection and lifecycle per opaque artifact ID |
+| `cache_observations` | committed identity/manifest samples and protection evidence |
+| `cache_decisions` | exact cache policy results and rationale |
+| `cache_quarantines` | reversible location, identity, manifest, grace and current status |
+| `cache_actions` | preview-bound cleanup, restore and purge outcomes, including unresolved work |
 | `scans` | one row per cycle, including failures |
 | `sessions` | one row per detected session |
 | `session_processes` | durable ownership, never downgraded |

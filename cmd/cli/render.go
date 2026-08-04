@@ -77,6 +77,8 @@ func renderStatus(s api.StatusResponse) {
 	}
 
 	fmt.Printf("Cleanup candidates: %d\n", s.CleanupCandidates)
+	fmt.Printf("Cache lifecycle: enabled=%t mode=%s candidates=%d quarantined=%d\n",
+		s.CacheEnabled, s.CacheMode, s.CacheCandidates, s.CacheQuarantined)
 	if s.LastScan != nil {
 		fmt.Printf("Last scan: %s ago (%d visible, %d inspected, %d attributed, %.0f ms)\n",
 			humanDuration(s.LastScan.AgeSeconds), s.LastScan.VisibleProcesses,

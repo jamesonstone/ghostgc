@@ -16,6 +16,9 @@ import (
 	"github.com/jamesonstone/ghostgc/internal/adapters"
 	"github.com/jamesonstone/ghostgc/internal/adapters/codex"
 	"github.com/jamesonstone/ghostgc/internal/api"
+	"github.com/jamesonstone/ghostgc/internal/cachefs"
+	"github.com/jamesonstone/ghostgc/internal/cacheprovider"
+	cachecodex "github.com/jamesonstone/ghostgc/internal/cacheprovider/codex"
 	"github.com/jamesonstone/ghostgc/internal/classification"
 	"github.com/jamesonstone/ghostgc/internal/config"
 	"github.com/jamesonstone/ghostgc/internal/platform"
@@ -43,26 +46,34 @@ type Options struct {
 	Platform platform.Platform
 	Logger   *slog.Logger
 	// Registry may be nil, in which case adapters are built from the config.
-	Registry *adapters.Registry
+	Registry        *adapters.Registry
+	CacheFilesystem cachefs.Filesystem
+	CacheProvider   cacheprovider.Provider
+	CacheClock      func() time.Time
 }
 
 // Daemon is the long-running observer.
 type Daemon struct {
-	cfg    config.Config
-	paths  config.Paths
-	store  *storage.Store
-	plat   platform.Platform
-	log    *slog.Logger
-	reg    *adapters.Registry
-	recon  *sessions.Reconciler
-	repos  *repository.Finder
-	selfPI int
+	cfg           config.Config
+	paths         config.Paths
+	store         *storage.Store
+	plat          platform.Platform
+	log           *slog.Logger
+	reg           *adapters.Registry
+	cacheFS       cachefs.Filesystem
+	cacheProvider cacheprovider.Provider
+	cacheClock    func() time.Time
+	cacheHealthy  bool
+	recon         *sessions.Reconciler
+	repos         *repository.Finder
+	selfPI        int
 
 	startedAt time.Time
 
 	mu                     sync.RWMutex
 	scanMu                 sync.Mutex
 	actionMu               sync.Mutex
+	cacheMu                sync.Mutex
 	snapshot               *process.Snapshot
 	tree                   *process.Tree
 	last                   *sessions.Result
@@ -74,25 +85,34 @@ type Daemon struct {
 	lastClassificationAt   time.Time
 	lastPolicyAt           time.Time
 	approvals              map[string]*cleanupApproval
+	cacheApprovals         map[string]*cacheApproval
 }
 
 type metrics struct {
-	scanCount          int64
-	scanFailures       int64
-	lastScanDuration   time.Duration
-	totalScanDuration  time.Duration
-	maxScanDuration    time.Duration
-	lastReconcile      time.Duration
-	lastPersist        time.Duration
-	lastActivity       time.Duration
-	activitySamples    int64
-	classifications    int64
-	policyDecisions    int64
-	retentionRuns      int64
-	lastRetentionRows  int64
-	visibleProcesses   int
-	inspectedProcesses int
-	attributed         int
+	scanCount             int64
+	scanFailures          int64
+	lastScanDuration      time.Duration
+	totalScanDuration     time.Duration
+	maxScanDuration       time.Duration
+	lastReconcile         time.Duration
+	lastPersist           time.Duration
+	lastActivity          time.Duration
+	activitySamples       int64
+	classifications       int64
+	policyDecisions       int64
+	retentionRuns         int64
+	lastRetentionRows     int64
+	cacheScanCount        int64
+	cacheScanFailures     int64
+	lastCacheDuration     time.Duration
+	cacheInspected        int64
+	cacheProtected        int64
+	cacheCandidates       int64
+	cacheQuarantinedBytes int64
+	cachePurgedBytes      int64
+	visibleProcesses      int
+	inspectedProcesses    int
+	attributed            int
 }
 
 // BuildRegistry constructs the adapter registry from configuration.
@@ -134,6 +154,18 @@ func New(opts Options) (*Daemon, error) {
 	if reg == nil {
 		reg = BuildRegistry(opts.Config, repos)
 	}
+	cacheFilesystem := opts.CacheFilesystem
+	if cacheFilesystem == nil {
+		cacheFilesystem = cachefs.New()
+	}
+	cacheProvider := opts.CacheProvider
+	if cacheProvider == nil {
+		cacheProvider = cachecodex.New(opts.Platform.SelfUID())
+	}
+	cacheClock := opts.CacheClock
+	if cacheClock == nil {
+		cacheClock = time.Now
+	}
 
 	d := &Daemon{
 		cfg:                    opts.Config,
@@ -142,12 +174,16 @@ func New(opts Options) (*Daemon, error) {
 		plat:                   opts.Platform,
 		log:                    log,
 		reg:                    reg,
+		cacheFS:                cacheFilesystem,
+		cacheProvider:          cacheProvider,
+		cacheClock:             cacheClock,
 		repos:                  repos,
 		selfPI:                 os.Getpid(),
 		startedAt:              time.Now(),
 		activityBaseline:       make(map[string]process.ActivitySample),
 		classificationPrevious: make(map[string]classification.Previous),
 		approvals:              make(map[string]*cleanupApproval),
+		cacheApprovals:         make(map[string]*cacheApproval),
 	}
 	d.recon = sessions.New(reg, d.selfPI, opts.Platform.SelfUID(), repos)
 	return d, nil
@@ -197,11 +233,21 @@ func (d *Daemon) Run(ctx context.Context) error {
 	// The first scan runs immediately so that `ghostgc status` is useful the
 	// moment the daemon is up.
 	d.runScan(ctx)
+	if d.cfg.Cache.Enabled {
+		d.runCacheScan(ctx, d.cacheClock())
+	}
 
 	scanTicker := time.NewTicker(d.cfg.Sampling.ProcessScan.D())
 	defer scanTicker.Stop()
 	retentionTicker := time.NewTicker(d.cfg.Sampling.Retention.D())
 	defer retentionTicker.Stop()
+	var cacheTicker *time.Ticker
+	var cacheTick <-chan time.Time
+	if d.cfg.Cache.Enabled {
+		cacheTicker = time.NewTicker(d.cfg.Cache.ScanInterval.D())
+		cacheTick = cacheTicker.C
+		defer cacheTicker.Stop()
+	}
 
 	for {
 		select {
@@ -213,6 +259,8 @@ func (d *Daemon) Run(ctx context.Context) error {
 			d.runScan(ctx)
 		case <-retentionTicker.C:
 			d.runRetention(ctx)
+		case observedAt := <-cacheTick:
+			d.runCacheScan(ctx, observedAt)
 		case err := <-serveErr:
 			return err
 		}

@@ -27,6 +27,12 @@ send only one SIGTERM.
 Audit remains the default. See
 [docs/references/safety-model.md](docs/references/safety-model.md).
 
+**Cache artifact handling is a separate, default-disabled authority lane.** It
+currently understands only Codex shell snapshots whose thread ID maps exactly
+to one completed observed session. It never reads their contents. Cleanup first
+performs an atomic, reversible quarantine that reclaims no space; permanent
+purge needs a new approval after a grace period.
+
 ```
 $ ghostgc sessions
 ID        AGENT  REPOSITORY        STATE   CONF  AGE     PROCESSES   ROOT   LAUNCHED BY
@@ -145,6 +151,11 @@ service is registered successfully, installation also removes a sibling legacy
 | `ghostgc cleanup --dry-run ...`              | issue an exact, expiring manual cleanup preview                       |
 | `ghostgc cleanup --apply ...`                | consume one approval after full fresh revalidation                    |
 | `ghostgc actions`                            | durable attempted, rejected, signalled and failed actions             |
+| `ghostgc cache artifacts\|explain`           | observed cache metadata, lifecycle and exact evidence                  |
+| `ghostgc cache candidates`                   | current cache candidates and recommendations                           |
+| `ghostgc cache cleanup`                      | preview/apply one exact reversible quarantine                          |
+| `ghostgc cache quarantined\|restore\|purge`  | inspect, restore or separately purge quarantined artifacts             |
+| `ghostgc cache actions`                      | durable cache action history, including interrupted or partial work    |
 | `ghostgc classifications`                    | latest deterministic process states and detachment                    |
 | `ghostgc policies`                           | loaded YAML policies and their exact scope                            |
 | `ghostgc logs`                               | the audit trail                                                       |
@@ -211,6 +222,59 @@ Start with [the dogfooding guide](docs/references/dogfooding.md), which moves
 from audit to manual recommendation and then proves enforcement against the
 fixture before suggesting any real policy.
 
+### Session cache artifacts
+
+Cache observation and mutation do not inherit process cleanup authority. The
+generated configuration leaves the lane disabled. To audit the sole supported
+provider, enable the lane while retaining `globalMode: audit`. Recommendation
+requires both cache-global `recommend` and one exact enabled policy:
+
+```yaml
+cache:
+  enabled: true
+  globalMode: recommend
+  scanInterval: 30m
+  minStable: 24h
+  quarantineGrace: 168h
+  maxEntriesPerScan: 10000
+  maxEntriesPerAction: 1
+  maxBytesPerAction: 10GiB
+  policies:
+    - id: codex-shell-snapshots
+      description: completed Codex shell snapshots
+      enabled: true
+      mode: recommend
+      provider: codex-shell-snapshot-v1
+      agent: codex
+      artifactKind: shell-snapshot
+      sessionState: completed
+```
+
+The provider is pinned to Codex's
+[shell-snapshot implementation](https://github.com/openai/codex/blob/rust-v0.146.0/codex-rs/core/src/shell_snapshot.rs):
+only `<thread-id>.<generation>.sh|ps1` immediately beneath an observed
+`CODEX_HOME/shell_snapshots` root can settle. Unknown ownership, a live process,
+an incomplete scan, links, UID/device changes, malformed names, changed
+metadata or an exceeded bound protects the entry.
+
+```bash
+ghostgc cache candidates
+ghostgc cache explain '<artifact-id>'
+ghostgc cache cleanup --dry-run --artifact '<artifact-id>' --policy codex-shell-snapshots
+# Run only the exact apply command printed by the preview.
+ghostgc cache quarantined
+ghostgc cache restore --dry-run --artifact '<artifact-id>'
+# Or, after quarantineGrace, request a separate purge preview:
+ghostgc cache purge --dry-run --artifact '<artifact-id>' --policy codex-shell-snapshots
+ghostgc cache actions --artifact '<artifact-id>'
+```
+
+Every approval is random, memory-only, single-use, bound to one committed
+artifact/configuration/destination, and expires after two minutes. Apply holds
+the observation lane while it freshly revalidates the provider, session,
+policy, exact metadata identity and destination. There is no automatic cache
+mutation and no direct deletion of an observed path.
+
 ## Where things live
 
 |                    | macOS                                                            |
@@ -234,6 +298,11 @@ that removes credentials by flag name, by value shape (`sk-`, `ghp_`, `AKIA`,
 JWTs, …) and by rewriting URLs carrying passwords or presigned signatures;
 environment variables are reduced to the small allowlist the adapters need; and
 file contents are never read at all.
+
+Cache observations are likewise metadata-only. They persist the provider,
+owning session, relative name, UID, device, inode, type, link count, mode, size,
+timestamps, exact manifest digest and decision evidence. No snapshot is opened,
+and no adjacent Codex directory is scanned.
 
 The separate activity pass runs once a minute by default and only for live
 processes already attributed to an agent session. It persists deltas and counts,
@@ -281,6 +350,7 @@ make check   # gofmt, go vet, source-file-size gate, tests
 make race    # tests under the race detector
 make lint    # golangci-lint
 make run     # daemon in the foreground with debug logging
+tests/end-to-end/local/cache-lifecycle-test.sh # temporary metadata-only cache fixture
 ```
 
 The suite includes a source-level check that exactly one literal SIGTERM site exists,
