@@ -1,4 +1,4 @@
-// Command ghostgc inspects and controls the ghostgc daemon.
+// Command ghostgc runs, inspects and controls the ghostgc daemon.
 //
 // Most commands read. Cleanup is the sole action command and requires a
 // short-lived approval emitted by an exact preview; runtime policy mutation
@@ -89,7 +89,7 @@ func run(ctx context.Context, argv []string) int {
 		}
 		fmt.Fprintln(os.Stderr, "ghostgc:", err)
 		if errors.Is(err, api.ErrDaemonUnreachable) {
-			fmt.Fprintln(os.Stderr, "\nStart it with `ghostgc service install`, or run `ghostgcd` in the foreground.")
+			fmt.Fprintln(os.Stderr, "\nStart it with `ghostgc service install`, or run `ghostgc daemon` in the foreground.")
 		}
 		return 1
 	}
@@ -183,6 +183,12 @@ func init() {
 			summary: "show the audit log",
 			usage:   "[--limit <n>] [--kind <kind>] [--subject <subject>]",
 			run:     cmdLogs,
+		},
+		{
+			name:    "daemon",
+			summary: "run the observation daemon in the foreground",
+			usage:   "[--config <path>] [--log-level <level>] [--once] [--version]",
+			run:     cmdDaemon,
 		},
 		{
 			name:    "doctor",

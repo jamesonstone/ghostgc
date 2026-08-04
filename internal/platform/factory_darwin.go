@@ -47,7 +47,7 @@ func (p *darwinPlatform) SignalProcess(ctx context.Context, key process.Key,
 }
 
 func (p *darwinPlatform) InstallService(ctx context.Context, opts ServiceOptions) error {
-	return p.c.InstallService(ctx, opts.Label, opts.BinaryPath, opts.ConfigPath, opts.LogDir)
+	return p.c.InstallService(ctx, opts.Label, opts.BinaryPath, opts.Arguments, opts.LogDir)
 }
 
 func (p *darwinPlatform) UninstallService(ctx context.Context, label string) error {

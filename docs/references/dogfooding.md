@@ -6,6 +6,9 @@ is useful immediately and is always the default.
 
 ## 1. Install and observe
 
+`make install` installs one executable. `ghostgc service install` registers
+that same executable with its persistent `daemon` subcommand.
+
 ```bash
 make install
 ghostgc config init
@@ -23,11 +26,10 @@ default configuration), then inspect `ghostgc activity`, `ghostgc explain
 `globalMode: audit` remains in place.
 
 The daemon reads configuration only at startup. After an edit, reinstall the
-LaunchAgent to restart it without deleting configuration, SQLite history or
-logs:
+LaunchAgent in place to restart it without deleting configuration, SQLite
+history or logs:
 
 ```bash
-ghostgc service uninstall
 ghostgc service install
 ```
 

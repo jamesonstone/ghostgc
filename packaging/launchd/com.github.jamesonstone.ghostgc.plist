@@ -17,7 +17,8 @@
 	<string>com.github.jamesonstone.ghostgc</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/Users/YOU/.local/bin/ghostgcd</string>
+		<string>/Users/YOU/.local/bin/ghostgc</string>
+		<string>daemon</string>
 		<string>--config</string>
 		<string>/Users/YOU/.config/ghostgc/config.yaml</string>
 	</array>
@@ -41,8 +42,8 @@
 	<key>Nice</key>
 	<integer>5</integer>
 	<key>StandardOutPath</key>
-	<string>/Users/YOU/Library/Logs/ghostgc/ghostgcd.out.log</string>
+	<string>/Users/YOU/Library/Logs/ghostgc/ghostgc.out.log</string>
 	<key>StandardErrorPath</key>
-	<string>/Users/YOU/Library/Logs/ghostgc/ghostgcd.err.log</string>
+	<string>/Users/YOU/Library/Logs/ghostgc/ghostgc.err.log</string>
 </dict>
 </plist>

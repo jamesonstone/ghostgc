@@ -38,6 +38,11 @@ combines its current exact-key conclusions with hard protections to produce
 audit, recommendation or narrowly enforceable decisions before the scan
 transaction is persisted.
 
+The CLI and daemon are two process roles of the same `ghostgc` executable.
+Short-lived commands use the Unix socket; `ghostgc daemon` owns the persistent
+observation loop. Keeping the process boundary preserves isolation while one
+artifact makes installation and service registration self-contained.
+
 ## The observation cycle
 
 Every 15 seconds by default:

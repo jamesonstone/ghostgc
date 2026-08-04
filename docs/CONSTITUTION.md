@@ -18,6 +18,8 @@
 - Run with the least privilege that can do the job, and inspect only what that
   privilege legitimately reaches.
 - Keep everything local. No telemetry transport exists in the binary.
+- Ship one `ghostgc` executable. `ghostgc daemon` owns the persistent process;
+  ordinary commands remain short-lived clients over the local Unix socket.
 
 ## CONSTRAINTS
 
