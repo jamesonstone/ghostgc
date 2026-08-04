@@ -270,11 +270,20 @@ available under global recommend or enforce.
 ## Development
 
 ```bash
+make build   # compile and link ghostgc and ghostgcd into PREFIX/bin
 make check   # gofmt, go vet, source-file-size gate, tests
 make race    # tests under the race detector
 make lint    # golangci-lint
 make run     # daemon in the foreground with debug logging
 ```
+
+`make build` writes both binaries beneath `./bin` and creates absolute links
+at `/usr/local/bin/ghostgc` and `/usr/local/bin/ghostgcd`, matching the local
+command convention. Override the destination with, for example,
+`make build PREFIX="$HOME/.local"`. The link step requests administrator
+privileges only when the destination is not writable and refuses to replace a
+regular file. `make check`, `make run`, `make install`, and CI compile without
+changing global links.
 
 The suite includes a source-level check that exactly one literal SIGTERM site exists,
 adversarial detection cases taken from a real machine, and tests for PID reuse,

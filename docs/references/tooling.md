@@ -19,7 +19,9 @@
 ## Canonical Commands
 
 - `make help` — list targets.
-- `make build` — build `ghostgcd` and `ghostgc` into `./bin`.
+- `make build` — build both binaries into `./bin` and link them into
+  `PREFIX/bin` (default `/usr/local/bin`).
+- `make compile` — build both binaries without changing command links.
 - `make check` — format check, `go vet`, and the test suite. The default gate.
 - `make race`, `make lint`, `make size`, `make cover` — individual gates.
 - `make install` — install both binaries into `~/.local/bin`.
@@ -29,6 +31,9 @@
 
 - `bin/` is build output and is ignored. It is never transferred into a
   worktree or staged.
+- Build links are absolute links to the active checkout. Use a writable
+  temporary `PREFIX` for tests; local verification and CI use `make compile`
+  when changing the command path is not intended.
 - Point the daemon at a scratch state directory when experimenting, using a
   config with a `paths.stateDir` override, so a test run never disturbs the
   real database or socket.

@@ -2,23 +2,57 @@
 
 SHELL     := /bin/bash
 BIN_DIR   := bin
+BINARIES  := ghostgc ghostgcd
+PREFIX    ?= /usr/local
+GLOBAL_BIN_DIR := $(PREFIX)/bin
+SUDO      ?= sudo
 VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS   := -X github.com/jamesonstone/ghostgc/internal/version.Version=$(VERSION)
 GO        ?= go
 SIZE_DIRS := cmd internal fixtures
 MAX_LINES := 300
 
-.PHONY: help build test race cover vet fmt fmt-check lint size check install uninstall run clean
+.PHONY: help build compile link test race cover vet fmt fmt-check lint size check install uninstall run clean
 
 help:
 	@printf '%s\n' 'ghostgc developer workflow'
 	@printf '%s\n' ''
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
-build: ## build the daemon and the CLI into ./bin
+build: link ## build both binaries and link them into PREFIX/bin
+
+compile: ## build the daemon and the CLI into ./bin
 	@mkdir -p $(BIN_DIR)
 	$(GO) build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/ghostgcd ./cmd/daemon
 	$(GO) build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/ghostgc  ./cmd/cli
+
+link: compile ## link the repository binaries into PREFIX/bin
+	@set -eu; \
+	for name in $(BINARIES); do \
+		destination="$(GLOBAL_BIN_DIR)/$$name"; \
+		if [ -e "$$destination" ] && [ ! -L "$$destination" ]; then \
+			printf 'refusing to replace non-symlink %s\n' "$$destination" >&2; \
+			exit 1; \
+		fi; \
+	done; \
+	if [ ! -d "$(GLOBAL_BIN_DIR)" ] && \
+		! mkdir -p "$(GLOBAL_BIN_DIR)" 2>/dev/null; then \
+		$(SUDO) mkdir -p "$(GLOBAL_BIN_DIR)"; \
+	fi; \
+	for name in $(BINARIES); do \
+		target="$(abspath $(BIN_DIR))/$$name"; \
+		destination="$(GLOBAL_BIN_DIR)/$$name"; \
+		if [ -L "$$destination" ] && [ "$$(readlink "$$destination")" = "$$target" ]; then \
+			printf 'linked %s -> %s\n' "$$destination" "$$target"; \
+			continue; \
+		fi; \
+		if [ -w "$(GLOBAL_BIN_DIR)" ]; then \
+			ln -sfn "$$target" "$$destination"; \
+		else \
+			$(SUDO) ln -sfn "$$target" "$$destination"; \
+		fi; \
+		printf 'linked %s -> %s\n' "$$destination" "$$target"; \
+	done
 
 test: ## run the unit and integration tests
 	$(GO) test ./...
@@ -57,7 +91,7 @@ size: ## fail if any source or test file exceeds the 300-line limit
 
 check: fmt-check vet size test ## everything required before delivery
 
-install: build ## install the binaries into ~/.local/bin
+install: compile ## install the binaries into ~/.local/bin
 	@mkdir -p $(HOME)/.local/bin
 	install -m 0755 $(BIN_DIR)/ghostgcd $(HOME)/.local/bin/ghostgcd
 	install -m 0755 $(BIN_DIR)/ghostgc  $(HOME)/.local/bin/ghostgc
@@ -67,7 +101,7 @@ uninstall: ## remove the service registration and the installed binaries
 	-$(HOME)/.local/bin/ghostgc service uninstall
 	rm -f $(HOME)/.local/bin/ghostgcd $(HOME)/.local/bin/ghostgc
 
-run: build ## run the daemon in the foreground with debug logging
+run: compile ## run the daemon in the foreground with debug logging
 	$(BIN_DIR)/ghostgcd --log-level debug
 
 clean: ## remove build output
