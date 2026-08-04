@@ -92,11 +92,47 @@ func serviceInstall(ctx context.Context, e *env, plat platform.Platform, args []
 	}); err != nil {
 		return err
 	}
+	legacy, err := retireLegacyDaemonSibling()
+	if err != nil {
+		return fmt.Errorf("service migrated but legacy executable remains: %w", err)
+	}
 	fmt.Printf("Installed %s\n", config.ServiceLabel)
 	fmt.Printf("  binary: %s\n  command: %s daemon --config %s\n  logs:   %s\n",
 		path, path, e.paths.Config, e.paths.LogDir)
+	if legacy != "" {
+		fmt.Printf("  removed legacy executable: %s\n", legacy)
+	}
 	fmt.Println("\nThe daemon starts at login and restarts only after an unsuccessful exit, with a 30 second throttle.")
 	return nil
+}
+
+func retireLegacyDaemonSibling() (string, error) {
+	self, err := executablePath()
+	if err != nil {
+		return "", fmt.Errorf("resolve ghostgc executable for migration: %w", err)
+	}
+	abs, err := filepath.Abs(self)
+	if err != nil {
+		return "", fmt.Errorf("resolve ghostgc executable %s for migration: %w", self, err)
+	}
+	if filepath.Base(abs) != "ghostgc" {
+		return "", nil
+	}
+	legacy := filepath.Join(filepath.Dir(abs), "ghostgcd")
+	info, err := os.Lstat(legacy)
+	if os.IsNotExist(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("inspect legacy executable %s: %w", legacy, err)
+	}
+	if !info.Mode().IsRegular() && info.Mode()&os.ModeSymlink == 0 {
+		return "", fmt.Errorf("refusing to remove non-file legacy path %s", legacy)
+	}
+	if err := os.Remove(legacy); err != nil {
+		return "", fmt.Errorf("remove legacy executable %s: %w", legacy, err)
+	}
+	return legacy, nil
 }
 
 // resolveSelfBinary returns the canonical path to the running ghostgc artifact.

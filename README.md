@@ -125,7 +125,9 @@ ghostgc status
 the daemon starts at login and restarts after an unsuccessful exit with a 30
 second throttle. Running the install command again migrates a legacy service
 definition without deleting configuration or state. To run the daemon in the
-foreground instead: `ghostgc daemon --log-level debug`.
+foreground instead: `ghostgc daemon --log-level debug`. After the replacement
+service is registered successfully, installation also removes a sibling legacy
+`ghostgcd` executable left by an earlier release.
 
 ## Commands
 

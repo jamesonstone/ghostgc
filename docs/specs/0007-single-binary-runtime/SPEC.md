@@ -69,6 +69,9 @@ remain short-lived clients. Only the executable boundary changes.
   stops any registration under that label and bootstraps the new definition, so
   a legacy `ghostgcd` registration migrates without deleting configuration,
   state or audit history.
+- After service registration succeeds, reinstall removes only the sibling
+  legacy `ghostgcd` executable. A registration failure leaves it in place so the
+  legacy runtime remains available for recovery or manual fallback.
 - The obsolete `--binary` option and daemon-discovery fallback are removed.
 
 ### Distribution contract
@@ -120,6 +123,13 @@ stable label and bootstraps it again. Keeping that label makes a normal
 `ghostgc service install` the bounded migration from a legacy two-binary
 registration.
 
+### Legacy executable retirement follows service migration
+
+Removing `ghostgcd` during `make install` could strand an existing service if
+the replacement registration then failed. The service installer therefore
+retires only the exact sibling legacy file and only after launchd accepts the
+new single-binary command.
+
 ## DISCOVERIES
 
 ### Existing launchd replacement is sufficient
@@ -152,6 +162,8 @@ rather than rewritten.
 - A temporary `make install` installed only `ghostgc`; that installed artifact
   completed `ghostgc daemon --once` in an isolated audit-mode home and created
   its SQLite state.
+- Upgrade regressions prove successful service migration removes a sibling
+  legacy `ghostgcd`, while failed registration preserves it.
 - `kit check 0007-single-binary-runtime` — passed.
 - `kit check --project` — the issue branch and unchanged `main` both report the
   same 20 pre-existing blocking findings in legacy specs and the missing project
@@ -168,7 +180,9 @@ in-place reinstall migrates a legacy registration without touching user state.
 The separate command entrypoint and daemon discovery path are gone. Launchd,
 systemd, README, architecture, testing, tooling and dogfooding documentation
 now describe the single-binary contract. New logs use `ghostgc.out.log` and
-`ghostgc.err.log`; legacy log files are intentionally left untouched.
+`ghostgc.err.log`; legacy log files are intentionally left untouched. A
+successful service reinstall removes the adjacent legacy executable after the
+new service is registered.
 
 ## REPOSITORY MEMORY
 
