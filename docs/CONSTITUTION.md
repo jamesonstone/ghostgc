@@ -75,11 +75,12 @@
   the native Git side effect, and the branch remains.
 - Worktree Git commands revalidate their resolved executable identity for every
   invocation. User-writable Git is executed only from a private
-  content-addressed snapshot bound to the same approval; immutable system Git
-  executes at its canonical path.
+  content-addressed snapshot of at most 128 MiB bound to the same approval;
+  immutable system Git executes at its canonical path.
 - An absent worktree record preserves its last actual registration observation.
   Absent inventory is both hard-capped and age-retained; removed tombstones and
-  non-attempting actions share the configured action-retention window.
+  non-attempting actions share the configured action-retention window. A record
+  anchoring an unresolved `attempting` action cannot be pruned.
 
 ### Kit-Managed Baseline Rules
 

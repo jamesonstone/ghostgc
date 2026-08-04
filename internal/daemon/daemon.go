@@ -60,6 +60,7 @@ type Daemon struct {
 	repos                 *repository.Finder
 	worktreeGit           *worktree.Git
 	worktreeGitErr        error
+	unlinkWorktreeLinks   func(string, []worktree.ApprovedLink) ([]worktree.ApprovedLink, error)
 	removeWorktree        func(context.Context, string, string) error
 	verifyRemovedWorktree func(context.Context, string, string) error
 	selfPI                int
@@ -143,11 +144,11 @@ func New(opts Options) (*Daemon, error) {
 	if reg == nil {
 		reg = BuildRegistry(opts.Config, repos)
 	}
-	snapshotRoot := opts.Paths.StateDir
-	if snapshotRoot == "" {
-		snapshotRoot = filepath.Dir(opts.Paths.Database)
+	snapshotDir, worktreeGitErr := worktreeSnapshotDir(opts.Paths)
+	var worktreeGit *worktree.Git
+	if worktreeGitErr == nil {
+		worktreeGit, worktreeGitErr = worktree.NewGit(snapshotDir)
 	}
-	worktreeGit, worktreeGitErr := worktree.NewGit(filepath.Join(snapshotRoot, "git-exec"))
 
 	d := &Daemon{
 		cfg:                    opts.Config,
@@ -159,6 +160,7 @@ func New(opts Options) (*Daemon, error) {
 		repos:                  repos,
 		worktreeGit:            worktreeGit,
 		worktreeGitErr:         worktreeGitErr,
+		unlinkWorktreeLinks:    unlinkApprovedLinks,
 		selfPI:                 os.Getpid(),
 		startedAt:              time.Now(),
 		activityBaseline:       make(map[string]process.ActivitySample),
@@ -172,6 +174,14 @@ func New(opts Options) (*Daemon, error) {
 	}
 	d.recon = sessions.New(reg, d.selfPI, opts.Platform.SelfUID(), repos)
 	return d, nil
+}
+
+func worktreeSnapshotDir(paths config.Paths) (string, error) {
+	root := paths.StateDir
+	if root == "" {
+		root = filepath.Dir(paths.Database)
+	}
+	return filepath.Abs(filepath.Join(root, "git-exec"))
 }
 
 // AdapterEnvKeys returns the environment variables the enabled adapters need.

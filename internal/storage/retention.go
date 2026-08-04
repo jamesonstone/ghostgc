@@ -118,7 +118,10 @@ func (s *Store) compactOnce(ctx context.Context, p RetentionPolicy, now time.Tim
 				AND id NOT IN (SELECT DISTINCT evaluation_id FROM policy_decisions)`, []any{cutoff(p.PolicyDecisions)}},
 			{&res.Actions, `DELETE FROM actions WHERE requested_ns < ?`, []any{cutoff(p.Actions)}},
 			{&res.WorktreeActions, `DELETE FROM worktree_actions WHERE requested_ns < ? AND result <> 'attempting'`, []any{cutoff(p.Actions)}},
-			{&res.WorktreeMissing, `DELETE FROM worktrees WHERE registered = 0 AND state <> 'removed' AND last_seen_ns < ?`, []any{cutoff(p.Actions)}},
+			{&res.WorktreeMissing, `DELETE FROM worktrees WHERE registered = 0 AND state <> 'removed'
+				AND last_seen_ns < ? AND worktree_id NOT IN (
+					SELECT worktree_id FROM worktree_actions WHERE result = 'attempting'
+				)`, []any{cutoff(p.Actions)}},
 			{&res.WorktreeTombstones, `DELETE FROM worktrees WHERE state = 'removed' AND removed_ns < ?`, []any{cutoff(p.Actions)}},
 			{&res.Scans, `DELETE FROM scans WHERE started_ns < ?`, []any{cutoff(p.Scans)}},
 			{&res.Audit, `DELETE FROM audit_log WHERE ts_ns < ?`, []any{cutoff(p.Audit)}},

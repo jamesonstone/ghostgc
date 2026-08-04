@@ -7,7 +7,7 @@ import (
 	"github.com/jamesonstone/ghostgc/internal/worktree"
 )
 
-func (d *Daemon) unknownWorktreeBatch(existing []storage.WorktreeRecord, now time.Time, _ error) worktreeBatch {
+func (d *Daemon) unknownWorktreeBatch(existing []storage.WorktreeRecord, now time.Time, cause error) worktreeBatch {
 	batch := worktreeBatch{due: true, at: now}
 	for _, record := range existing {
 		if record.State == string(worktree.StateRemoved) {
@@ -24,7 +24,7 @@ func (d *Daemon) unknownWorktreeBatch(existing []storage.WorktreeRecord, now tim
 	batch.audit = append(batch.audit, storage.AuditRecord{
 		TsNs: now.UnixNano(), Kind: "worktree.scan.incomplete", Subject: "worktrees",
 		Summary:      "worktree observation was incomplete; every inactivity window was reset",
-		EvidenceJSON: marshalJSON([]map[string]string{{"rule": "complete-worktree-observation-v1", "detail": "inventory failed closed before a complete observation"}}, "[]"),
+		EvidenceJSON: marshalJSON([]map[string]string{{"rule": "complete-worktree-observation-v1", "detail": "inventory failed closed: " + worktree.EvidenceCategory(cause)}}, "[]"),
 	})
 	return batch
 }
@@ -56,7 +56,7 @@ func (d *Daemon) incompleteProcessWorktreeBatch(batch worktreeBatch, _ error) wo
 	batch.audit = append(batch.audit, storage.AuditRecord{
 		TsNs: batch.at.UnixNano(), Kind: "worktree.scan.incomplete", Subject: "worktrees",
 		Summary:      "worktree inventory was refreshed without complete process evidence; inactivity was reset",
-		EvidenceJSON: marshalJSON([]map[string]string{{"rule": "complete-process-evidence-v1", "detail": "process evidence failed closed before a complete observation"}}, "[]"),
+		EvidenceJSON: marshalJSON([]map[string]string{{"rule": "complete-process-evidence-v1", "detail": "process evidence failed closed: process_evidence_incomplete"}}, "[]"),
 	})
 	return batch
 }

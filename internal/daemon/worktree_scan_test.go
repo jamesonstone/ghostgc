@@ -115,7 +115,8 @@ func TestIncompleteInventoryAuditDoesNotRetainFilename(t *testing.T) {
 	sentinel := "private-client-filename"
 	cause := &os.PathError{Op: "open", Path: filepath.Join(h.root, sentinel), Err: errors.New("denied")}
 	batch := h.daemon.unknownWorktreeBatch(nil, time.Now(), cause)
-	if len(batch.audit) != 1 || strings.Contains(batch.audit[0].EvidenceJSON, sentinel) {
+	if len(batch.audit) != 1 || strings.Contains(batch.audit[0].EvidenceJSON, sentinel) ||
+		!strings.Contains(batch.audit[0].EvidenceJSON, "inventory_incomplete") {
 		t.Fatalf("durable incomplete evidence retained filename: %+v", batch.audit)
 	}
 	if err := h.store.AppendAudit(context.Background(), batch.audit[0]); err != nil {
@@ -124,6 +125,16 @@ func TestIncompleteInventoryAuditDoesNotRetainFilename(t *testing.T) {
 	stored, err := h.store.ListAudit(context.Background(), storage.AuditFilter{Kind: "worktree.scan.incomplete"})
 	if err != nil || len(stored) != 1 || strings.Contains(stored[0].EvidenceJSON, sentinel) {
 		t.Fatalf("persisted incomplete evidence retained filename: %+v, %v", stored, err)
+	}
+	_, discoveryErr := worktree.DiscoverRepositories(context.Background(), filepath.Join(h.root, sentinel))
+	typed := h.daemon.unknownWorktreeBatch(nil, time.Now(), discoveryErr)
+	if !strings.Contains(typed.audit[0].EvidenceJSON, "discovery_incomplete") ||
+		strings.Contains(typed.audit[0].EvidenceJSON, sentinel) {
+		t.Fatalf("typed discovery evidence = %+v", typed.audit)
+	}
+	processBatch := h.daemon.incompleteProcessWorktreeBatch(worktreeBatch{at: time.Now()}, cause)
+	if !strings.Contains(processBatch.audit[0].EvidenceJSON, "process_evidence_incomplete") {
+		t.Fatalf("process evidence category = %+v", processBatch.audit)
 	}
 }
 

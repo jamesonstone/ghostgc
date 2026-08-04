@@ -62,9 +62,13 @@ func (t *Tx) PruneAbsentWorktrees(max int) (int64, error) {
 		return 0, errors.New("storage: worktree inventory bound must be positive")
 	}
 	result, err := t.tx.ExecContext(t.ctx, `DELETE FROM worktrees
-		WHERE registered = 0 AND state <> 'removed' AND worktree_id NOT IN (
+		WHERE registered = 0 AND state <> 'removed'
+		AND worktree_id NOT IN (SELECT worktree_id FROM worktree_actions WHERE result = 'attempting')
+		AND worktree_id NOT IN (
 			SELECT worktree_id FROM worktrees WHERE state <> 'removed'
-			ORDER BY registered DESC, last_seen_ns DESC, worktree_id ASC LIMIT ?
+			ORDER BY registered DESC,
+			worktree_id IN (SELECT worktree_id FROM worktree_actions WHERE result = 'attempting') DESC,
+			last_seen_ns DESC, worktree_id ASC LIMIT ?
 		)`, max)
 	if err != nil {
 		return 0, fmt.Errorf("storage: pruning absent worktrees: %w", err)
@@ -79,7 +83,8 @@ func (s *Store) ListCurrentWorktrees(ctx context.Context, limit int) ([]Worktree
 		limit = 500
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT `+worktreeColumns+` FROM worktrees
-		WHERE state <> 'removed' ORDER BY registered DESC, last_seen_ns DESC,
+		WHERE state <> 'removed' ORDER BY registered DESC,
+		worktree_id IN (SELECT worktree_id FROM worktree_actions WHERE result = 'attempting') DESC, last_seen_ns DESC,
 		worktree_id ASC LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("storage: listing current worktrees: %w", err)

@@ -75,7 +75,8 @@ If the resolved Git executable or one of its parent directories is writable by
 the daemon user, ghostgc executes a private content-addressed snapshot instead
 of the package-managed path. The SHA-256 digest is bound while the source and
 private execution-object identities are revalidated for every Git command and
-again immediately before removal. Immutable system Git executes at its
+again immediately before removal. Snapshot reads accept only regular files up
+to 128 MiB and reject size changes. Immutable system Git executes at its
 canonical path under the same identity checks.
 
 The `attempting` action and audit evidence commit before the side effect. Only
@@ -384,11 +385,12 @@ Tested in `storage_test.go:TestMigrationPreservesRecordedOwnership` and
 | `.git/HEAD` and `.git` pointer reads | 4 KiB |
 | Configured worktree roots | 32 absolute roots; four traversal levels; 50,000 entries |
 | Worktree registrations | 500 merged repository inputs and 500 non-removed inventory rows; registered rows outrank absent history |
+| Local Git executable | regular file, at most 128 MiB; private snapshot for user-writable paths |
 | Local Git commands | 5 s and 4 MiB output per invocation; no prompts, pagers or optional locks |
 | Worktree inventory / manual validation | 30 s per inventory pass / 25 s per preview or apply validation |
 | Manual worktree filesystem inspection | 100,000 entries; no symlink traversal |
 | Manual same-user path-usage inspection | 4,096 processes; 131,072 descriptors total; 4,096 per process |
-| Absent worktree inventory | hard current-row cap plus the existing action-retention window |
+| Absent worktree inventory | hard current-row cap plus action retention; unresolved action subjects are preserved |
 | Database | retention windows plus a hard byte ceiling that triggers an aggressive pass |
 | SQLite connections | 1, so there is no lock-retry logic to get wrong |
 

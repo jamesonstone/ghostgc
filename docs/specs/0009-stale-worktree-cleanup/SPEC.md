@@ -71,7 +71,8 @@ filesystem and Git boundaries.
   inactivity evidence, configured authority, approved links, and the resolved
   Git executable identity.
 - Execute user-writable Git only through a private content-addressed snapshot,
-  and revalidate both source and execution identity before every command.
+  limit the copied executable to 128 MiB, and revalidate both source and
+  execution identity before every command.
 - Serialize apply with scans and actions, revalidate every fact, persist an
   `attempting` action before invoking ordinary non-force
   `git worktree remove`, restore approved links on failure, and verify both
@@ -173,15 +174,27 @@ the local filesystem operation safer.
 - A check followed by pathname execution cannot bind user-writable Git across
   replacement. ghostgc therefore snapshots its exact opened bytes into a
   private content-addressed state-directory file, binds the SHA-256 digest, and
-  revalidates source and snapshot identities for every command. Immutable
-  system Git does not require a copy.
+  revalidates source and snapshot identities for every command. The copy and
+  digest are limited to a regular executable of at most 128 MiB and reject
+  size changes during the read. Immutable system Git does not require a copy.
+- Configuration overrides may provide a relative state directory. Snapshot
+  setup converts it to an absolute path before applying the private-directory
+  checks, preserving existing path override semantics without weakening the
+  execution boundary.
 - Worktree selectors are literal lowercase hexadecimal IDs or prefixes; SQL
   wildcard characters never become authority.
 - Registration absence is distinct from a registered-but-missing checkout.
   The former preserves its last actual observation and is hard-capped and
   age-retained, while the latter refreshes because Git still registers it.
-- Every persistence failure after a possible native side effect includes the
-  surviving-branch fact and conditional recreation command.
+  Records referenced by unresolved `attempting` actions are exempt so durable
+  action evidence never loses its worktree identity.
+- Durable scan failures retain bounded path-free categories that distinguish
+  discovery bounds, incomplete traversal, unavailable or changed Git, Git
+  inspection failure and incomplete process evidence.
+- Every persistence failure after any native side effect preserves the
+  unrecorded failure detail. Link mutations include an explicit repair warning;
+  an attempted removal also includes the surviving-branch fact and conditional
+  recreation command.
 
 ## VALIDATION
 
@@ -195,6 +208,9 @@ the local filesystem operation safer.
   failures, writable-Git source replacement with a pinned execution snapshot,
   literal selector validation, more than 500 absent identities with hard and
   age-based compaction, and combined verification/persistence recovery output.
+  Second-pass regressions cover the 128 MiB executable bound and read-time
+  growth, unresolved-action retention, partial link/persistence failure,
+  relative state paths and distinct path-free failure categories.
 - `make check` passed formatting, vet, all package tests and the repository-wide
   300-line source-size gate.
 - `make race` passed every package. The macOS linker emitted its existing
@@ -211,7 +227,7 @@ the local filesystem operation safer.
   action history, and a non-stale preview refusal. The disposable fixture was
   moved to Trash after validation.
 - `kit check 0009-stale-worktree-cleanup` passed before completion curation.
-- `kit reconcile --all --output-only` confirmed 174 eligible handwritten
+- `kit reconcile --all --output-only` confirmed 177 eligible handwritten
   source/test files with zero over 300 lines. It also reported the established
   project baseline of 19 legacy-spec/missing-summary errors and five instruction
   or legacy-spec warnings outside this feature.

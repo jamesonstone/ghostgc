@@ -30,17 +30,20 @@ func (g *Git) run(ctx context.Context, dir string, args ...string) ([]byte, erro
 	cmd.Stdout, cmd.Stderr = out, errOut
 	err := cmd.Run()
 	if ctx.Err() != nil {
-		return nil, fmt.Errorf("worktree: git command timed out: %w", ctx.Err())
+		return nil, newEvidenceError(failureGitInspection, "worktree: Git command timed out", ctx.Err())
 	}
 	if out.overflow || errOut.overflow {
-		return nil, errors.New("worktree: git command exceeded its output bound")
+		return nil, newEvidenceError(failureGitInspection,
+			"worktree: Git command exceeded its output bound", nil)
 	}
 	if err != nil {
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {
-			return nil, fmt.Errorf("worktree: git command exited %d", exit.ExitCode())
+			return nil, newEvidenceError(failureGitInspection,
+				fmt.Sprintf("worktree: Git command exited %d", exit.ExitCode()), err)
 		}
-		return nil, fmt.Errorf("worktree: starting private git execution snapshot: %w", err)
+		return nil, newEvidenceError(failureGitInspection,
+			"worktree: starting private Git execution snapshot failed", err)
 	}
 	return out.Bytes(), nil
 }

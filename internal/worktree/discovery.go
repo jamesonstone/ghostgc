@@ -2,8 +2,6 @@ package worktree
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"io/fs"
 	"path/filepath"
 	"strings"
@@ -21,18 +19,21 @@ func DiscoverRepositories(ctx context.Context, root string) ([]string, error) {
 	entries := 0
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return errors.New("worktree: root traversal was incomplete")
+			return newEvidenceError(failureDiscoveryIncomplete,
+				"worktree: root traversal was incomplete", walkErr)
 		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		entries++
 		if entries > maxDiscoveryEntries {
-			return fmt.Errorf("worktree: root traversal exceeded %d entries", maxDiscoveryEntries)
+			return newEvidenceError(failureDiscoveryBound,
+				"worktree: root traversal exceeded its entry bound", nil)
 		}
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
-			return errors.New("worktree: root traversal relation was unavailable")
+			return newEvidenceError(failureDiscoveryIncomplete,
+				"worktree: root traversal relation was unavailable", err)
 		}
 		depth := 0
 		if rel != "." {

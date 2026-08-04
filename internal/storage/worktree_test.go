@@ -21,6 +21,7 @@ func testWorktree(id, state string, at int64) WorktreeRecord {
 func TestAbsentWorktreeInventoryIsHardBoundedAndRetainedByAge(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
+	attemptingID := fmt.Sprintf("%064x", 510)
 	if err := s.WithTx(ctx, func(tx *Tx) error {
 		for i := 0; i < 510; i++ {
 			record := testWorktree(fmt.Sprintf("%064x", i+1), "missing", ns(0))
@@ -34,6 +35,12 @@ func TestAbsentWorktreeInventoryIsHardBoundedAndRetainedByAge(t *testing.T) {
 			if err := tx.UpsertWorktree(record); err != nil {
 				return err
 			}
+		}
+		if err := tx.InsertWorktreeAction(WorktreeActionRecord{
+			ActionID: "wta_unresolved", WorktreeID: attemptingID, Path: "/tmp/unresolved",
+			RequestedNs: ns(0), UpdatedNs: ns(0), Result: "attempting", Reason: "side effect unresolved",
+		}); err != nil {
+			return err
 		}
 		removed, err := tx.PruneAbsentWorktrees(500)
 		if err != nil {
@@ -50,22 +57,26 @@ func TestAbsentWorktreeInventoryIsHardBoundedAndRetainedByAge(t *testing.T) {
 	if err != nil || len(current) != 500 {
 		t.Fatalf("bounded inventory = %d, %v", len(current), err)
 	}
-	registered := 0
+	registered, attemptingPresent := 0, false
 	for _, record := range current {
 		if record.Registered {
 			registered++
 		}
+		attemptingPresent = attemptingPresent || record.WorktreeID == attemptingID
 	}
-	if registered != 2 {
-		t.Fatalf("registered missing rows retained = %d, want 2", registered)
+	if registered != 2 || !attemptingPresent {
+		t.Fatalf("protected inventory: registered=%d attempting=%t", registered, attemptingPresent)
 	}
 	result, err := s.Compact(ctx, RetentionPolicy{Actions: time.Minute}, time.Unix(0, ns(2*time.Minute)))
-	if err != nil || result.WorktreeMissing != 498 {
+	if err != nil || result.WorktreeMissing != 497 {
 		t.Fatalf("missing retention = %+v, %v", result, err)
 	}
 	current, err = s.ListCurrentWorktrees(ctx, 500)
-	if err != nil || len(current) != 2 || !current[0].Registered || !current[1].Registered {
+	if err != nil || len(current) != 3 {
 		t.Fatalf("registered inventory after retention = %+v, %v", current, err)
+	}
+	if _, err := s.GetWorktree(ctx, attemptingID); err != nil {
+		t.Fatalf("unresolved action subject was pruned: %v", err)
 	}
 }
 

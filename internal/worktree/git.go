@@ -33,17 +33,21 @@ type Git struct {
 func NewGit(snapshotDir string) (*Git, error) {
 	path, err := exec.LookPath("git")
 	if err != nil {
-		return nil, fmt.Errorf("worktree: resolving git: %w", err)
+		return nil, newEvidenceError(failureGitUnavailable, "worktree: git executable is unavailable", err)
 	}
 	path, err = filepath.Abs(path)
 	if err != nil {
-		return nil, err
+		return nil, newEvidenceError(failureGitUnavailable, "worktree: git executable is unavailable", err)
 	}
 	path, err = filepath.EvalSymlinks(path)
 	if err != nil {
-		return nil, fmt.Errorf("worktree: resolving git executable: %w", err)
+		return nil, newEvidenceError(failureGitUnavailable, "worktree: git executable is unavailable", err)
 	}
-	return newGit(path, snapshotDir)
+	git, err := newGit(path, snapshotDir)
+	if err != nil {
+		return nil, newEvidenceError(failureGitUnavailable, "worktree: Git execution setup is unavailable", err)
+	}
+	return git, nil
 }
 
 // Identity returns the exact executable identity used by every command.
@@ -53,14 +57,14 @@ func (g *Git) Identity() GitIdentity { return g.identity }
 func (g *Git) VerifyIdentity() error {
 	current, err := Identify(g.path)
 	if err != nil {
-		return fmt.Errorf("worktree: re-identifying git executable: %w", err)
+		return newEvidenceError(failureGitChanged, "worktree: git executable identity changed", err)
 	}
 	if !SameIdentity(current, g.identity.FileIdentity) {
-		return errors.New("worktree: git executable identity changed")
+		return newEvidenceError(failureGitChanged, "worktree: git executable identity changed", nil)
 	}
 	execution, err := Identify(g.execPath)
 	if err != nil || !SameIdentity(execution, g.execIdentity) {
-		return errors.New("worktree: private git execution snapshot changed")
+		return newEvidenceError(failureGitChanged, "worktree: private Git execution snapshot changed", err)
 	}
 	return nil
 }
@@ -73,7 +77,7 @@ func (g *Git) Registrations(ctx context.Context, repository string) ([]Registrat
 	}
 	records, err := ParseRegistrations(raw)
 	if err != nil {
-		return nil, err
+		return nil, newEvidenceError(failureGitInspection, "worktree: Git registration inventory was malformed", err)
 	}
 	g.enrichAdministrativeDirs(ctx, repository, records)
 	return records, nil

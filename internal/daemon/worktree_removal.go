@@ -87,7 +87,8 @@ func (d *Daemon) executeWorktreeRemoval(ctx context.Context, actionID string,
 		return api.WorktreeRemovalApplyResponse{}, err
 	}
 	links := validation.Observation.ApprovedLinks
-	removedLinks, sideEffectErr := unlinkApprovedLinks(record.Path, links)
+	removedLinks, sideEffectErr := d.unlinkWorktreeLinks(record.Path, links)
+	linksChanged := len(removedLinks) > 0
 	removeAttempted := false
 	if sideEffectErr == nil {
 		removeAttempted = true
@@ -95,14 +96,18 @@ func (d *Daemon) executeWorktreeRemoval(ctx context.Context, actionID string,
 	}
 	if sideEffectErr != nil {
 		restoreErr := restoreApprovedLinks(record.Path, removedLinks)
-		reason := "native non-force worktree removal failed: " + sideEffectErr.Error()
+		reason := "approved environment link preparation failed: " + sideEffectErr.Error()
+		if removeAttempted {
+			reason = "native non-force worktree removal failed: " + sideEffectErr.Error()
+		}
 		if restoreErr != nil {
 			reason += "; restoring approved environment links also failed: " + restoreErr.Error()
 		}
-		return d.finishFailedWorktreeAction(ctx, attempt, reason, time.Now(), removeAttempted)
+		return d.finishFailedWorktreeAction(ctx, attempt, reason, time.Now(), linksChanged, removeAttempted)
 	}
 	if err := d.verifyRemovedWorktree(ctx, validation.PrimaryPath, record.Path); err != nil {
-		return d.finishFailedWorktreeAction(ctx, attempt, "post-removal verification failed: "+err.Error(), time.Now(), true)
+		return d.finishFailedWorktreeAction(ctx, attempt,
+			"post-removal verification failed: "+err.Error(), time.Now(), linksChanged, true)
 	}
 	completed := time.Now()
 	reason := "registered worktree and directory were removed; the branch remains available"
@@ -133,7 +138,7 @@ func (d *Daemon) executeWorktreeRemoval(ctx context.Context, actionID string,
 }
 
 func (d *Daemon) finishFailedWorktreeAction(ctx context.Context, attempt storage.WorktreeActionRecord,
-	reason string, at time.Time, possiblyRemoved bool) (api.WorktreeRemovalApplyResponse, error) {
+	reason string, at time.Time, linksChanged, removeAttempted bool) (api.WorktreeRemovalApplyResponse, error) {
 	evidence := attempt.EvidenceJSON
 	if err := d.store.WithTx(ctx, func(tx *storage.Tx) error {
 		if err := tx.UpdateWorktreeAction(attempt.ActionID, worktreeActionFailed, reason, evidence, at.UnixNano()); err != nil {
@@ -144,10 +149,15 @@ func (d *Daemon) finishFailedWorktreeAction(ctx context.Context, attempt storage
 			Summary: fmt.Sprintf("worktree action %s failed: %s", attempt.ActionID, reason), EvidenceJSON: evidence,
 		})
 	}); err != nil {
-		if possiblyRemoved {
-			return api.WorktreeRemovalApplyResponse{}, fmt.Errorf("worktree action %s remains unresolved as attempting: %w; the branch remains; if the checkout is absent, recreate with: %s", attempt.ActionID, err, attempt.RecreateCommand)
+		message := fmt.Sprintf("worktree action %s remains unresolved as attempting: %v; unpersisted failure: %s",
+			attempt.ActionID, err, reason)
+		if linksChanged {
+			message += "; approved environment links may require repair"
 		}
-		return api.WorktreeRemovalApplyResponse{}, fmt.Errorf("worktree action %s remains unresolved as attempting: %w", attempt.ActionID, err)
+		if removeAttempted {
+			message += "; the branch remains; if the checkout is absent, recreate with: " + attempt.RecreateCommand
+		}
+		return api.WorktreeRemovalApplyResponse{}, errors.New(message)
 	}
 	return worktreeActionResponse(attempt, worktreeActionFailed, reason, evidence, at), nil
 }

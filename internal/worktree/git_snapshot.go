@@ -12,6 +12,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const maxGitExecutableBytes int64 = 128 << 20
+
 func newGit(path, snapshotDir string) (*Git, error) {
 	identity, err := Identify(path)
 	if err != nil {
@@ -26,15 +28,23 @@ func newGit(path, snapshotDir string) (*Git, error) {
 	if err != nil || !SameIdentity(identity, opened) {
 		return nil, errors.New("worktree: git executable changed while opening")
 	}
+	info, err := source.Stat()
+	if err != nil || !info.Mode().IsRegular() || opened.Size < 1 || opened.Size > maxGitExecutableBytes {
+		return nil, errors.New("worktree: git executable is not a bounded regular file")
+	}
 	execPath := path
 	var digest string
 	if executablePathMutable(path) {
-		execPath, digest, err = snapshotGitExecutable(snapshotDir, source)
+		execPath, digest, err = snapshotGitExecutable(snapshotDir, source, opened.Size)
 	} else {
-		digest, err = digestOpenFile(source)
+		digest, err = digestExecutable(source, io.Discard, opened.Size)
 	}
 	if err != nil {
 		return nil, err
+	}
+	openedAfter, err := identifyOpenFile(path, source)
+	if err != nil || !SameIdentity(opened, openedAfter) {
+		return nil, errors.New("worktree: git executable changed while reading")
 	}
 	current, err := Identify(path)
 	if err != nil || !SameIdentity(identity, current) {
@@ -64,7 +74,7 @@ func executablePathMutable(path string) bool {
 	}
 }
 
-func snapshotGitExecutable(root string, source *os.File) (string, string, error) {
+func snapshotGitExecutable(root string, source *os.File, expectedBytes int64) (string, string, error) {
 	root, err := prepareSnapshotDirectory(root)
 	if err != nil {
 		return "", "", err
@@ -75,10 +85,10 @@ func snapshotGitExecutable(root string, source *os.File) (string, string, error)
 	}
 	temporaryPath := temporary.Name()
 	defer func() { _ = os.Remove(temporaryPath) }()
-	hash := sha256.New()
-	if _, err := io.Copy(io.MultiWriter(temporary, hash), source); err != nil {
+	digest, err := digestExecutable(source, temporary, expectedBytes)
+	if err != nil {
 		_ = temporary.Close()
-		return "", "", errors.New("worktree: copying private git execution snapshot failed")
+		return "", "", err
 	}
 	if err := temporary.Chmod(0o500); err != nil {
 		_ = temporary.Close()
@@ -91,7 +101,6 @@ func snapshotGitExecutable(root string, source *os.File) (string, string, error)
 	if err := temporary.Close(); err != nil {
 		return "", "", errors.New("worktree: closing private git execution snapshot failed")
 	}
-	digest := hex.EncodeToString(hash.Sum(nil))
 	target := filepath.Join(root, digest)
 	if err := installSnapshot(temporaryPath, target, digest); err != nil {
 		return "", "", err
@@ -144,13 +153,24 @@ func digestFile(path string) (string, error) {
 		return "", err
 	}
 	defer func() { _ = file.Close() }()
-	return digestOpenFile(file)
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return "", errors.New("worktree: private git snapshot is not a regular file")
+	}
+	return digestExecutable(file, io.Discard, info.Size())
 }
 
-func digestOpenFile(file *os.File) (string, error) {
+func digestExecutable(source io.Reader, destination io.Writer, expectedBytes int64) (string, error) {
+	if expectedBytes < 1 || expectedBytes > maxGitExecutableBytes {
+		return "", errors.New("worktree: git executable exceeds its size bound")
+	}
 	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return "", err
+	written, err := io.Copy(io.MultiWriter(destination, hash), io.LimitReader(source, expectedBytes+1))
+	if err != nil {
+		return "", errors.New("worktree: reading git executable failed")
+	}
+	if written != expectedBytes {
+		return "", errors.New("worktree: git executable size changed while reading")
 	}
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }

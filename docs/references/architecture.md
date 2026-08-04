@@ -44,8 +44,10 @@ and filesystem inspection to identity, counts and fingerprints, then persists
 the inventory beside process state. Worktree removal is never part of policy
 evaluation or automatic enforcement. A resolved Git binary that is writable by
 the daemon user is copied once into a private, content-addressed execution
-snapshot under the state directory; immutable system Git executes in place.
-Every command revalidates the resolved source and the execution object.
+snapshot under the canonicalized state directory; immutable system Git executes
+in place. The regular executable copy is capped at 128 MiB and detects size
+changes while reading. Every command revalidates the resolved source and the
+execution object.
 
 The CLI and daemon are two process roles of the same `ghostgc` executable.
 Short-lived commands use the Unix socket; `ghostgc daemon` owns the persistent
@@ -98,7 +100,8 @@ Restart, scan gaps, activity, Git changes or incomplete evidence reset that
 window. The inventory is persisted in the enclosing scan transaction. An
 absent registration keeps its last actual observation timestamp, old absent
 rows expire with action retention, and a hard 500-row current-inventory bound
-always preserves registered rows before the newest absent records.
+always preserves registered rows before the newest absent records. Rows that
+anchor unresolved `attempting` actions survive both hard and age pruning.
 
 Manual preview and apply use a second, serialized path. Preview accepts only a
 stored ID or unambiguous prefix and binds two-minute memory-only authority to

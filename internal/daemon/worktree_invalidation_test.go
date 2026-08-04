@@ -3,11 +3,13 @@ package daemon
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/jamesonstone/ghostgc/internal/api"
 	"github.com/jamesonstone/ghostgc/internal/storage"
+	"github.com/jamesonstone/ghostgc/internal/worktree"
 )
 
 func previewRemoval(t *testing.T, h *removalHarness) (storage.WorktreeRecord, api.WorktreeRemovalPreviewResponse) {
@@ -91,6 +93,32 @@ func TestVerificationAndPersistenceFailureIncludesRecovery(t *testing.T) {
 	actions, listErr := reopened.ListWorktreeActions(context.Background(), storage.WorktreeActionFilter{})
 	if listErr != nil || len(actions) != 1 || actions[0].Result != worktreeActionAttempting {
 		t.Fatalf("unresolved action = %+v, %v", actions, listErr)
+	}
+}
+
+func TestPartialLinkAndPersistenceFailureIncludesRecovery(t *testing.T) {
+	h := newRemovalHarness(t, true)
+	_, preview := previewRemoval(t, h)
+	h.daemon.unlinkWorktreeLinks = func(root string, links []worktree.ApprovedLink) ([]worktree.ApprovedLink, error) {
+		removed, err := unlinkApprovedLinks(root, links)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, ".env"), []byte("replacement"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.store.Close(); err != nil {
+			t.Fatal(err)
+		}
+		return removed, errUnavailable{}
+	}
+	_, err := h.daemon.WorktreeRemovalApply(context.Background(), api.WorktreeRemovalApplyRequest{
+		Approval: preview.Approval,
+	})
+	if err == nil || !strings.Contains(err.Error(), "restoring approved environment links also failed") ||
+		!strings.Contains(err.Error(), "unpersisted failure") ||
+		!strings.Contains(err.Error(), "approved environment links may require repair") {
+		t.Fatalf("partial link recovery error = %v", err)
 	}
 }
 
