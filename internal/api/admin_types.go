@@ -99,6 +99,14 @@ type MetricsResponse struct {
 	Goroutines               int            `json:"goroutines"`
 	RetentionRuns            int64          `json:"retention_runs"`
 	LastRetentionDeleted     int64          `json:"last_retention_deleted"`
+	CacheScanCount           int64          `json:"cache_scan_count"`
+	CacheScanFailures        int64          `json:"cache_scan_failures"`
+	LastCacheScanMs          float64        `json:"last_cache_scan_ms"`
+	CacheInspected           int64          `json:"cache_inspected"`
+	CacheProtected           int64          `json:"cache_protected"`
+	CacheCandidates          int64          `json:"cache_candidates_observed"`
+	CacheQuarantinedBytes    int64          `json:"cache_quarantined_bytes"`
+	CachePurgedBytes         int64          `json:"cache_purged_bytes"`
 	WorktreeInventory        int64          `json:"worktree_inventory"`
 	WorktreeStale            int64          `json:"worktree_stale"`
 	WorktreeProtected        int64          `json:"worktree_protected"`

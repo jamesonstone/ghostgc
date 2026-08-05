@@ -26,6 +26,7 @@
 | Policy audit | integration + live | local macOS | enable a fixture-scoped audit policy and wait through its stable window | manual | `ghostgc policies`, `ghostgc candidates`, policy audit log; zero enforceable entries and signals |
 | Manual cleanup | live-integration | local macOS | orphan the fixture, wait for `action-child` to be classified orphaned, preview and apply its exact recommendation | manual | one SIGTERM, exact target exits, durable action evidence, all other fixture pids survive until teardown |
 | Narrow enforcement | live-integration | local macOS | enable the singular fixture-only enforce policy, orphan the fixture and wait through the stable window | automatic by daemon | one automatic action per evaluation, exact target exits, durable authority/evidence, all non-target fixture processes survive |
+| Session cache lifecycle | high-level integration | local macOS or Linux | `tests/end-to-end/local/cache-lifecycle-test.sh` | deterministic, no daemon or real cache | settle, quarantine, replay refusal, restore, re-settle, grace-gated purge and durable transition evidence |
 | Worktree inventory | integration + live | local macOS or Linux | configure one disposable repository root and run a scan | manual | registered primary/secondary identities, merged sources and state in CLI plus JSON |
 | Manual worktree removal | integration + live | local macOS | create a disposable secondary worktree, seed seven-day complete evidence, preview and apply its exact ID | manual | integration proves native non-force removal and branch survival; real platform acceptance proves removal when inspection is complete or unchanged state on fail-closed refusal |
 | Resource budget | live-integration | local macOS | run `ghostgc daemon`, then `ghostgc metrics` | manual | scan duration, CPU, RSS, database size |
@@ -36,6 +37,9 @@
   collector uses `libproc` through cgo.
 - The unit and integration suites need no daemon, no network, and no database
   server. The platform is faked via `internal/platform/platformtest`.
+- Cache tests use `t.TempDir` SQLite files, a deterministic metadata-only
+  filesystem and controlled clock. The real-filesystem tests create only
+  fixture-owned temporary roots and never inspect or mutate a user cache.
 - The live suites need a macOS host and observe only the invoking user's own
   processes. They never require `sudo`.
 - Linux worktree inventory compiles and may report records, but targeted process
@@ -51,6 +55,10 @@
 - `internal/platform/signal_gate_test.go` walks the whole repository and fails
   unless there is exactly one authorized literal SIGTERM system-call site; it
   also rejects alternate primitives and shell terminators.
+- The same repository safety test requires exactly one cache `unlinkat` in
+  `internal/cachefs/purge_unix.go`, rejects production `os.RemoveAll`, shell
+  `rm` and alternate cache deletion primitives, and leaves the SIGTERM gate
+  unchanged.
 - Never weaken a safety test to make it pass. If a safety condition blocks a
   change, the change is wrong.
 - Worktree tests use disposable real Git repositories to cover unusual

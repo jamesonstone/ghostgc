@@ -24,6 +24,10 @@
   ordinary commands remain short-lived clients over the local Unix socket.
 - Product output describes current capabilities and safety boundaries.
   Delivery phases are development history and belong in documentation only.
+- Filesystem lifecycle authority is provider-specific and independent from
+  process signalling authority. Observation never grants deletion: one proven
+  artifact may be quarantined reversibly, while permanent purge requires a new
+  approval after a grace period.
 
 ## CONSTRAINTS
 
@@ -47,9 +51,13 @@
   not be downgraded, and the original parent is written once.
 - Detection matches executable basenames exactly and path components as whole
   segments. Ownership is never established by matching a command-line substring.
-- Source-code contents are never retained. The daemon records paths and
-  metadata, and worktree inspection retains only aggregate dirty evidence,
-  never filenames or file contents.
+- Source-code contents are never read or retained. The daemon records paths and
+  metadata and reads version-control plumbing only; worktree inspection retains
+  aggregate dirty evidence, never filenames.
+- Cache artifact contents are never read. A cache provider must prove one exact
+  root, file contract and exclusive session owner from primary-source-backed
+  metadata; an unproven, shared, linked, changed or incomplete artifact is
+  protected.
 - Expensive activity inspection is restricted to live, same-user processes
   already attributed to a coding-agent session. File paths and socket endpoints
   discovered during that pass never reach storage.
@@ -122,9 +130,11 @@
 
 ## NON-GOALS
 
-- A general macOS cleaner. ghostgc does not delete caches, optimise settings, or
-  manage anything outside coding-agent sessions and explicitly configured
-  local worktree roots.
+- A general macOS or cache cleaner. ghostgc does not scan broad cache roots,
+  optimise settings, invoke package-manager cleanup or manage unattributed
+  files. Cache lifecycle is limited to explicitly implemented provider
+  contracts with exclusive coding-session ownership; worktree inventory is
+  limited to coding-agent sessions and explicitly configured local roots.
 - Monitoring user activity outside coding-agent sessions. Unattributed
   processes are counted during a scan and then forgotten.
 - Replacing Activity Monitor, `ps`, `top` or `launchctl`.
@@ -151,6 +161,10 @@
 - **Protected** — a process that must never be terminated automatically.
 - **Cleanup candidate** — a process matching an enabled cleanup policy, which
   is not the same as a process that will be acted on.
+- **Cache artifact** — one provider-contracted regular file whose metadata maps
+  exactly to one known agent session; a name or location alone is insufficient.
+- **Quarantine** — a reversible same-filesystem rename into a private
+  provider-root location. It is containment and does not reclaim disk space.
 - **Worktree** — one registered checkout identified by its canonical common and
   administrative Git directories, independently of its current path.
 - **Stale worktree** — a present, registered, unprotected secondary worktree

@@ -52,6 +52,19 @@ agents:
   codex:
     enabled: true
 
+# Cache observation is a separate, default-disabled authority lane. The only
+# supported provider is Codex shell snapshots with exact session ownership.
+cache:
+  enabled: false
+  globalMode: audit
+  scanInterval: 30m
+  minStable: 24h
+  quarantineGrace: 168h
+  maxEntriesPerScan: 10000
+  maxEntriesPerAction: 1000
+  maxBytesPerAction: 10GiB
+  policies: []
+
 worktrees:
   # Inventory is read-only. Removal always requires a fresh manual preview.
   enabled: true

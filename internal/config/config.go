@@ -126,6 +126,7 @@ type Config struct {
 	Worktrees     Worktrees        `yaml:"worktrees"`
 	Agents        map[string]Agent `yaml:"agents"`
 	Policies      []Policy         `yaml:"policies"`
+	Cache         Cache            `yaml:"cache"`
 	Paths         PathOverrides    `yaml:"paths"`
 
 	// SourcePath records where the configuration was loaded from. It is not a
@@ -176,6 +177,7 @@ func Default() Config {
 		Agents: map[string]Agent{
 			"codex": {Enabled: true},
 		},
+		Cache: DefaultCache(),
 	}
 }
 
@@ -248,7 +250,10 @@ func (c Config) Validate() error {
 	if c.Retention.MaxDatabaseBytes < 1<<20 {
 		return fmt.Errorf("retention.maxDatabaseBytes is %d, which is below the 1 MiB minimum", c.Retention.MaxDatabaseBytes)
 	}
-	return c.validatePolicies()
+	if err := c.validatePolicies(); err != nil {
+		return err
+	}
+	return c.Cache.Validate(c.Agents)
 }
 
 // EnabledAgents returns the identifiers of enabled agent adapters.

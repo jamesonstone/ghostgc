@@ -190,6 +190,7 @@ func (s *Server) routes() http.Handler {
 		opts.SinceNs, _ = strconv.ParseInt(q.Get("since_ns"), 10, 64)
 		return s.Backend.Classifications(r.Context(), opts)
 	}))
+	s.registerCacheRoutes(mux, p)
 	mux.HandleFunc("GET "+p+"/worktrees", s.handle(func(r *http.Request) (any, error) {
 		q := r.URL.Query()
 		opts := WorktreeOptions{State: q.Get("state"), Source: q.Get("source")}

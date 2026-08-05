@@ -180,6 +180,12 @@ func init() {
 			run:     cmdActions,
 		},
 		{
+			name:    "cache",
+			summary: "inspect and manage exact session-owned cache artifacts",
+			usage:   "artifacts|explain|candidates|cleanup|quarantined|restore|purge|actions",
+			run:     cmdCache,
+		},
+		{
 			name:    "worktrees",
 			summary: "list local Git worktree inventory",
 			usage:   "[--state <state>] [--source <source>] [--limit <n>]",

@@ -33,6 +33,12 @@ type RetentionResult struct {
 	WorktreeActions    int64 `json:"worktree_actions_deleted"`
 	WorktreeMissing    int64 `json:"worktree_missing_deleted"`
 	WorktreeTombstones int64 `json:"worktree_tombstones_deleted"`
+	CacheObservations  int64 `json:"cache_observations_deleted"`
+	CacheDecisions     int64 `json:"cache_decisions_deleted"`
+	CacheEvaluations   int64 `json:"cache_evaluations_deleted"`
+	CacheActions       int64 `json:"cache_actions_deleted"`
+	CacheArtifacts     int64 `json:"cache_artifacts_deleted"`
+	CacheQuarantines   int64 `json:"cache_quarantines_deleted"`
 	Scans              int64 `json:"scans_deleted"`
 	Audit              int64 `json:"audit_deleted"`
 	Processes          int64 `json:"processes_deleted"`
@@ -47,7 +53,11 @@ type RetentionResult struct {
 
 // Total returns the number of rows removed.
 func (r RetentionResult) Total() int64 {
-	return r.Observations + r.ActivitySamples + r.Classifications + r.PolicyDecisions + r.PolicyEvaluations + r.Actions + r.WorktreeActions + r.WorktreeMissing + r.WorktreeTombstones + r.Scans + r.Audit + r.Processes + r.Ownership + r.Sessions + r.Relationships
+	return r.Observations + r.ActivitySamples + r.Classifications + r.PolicyDecisions + r.PolicyEvaluations +
+		r.Actions + r.WorktreeActions + r.WorktreeMissing + r.WorktreeTombstones +
+		r.Scans + r.Audit + r.Processes + r.Ownership + r.Sessions + r.Relationships +
+		r.CacheObservations + r.CacheDecisions + r.CacheEvaluations + r.CacheActions +
+		r.CacheArtifacts + r.CacheQuarantines
 }
 
 // Compact enforces the retention policy.
@@ -125,6 +135,23 @@ func (s *Store) compactOnce(ctx context.Context, p RetentionPolicy, now time.Tim
 			{&res.WorktreeTombstones, `DELETE FROM worktrees WHERE state = 'removed' AND removed_ns < ?`, []any{cutoff(p.Actions)}},
 			{&res.Scans, `DELETE FROM scans WHERE started_ns < ?`, []any{cutoff(p.Scans)}},
 			{&res.Audit, `DELETE FROM audit_log WHERE ts_ns < ?`, []any{cutoff(p.Audit)}},
+			{&res.CacheObservations, `DELETE FROM cache_observations WHERE observed_ns < ?
+				AND evaluation_id <> (SELECT MAX(id) FROM cache_evaluations)`, []any{cutoff(p.RawObservations)}},
+			{&res.CacheDecisions, `DELETE FROM cache_decisions WHERE evaluation_id IN (
+				SELECT id FROM cache_evaluations WHERE observed_ns < ? AND id <> (SELECT MAX(id) FROM cache_evaluations))`, []any{cutoff(p.PolicyDecisions)}},
+			{&res.CacheEvaluations, `DELETE FROM cache_evaluations WHERE observed_ns < ?
+				AND id <> (SELECT MAX(id) FROM cache_evaluations)
+				AND id NOT IN (SELECT evaluation_id FROM cache_observations)
+				AND id NOT IN (SELECT evaluation_id FROM cache_decisions)`, []any{cutoff(p.PolicyDecisions)}},
+			{&res.CacheActions, `DELETE FROM cache_actions WHERE requested_ns < ?
+				AND result NOT IN ('attempting', 'purging', 'partial')`, []any{cutoff(p.Actions)}},
+			{&res.CacheQuarantines, `DELETE FROM cache_quarantines WHERE updated_ns < ?
+				AND status IN ('restored', 'purged')`, []any{cutoff(p.Actions)}},
+			{&res.CacheArtifacts, `DELETE FROM cache_artifacts WHERE last_observed_ns < ?
+				AND evaluation_id <> (SELECT MAX(id) FROM cache_evaluations)
+				AND lifecycle NOT IN ('quarantined', 'partial')
+				AND artifact_id NOT IN (SELECT artifact_id FROM cache_quarantines WHERE status = 'quarantined')
+				AND artifact_id NOT IN (SELECT artifact_id FROM cache_actions WHERE result IN ('attempting', 'purging', 'partial'))`, []any{cutoff(p.Actions)}},
 			{&res.Ownership, `DELETE FROM session_processes WHERE proc_uid IN (
 				SELECT proc_uid FROM processes WHERE exited_at_ns IS NOT NULL AND exited_at_ns < ?)`, []any{cutoff(p.ExitedProcesses)}},
 			{&res.Processes, `DELETE FROM processes WHERE exited_at_ns IS NOT NULL AND exited_at_ns < ?`, []any{cutoff(p.ExitedProcesses)}},

@@ -10,13 +10,14 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/jamesonstone/ghostgc/internal/adapters"
-	"github.com/jamesonstone/ghostgc/internal/adapters/codex"
 	"github.com/jamesonstone/ghostgc/internal/api"
+	"github.com/jamesonstone/ghostgc/internal/cachefs"
+	"github.com/jamesonstone/ghostgc/internal/cacheprovider"
+	cachecodex "github.com/jamesonstone/ghostgc/internal/cacheprovider/codex"
 	"github.com/jamesonstone/ghostgc/internal/classification"
 	"github.com/jamesonstone/ghostgc/internal/config"
 	"github.com/jamesonstone/ghostgc/internal/platform"
@@ -45,7 +46,10 @@ type Options struct {
 	Platform platform.Platform
 	Logger   *slog.Logger
 	// Registry may be nil, in which case adapters are built from the config.
-	Registry *adapters.Registry
+	Registry        *adapters.Registry
+	CacheFilesystem cachefs.Filesystem
+	CacheProvider   cacheprovider.Provider
+	CacheClock      func() time.Time
 }
 
 // Daemon is the long-running observer.
@@ -58,6 +62,10 @@ type Daemon struct {
 	reg                   *adapters.Registry
 	recon                 *sessions.Reconciler
 	repos                 *repository.Finder
+	cacheFS               cachefs.Filesystem
+	cacheProvider         cacheprovider.Provider
+	cacheClock            func() time.Time
+	cacheHealthy          bool
 	worktreeGit           *worktree.Git
 	worktreeGitErr        error
 	unlinkWorktreeLinks   func(string, []worktree.ApprovedLink) ([]worktree.ApprovedLink, error)
@@ -70,6 +78,7 @@ type Daemon struct {
 	mu                     sync.RWMutex
 	scanMu                 sync.Mutex
 	actionMu               sync.Mutex
+	cacheMu                sync.Mutex
 	snapshot               *process.Snapshot
 	tree                   *process.Tree
 	last                   *sessions.Result
@@ -82,46 +91,36 @@ type Daemon struct {
 	lastPolicyAt           time.Time
 	lastWorktreeAt         time.Time
 	approvals              map[string]*cleanupApproval
+	cacheApprovals         map[string]*cacheApproval
 	worktreeApprovals      map[string]*worktreeApproval
 	worktreeActionMu       sync.Mutex
 }
 
 type metrics struct {
-	scanCount          int64
-	scanFailures       int64
-	lastScanDuration   time.Duration
-	totalScanDuration  time.Duration
-	maxScanDuration    time.Duration
-	lastReconcile      time.Duration
-	lastPersist        time.Duration
-	lastActivity       time.Duration
-	activitySamples    int64
-	classifications    int64
-	policyDecisions    int64
-	retentionRuns      int64
-	lastRetentionRows  int64
-	visibleProcesses   int
-	inspectedProcesses int
-	attributed         int
-}
-
-// BuildRegistry constructs the adapter registry from configuration.
-func BuildRegistry(cfg config.Config, repos *repository.Finder) *adapters.Registry {
-	var list []adapters.AgentAdapter
-	for id, agent := range cfg.Agents {
-		if !agent.Enabled {
-			continue
-		}
-		switch id {
-		case codex.ID:
-			list = append(list, codex.New(repos))
-		default:
-			// An unknown adapter id is a configuration statement the daemon
-			// cannot honour. It is reported by `ghostgc doctor` rather than
-			// silently ignored, but it must not stop observation.
-		}
-	}
-	return adapters.NewRegistry(list...)
+	scanCount             int64
+	scanFailures          int64
+	lastScanDuration      time.Duration
+	totalScanDuration     time.Duration
+	maxScanDuration       time.Duration
+	lastReconcile         time.Duration
+	lastPersist           time.Duration
+	lastActivity          time.Duration
+	activitySamples       int64
+	classifications       int64
+	policyDecisions       int64
+	retentionRuns         int64
+	lastRetentionRows     int64
+	cacheScanCount        int64
+	cacheScanFailures     int64
+	lastCacheDuration     time.Duration
+	cacheInspected        int64
+	cacheProtected        int64
+	cacheCandidates       int64
+	cacheQuarantinedBytes int64
+	cachePurgedBytes      int64
+	visibleProcesses      int
+	inspectedProcesses    int
+	attributed            int
 }
 
 // New constructs a Daemon.
@@ -144,6 +143,19 @@ func New(opts Options) (*Daemon, error) {
 	if reg == nil {
 		reg = BuildRegistry(opts.Config, repos)
 	}
+	cacheFilesystem := opts.CacheFilesystem
+	if cacheFilesystem == nil {
+		cacheFilesystem = cachefs.New()
+	}
+	cacheProvider := opts.CacheProvider
+	if cacheProvider == nil {
+		cacheProvider = cachecodex.New(opts.Platform.SelfUID())
+	}
+	cacheClock := opts.CacheClock
+	if cacheClock == nil {
+		cacheClock = time.Now
+	}
+
 	snapshotDir, worktreeGitErr := worktreeSnapshotDir(opts.Paths)
 	var worktreeGit *worktree.Git
 	if worktreeGitErr == nil {
@@ -157,6 +169,9 @@ func New(opts Options) (*Daemon, error) {
 		plat:                   opts.Platform,
 		log:                    log,
 		reg:                    reg,
+		cacheFS:                cacheFilesystem,
+		cacheProvider:          cacheProvider,
+		cacheClock:             cacheClock,
 		repos:                  repos,
 		worktreeGit:            worktreeGit,
 		worktreeGitErr:         worktreeGitErr,
@@ -166,6 +181,7 @@ func New(opts Options) (*Daemon, error) {
 		activityBaseline:       make(map[string]process.ActivitySample),
 		classificationPrevious: make(map[string]classification.Previous),
 		approvals:              make(map[string]*cleanupApproval),
+		cacheApprovals:         make(map[string]*cacheApproval),
 		worktreeApprovals:      make(map[string]*worktreeApproval),
 	}
 	if worktreeGit != nil {
@@ -174,21 +190,6 @@ func New(opts Options) (*Daemon, error) {
 	}
 	d.recon = sessions.New(reg, d.selfPI, opts.Platform.SelfUID(), repos)
 	return d, nil
-}
-
-func worktreeSnapshotDir(paths config.Paths) (string, error) {
-	root := paths.StateDir
-	if root == "" {
-		root = filepath.Dir(paths.Database)
-	}
-	return filepath.Abs(filepath.Join(root, "git-exec"))
-}
-
-// AdapterEnvKeys returns the environment variables the enabled adapters need.
-// The daemon command calls this before constructing the platform so that the
-// collector extracts nothing else.
-func AdapterEnvKeys(cfg config.Config) []string {
-	return BuildRegistry(cfg, repository.NewFinder()).EnvKeys()
 }
 
 // Run starts the API server and the observation loop and blocks until ctx is
@@ -228,11 +229,21 @@ func (d *Daemon) Run(ctx context.Context) error {
 	// The first scan runs immediately so that `ghostgc status` is useful the
 	// moment the daemon is up.
 	d.runScan(ctx)
+	if d.cfg.Cache.Enabled {
+		d.runCacheScan(ctx, d.cacheClock())
+	}
 
 	scanTicker := time.NewTicker(d.cfg.Sampling.ProcessScan.D())
 	defer scanTicker.Stop()
 	retentionTicker := time.NewTicker(d.cfg.Sampling.Retention.D())
 	defer retentionTicker.Stop()
+	var cacheTicker *time.Ticker
+	var cacheTick <-chan time.Time
+	if d.cfg.Cache.Enabled {
+		cacheTicker = time.NewTicker(d.cfg.Cache.ScanInterval.D())
+		cacheTick = cacheTicker.C
+		defer cacheTicker.Stop()
+	}
 
 	for {
 		select {
@@ -244,6 +255,8 @@ func (d *Daemon) Run(ctx context.Context) error {
 			d.runScan(ctx)
 		case <-retentionTicker.C:
 			d.runRetention(ctx)
+		case observedAt := <-cacheTick:
+			d.runCacheScan(ctx, observedAt)
 		case err := <-serveErr:
 			return err
 		}
