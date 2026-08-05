@@ -188,6 +188,9 @@ func (c *Client) Logs(ctx context.Context, opts LogOptions) (LogsResponse, error
 	if opts.SinceNs > 0 {
 		q.Set("since_ns", strconv.FormatInt(opts.SinceNs, 10))
 	}
+	if opts.AfterID != nil {
+		q.Set("after_id", strconv.FormatInt(*opts.AfterID, 10))
+	}
 	return get[LogsResponse](ctx, c, "/logs", q)
 }
 

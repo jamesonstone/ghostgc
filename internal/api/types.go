@@ -83,6 +83,7 @@ type LogOptions struct {
 	Kind    string
 	Subject string
 	SinceNs int64
+	AfterID *int64
 }
 
 // ActivityOptions narrows activity history.

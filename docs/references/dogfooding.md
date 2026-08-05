@@ -31,6 +31,9 @@ ghostgc worktrees
 ghostgc logs
 ```
 
+`ghostgc logs` shows recent audit entries and then follows new ones. Press
+Ctrl-C to return to the shell, or add `--follow=false` for a one-time snapshot.
+
 Use `ghostgc explain <pid>` and the relevant `show` or `explain` command for any
 surprising conclusion. Unknown or incomplete evidence should appear as a
 protection, never a candidate.
@@ -92,6 +95,12 @@ The selected startup mode remains the authority ceiling. An audit start
 downgrades configured recommendation or enforcement; a reconciliation start
 downgrades enforcement to manual recommendation. Explicit disabled settings
 and narrower policies remain disabled or narrow.
+
+When finished dogfooding, stop and unregister the background service:
+
+```bash
+ghostgc stop
+```
 
 Advanced automatic process enforcement is intentionally outside both startup
 profiles. Validate it only with the bundled fixture and an explicitly reviewed

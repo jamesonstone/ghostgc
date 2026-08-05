@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jamesonstone/ghostgc/internal/api"
+	"github.com/jamesonstone/ghostgc/internal/storage"
 )
 
 func renderCandidates(r api.CandidatesResponse) {
@@ -101,9 +102,18 @@ func renderLogs(r api.LogsResponse) {
 	}
 	// Oldest first reads better in a terminal.
 	for i := len(r.Entries) - 1; i >= 0; i-- {
-		a := r.Entries[i]
-		fmt.Printf("%s  %-30s %s\n", time.Unix(0, a.TsNs).Format(time.RFC3339), a.Kind, a.Summary)
+		renderLogEntry(r.Entries[i])
 	}
+}
+
+func renderFollowedLogs(r api.LogsResponse) {
+	for _, entry := range r.Entries {
+		renderLogEntry(entry)
+	}
+}
+
+func renderLogEntry(a storage.AuditRecord) {
+	fmt.Printf("%s  %-30s %s\n", time.Unix(0, a.TsNs).Format(time.RFC3339), a.Kind, a.Summary)
 }
 
 func renderMetrics(m api.MetricsResponse) {

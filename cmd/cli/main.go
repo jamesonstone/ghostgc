@@ -25,6 +25,7 @@ type env struct {
 	configPath string
 	socket     string
 	jsonOut    bool
+	fetchLogs  logFetcher
 
 	client *api.Client
 }
@@ -129,6 +130,11 @@ func init() {
 			run:     cmdStart,
 		},
 		{
+			name:    "stop",
+			summary: "stop and unregister the background service",
+			run:     cmdStop,
+		},
+		{
 			name:    "status",
 			summary: "show daemon health, mode and the last scan",
 			run:     cmdStatus,
@@ -205,8 +211,8 @@ func init() {
 		},
 		{
 			name:    "logs",
-			summary: "show the audit log",
-			usage:   "[--limit <n>] [--kind <kind>] [--subject <subject>]",
+			summary: "show and follow the audit log",
+			usage:   "[--follow=false] [--limit <n>] [--kind <kind>] [--subject <subject>]",
 			run:     cmdLogs,
 		},
 		{

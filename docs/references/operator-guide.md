@@ -9,7 +9,8 @@ it opens no TCP port.
 `ghostgc start` installs or refreshes the background service in audit mode.
 `ghostgc start --mode reconcile` enables recommendations and exact manually
 approved actions. Neither command enables automatic cleanup, and neither needs
-a configuration file.
+a configuration file. `ghostgc stop` stops and unregisters the background
+service.
 
 The built-in profile enables Codex CLI and the macOS Codex app, the exact
 physical `~/.codex/shell_snapshots` and `~/.codex/worktrees` directories when
@@ -21,6 +22,7 @@ matches only. Reconcile mode permits the existing preview/apply workflows.
 | Command | Purpose |
 | --- | --- |
 | `ghostgc start [--mode audit\|reconcile]` | start or refresh the background service |
+| `ghostgc stop` | stop and unregister the background service |
 | `ghostgc status` | daemon health, mode, counts, and last scan |
 | `ghostgc sessions` | observed agent sessions |
 | `ghostgc session show <id>` | one session's evidence, processes, graph, and audit trail |
@@ -39,12 +41,14 @@ matches only. Reconcile mode permits the existing preview/apply workflows.
 | `ghostgc worktree restore` | return a retired worktree to its original path |
 | `ghostgc worktree purge` | grace-gated foreground native removal |
 | `ghostgc worktree actions` | durable worktree lifecycle history |
-| `ghostgc classifications\|policies\|logs\|metrics` | decisions, configuration, audit, and health evidence |
+| `ghostgc classifications\|policies\|metrics` | decisions, configuration, and health evidence |
+| `ghostgc logs [-f]` | show current audit history and follow new entries until interrupted |
 | `ghostgc doctor` | diagnose configuration and installation, even with no daemon |
 | `ghostgc config init\|path\|show` | manage configuration |
-| `ghostgc service install\|uninstall\|status` | manage the background service |
+| `ghostgc service install\|uninstall\|status` | advanced background-service controls |
 
-Add `--json` for machine-readable output.
+Add `--json` for machine-readable output. Following logs emit one compact JSON
+response per line; use `ghostgc logs --follow=false` for one response and exit.
 
 ## Optional configuration
 

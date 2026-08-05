@@ -168,6 +168,13 @@ func (s *Server) routes() http.Handler {
 		opts := LogOptions{Kind: q.Get("kind"), Subject: q.Get("subject")}
 		opts.Limit, _ = strconv.Atoi(q.Get("limit"))
 		opts.SinceNs, _ = strconv.ParseInt(q.Get("since_ns"), 10, 64)
+		if q.Has("after_id") {
+			afterID, err := strconv.ParseInt(q.Get("after_id"), 10, 64)
+			if err != nil || afterID < 0 {
+				return nil, badRequest("after_id must be a non-negative integer")
+			}
+			opts.AfterID = &afterID
+		}
 		return s.Backend.Logs(r.Context(), opts)
 	}))
 	mux.HandleFunc("GET "+p+"/doctor", s.handle(func(r *http.Request) (any, error) {

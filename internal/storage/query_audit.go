@@ -58,12 +58,13 @@ func (s *Store) ProcessRelationships(ctx context.Context, procUID string) ([]Rel
 // AuditFilter narrows an audit-log query.
 type AuditFilter struct {
 	SinceNs int64
+	AfterID *int64
 	Kind    string
 	Subject string
 	Limit   int
 }
 
-// ListAudit returns audit entries, newest first.
+// ListAudit returns audit entries newest first, or oldest first after a cursor.
 func (s *Store) ListAudit(ctx context.Context, f AuditFilter) ([]AuditRecord, error) {
 	q := `SELECT id, ts_ns, kind, subject, summary, evidence FROM audit_log`
 	var (
@@ -73,6 +74,10 @@ func (s *Store) ListAudit(ctx context.Context, f AuditFilter) ([]AuditRecord, er
 	if f.SinceNs > 0 {
 		where = append(where, "ts_ns >= ?")
 		args = append(args, f.SinceNs)
+	}
+	if f.AfterID != nil {
+		where = append(where, "id > ?")
+		args = append(args, *f.AfterID)
 	}
 	if f.Kind != "" {
 		where = append(where, "kind = ?")
@@ -85,7 +90,11 @@ func (s *Store) ListAudit(ctx context.Context, f AuditFilter) ([]AuditRecord, er
 	if len(where) > 0 {
 		q += " WHERE " + strings.Join(where, " AND ")
 	}
-	q += " ORDER BY ts_ns DESC, id DESC"
+	if f.AfterID == nil {
+		q += " ORDER BY ts_ns DESC, id DESC"
+	} else {
+		q += " ORDER BY id ASC"
+	}
 	limit := f.Limit
 	if limit <= 0 {
 		limit = 100
