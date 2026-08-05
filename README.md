@@ -59,8 +59,12 @@ ghostgc processes
 ghostgc candidates
 ghostgc cache candidates
 ghostgc worktrees
+ghostgc logs             # follows until Ctrl-C
 ghostgc doctor
+ghostgc stop
 ```
+
+Use `ghostgc logs --follow=false` for a one-time audit-log snapshot.
 
 Run `ghostgc --help` for all commands. To override defaults, generate the
 optional strict configuration and restart in either mode:

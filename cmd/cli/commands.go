@@ -195,26 +195,6 @@ func cmdActions(ctx context.Context, e *env, args []string) error {
 	return nil
 }
 
-func cmdLogs(ctx context.Context, e *env, args []string) error {
-	fs := newFlagSet(e, "logs", "[flags]")
-	var opts api.LogOptions
-	fs.IntVar(&opts.Limit, "limit", 50, "maximum entries")
-	fs.StringVar(&opts.Kind, "kind", "", "filter by entry kind")
-	fs.StringVar(&opts.Subject, "subject", "", "filter by subject")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	resp, err := e.api().Logs(ctx, opts)
-	if err != nil {
-		return err
-	}
-	if e.jsonOut {
-		return emitJSON(resp)
-	}
-	renderLogs(resp)
-	return nil
-}
-
 func cmdMetrics(ctx context.Context, e *env, args []string) error {
 	resp, err := e.api().Metrics(ctx)
 	if err != nil {

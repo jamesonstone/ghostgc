@@ -43,7 +43,7 @@ type helpSection struct {
 }
 
 var rootHelpSections = []helpSection{
-	{title: "Run", commands: []string{"start"}},
+	{title: "Run", commands: []string{"start", "stop"}},
 	{title: "Observe", commands: []string{"status", "sessions", "session", "processes", "explain", "activity", "classifications"}},
 	{title: "Policy & Cleanup", commands: []string{"candidates", "policies", "policy", "cleanup", "actions"}},
 	{title: "Cache Lifecycle", commands: []string{"cache"}},
@@ -164,7 +164,11 @@ func printFlagRows(out io.Writer, fs *flag.FlagSet, placeholder flagPlaceholder)
 	var rows []row
 	width := 0
 	fs.VisitAll(func(item *flag.Flag) {
-		name := "--" + item.Name
+		prefix := "--"
+		if len(item.Name) == 1 {
+			prefix = "-"
+		}
+		name := prefix + item.Name
 		if value := placeholder(item); value != "" {
 			name += " " + value
 		}

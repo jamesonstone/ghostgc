@@ -27,11 +27,7 @@ func cmdService(ctx context.Context, e *env, args []string) error {
 	case "install":
 		return serviceInstall(ctx, e, plat, args[1:])
 	case "uninstall":
-		if err := plat.UninstallService(ctx, config.ServiceLabel); err != nil {
-			return err
-		}
-		fmt.Printf("Removed %s\n", config.ServiceLabel)
-		return nil
+		return uninstallBackground(ctx, plat, args[1:])
 	case "status":
 		state, err := plat.ServiceStatus(ctx, config.ServiceLabel)
 		if err != nil {
@@ -59,6 +55,29 @@ func cmdService(ctx context.Context, e *env, args []string) error {
 	default:
 		return fmt.Errorf("unknown subcommand %q; expected install, uninstall or status", args[0])
 	}
+}
+
+func cmdStop(ctx context.Context, e *env, args []string) error {
+	fs := newFlagSet(e, "stop", "")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	plat, err := platform.New(platform.Options{})
+	if err != nil {
+		return err
+	}
+	return uninstallBackground(ctx, plat, fs.Args())
+}
+
+func uninstallBackground(ctx context.Context, plat platform.Platform, args []string) error {
+	if len(args) != 0 {
+		return fmt.Errorf("unexpected uninstall argument %q", args[0])
+	}
+	if err := plat.UninstallService(ctx, config.ServiceLabel); err != nil {
+		return err
+	}
+	fmt.Printf("Stopped ghostgc and removed %s\n", config.ServiceLabel)
+	return nil
 }
 
 func serviceInstall(ctx context.Context, e *env, plat platform.Platform, args []string) error {

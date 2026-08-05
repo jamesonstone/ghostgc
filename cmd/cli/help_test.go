@@ -29,6 +29,7 @@ func TestRootHelpIsGroupedAndCompact(t *testing.T) {
 		"Available Commands",
 		"Run",
 		"start",
+		"stop",
 		"Observe",
 		"Policy & Cleanup",
 		"Worktrees",
@@ -165,6 +166,18 @@ func TestCommandHelpRetainsDetailedUsage(t *testing.T) {
 	for _, want := range []string{"Usage", "ghostgc actions [--process <pid:start>] [--limit <n>]", "Flags", "--process <string>"} {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("command help is missing %q:\n%s", want, output.String())
+		}
+	}
+}
+
+func TestLogsHelpShowsLongAndShortFollowFlags(t *testing.T) {
+	output, code := captureHelpRun(t, []string{"logs", "-h"}, false)
+	if code != 0 {
+		t.Fatalf("logs help exit code = %d, want 0", code)
+	}
+	for _, want := range []string{"--follow", "-f", "default true"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("logs help is missing %q:\n%s", want, output)
 		}
 	}
 }

@@ -154,6 +154,40 @@ func TestServiceInstallRejectsRemovedBinaryOption(t *testing.T) {
 	}
 }
 
+func TestStopUsesServiceUninstallPath(t *testing.T) {
+	fake := platformtest.New(501)
+	recorder := &uninstallRecordingPlatform{Platform: fake}
+	if err := fake.InstallService(context.Background(), platform.ServiceOptions{Label: config.ServiceLabel}); err != nil {
+		t.Fatal(err)
+	}
+	if err := uninstallBackground(context.Background(), recorder, nil); err != nil {
+		t.Fatal(err)
+	}
+	if recorder.label != config.ServiceLabel {
+		t.Fatalf("uninstalled label = %q, want %q", recorder.label, config.ServiceLabel)
+	}
+	state, err := fake.ServiceStatus(context.Background(), config.ServiceLabel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Installed {
+		t.Fatal("stop left the background service installed")
+	}
+	if err := uninstallBackground(context.Background(), fake, []string{"unexpected"}); err == nil {
+		t.Fatal("stop accepted an unexpected argument")
+	}
+}
+
+type uninstallRecordingPlatform struct {
+	platform.Platform
+	label string
+}
+
+func (p *uninstallRecordingPlatform) UninstallService(ctx context.Context, label string) error {
+	p.label = label
+	return p.Platform.UninstallService(ctx, label)
+}
+
 func executableFixture(t *testing.T) (target, link string) {
 	t.Helper()
 	dir := t.TempDir()
