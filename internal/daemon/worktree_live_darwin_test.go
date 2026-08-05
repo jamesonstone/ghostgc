@@ -13,8 +13,8 @@ import (
 )
 
 // This opt-in test is the controlled macOS acceptance path. It uses the real
-// same-user CWD/vnode inspector and removes only a disposable worktree.
-func TestLiveDarwinWorktreeRemoval(t *testing.T) {
+// same-user CWD/vnode inspector and retires only a disposable worktree.
+func TestLiveDarwinWorktreeRetirement(t *testing.T) {
 	if os.Getenv("GHOSTGC_LIVE_WORKTREE_TEST") != "1" {
 		t.Skip("set GHOSTGC_LIVE_WORKTREE_TEST=1 for controlled local acceptance")
 	}
@@ -44,11 +44,15 @@ func TestLiveDarwinWorktreeRemoval(t *testing.T) {
 	result, err := h.daemon.WorktreeRemovalApply(context.Background(), api.WorktreeRemovalApplyRequest{
 		Approval: preview.Approval,
 	})
-	if err != nil || result.Result != worktreeActionRemoved {
+	if err != nil || result.Result != worktreeActionRetired {
 		t.Fatalf("result = %+v, %v", result, err)
 	}
 	if _, err := os.Lstat(h.secondary); !os.IsNotExist(err) {
 		t.Fatalf("secondary still exists: %v", err)
+	}
+	retired := h.secondary + ".ghostgc-retired-" + records[0].WorktreeID[:shortIDLength]
+	if _, err := os.Lstat(retired); err != nil {
+		t.Fatalf("retired checkout is unavailable: %v", err)
 	}
 	if output := removalGit(t, h.primary, "show-ref", "--verify", "refs/heads/cleanup"); output == "" {
 		t.Fatal("branch was deleted")

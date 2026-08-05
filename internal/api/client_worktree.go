@@ -36,6 +36,26 @@ func (c *Client) WorktreeRemovalApply(ctx context.Context, req WorktreeRemovalAp
 	return post[WorktreeRemovalApplyRequest, WorktreeRemovalApplyResponse](ctx, c, "/worktrees/removal/apply", req)
 }
 
+func (c *Client) WorktreeRestorePreview(ctx context.Context, req WorktreeRemovalPreviewRequest) (WorktreeRemovalPreviewResponse, error) {
+	return post[WorktreeRemovalPreviewRequest, WorktreeRemovalPreviewResponse](ctx, c, "/worktrees/restore/preview", req)
+}
+
+func (c *Client) WorktreeRestoreApply(ctx context.Context, req WorktreeRemovalApplyRequest) (WorktreeRemovalApplyResponse, error) {
+	return post[WorktreeRemovalApplyRequest, WorktreeRemovalApplyResponse](ctx, c, "/worktrees/restore/apply", req)
+}
+
+func (c *Client) WorktreePurgePreview(ctx context.Context, req WorktreeRemovalPreviewRequest) (WorktreeRemovalPreviewResponse, error) {
+	return post[WorktreeRemovalPreviewRequest, WorktreeRemovalPreviewResponse](ctx, c, "/worktrees/purge/preview", req)
+}
+
+func (c *Client) WorktreePurgeApply(ctx context.Context, req WorktreeRemovalApplyRequest) (WorktreePurgePrepareResponse, error) {
+	return post[WorktreeRemovalApplyRequest, WorktreePurgePrepareResponse](ctx, c, "/worktrees/purge/apply", req)
+}
+
+func (c *Client) WorktreePurgeComplete(ctx context.Context, req WorktreePurgeCompleteRequest) (WorktreeRemovalApplyResponse, error) {
+	return post[WorktreePurgeCompleteRequest, WorktreeRemovalApplyResponse](ctx, c, "/worktrees/purge/complete", req)
+}
+
 // WorktreeActions lists durable removal history.
 func (c *Client) WorktreeActions(ctx context.Context, opts WorktreeActionOptions) (WorktreeActionsResponse, error) {
 	q := url.Values{}

@@ -34,7 +34,7 @@ func (d *Daemon) validateWorktreeRemoval(ctx context.Context, record storage.Wor
 		return worktreeValidation{}, errors.New("worktree inventory is disabled")
 	}
 	if d.plat.Name() != "darwin" {
-		return worktreeValidation{}, errors.New("worktree removal is supported on macOS only")
+		return worktreeValidation{}, errors.New("worktree retirement is supported on macOS only")
 	}
 	if record.State != string(worktree.StateStale) || !record.Complete {
 		return worktreeValidation{}, fmt.Errorf("worktree %s is %s, not stale with complete evidence", shortID(record.WorktreeID), record.State)

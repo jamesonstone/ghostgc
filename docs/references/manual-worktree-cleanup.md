@@ -1,126 +1,109 @@
-# Manual Worktree Cleanup Guide
+# Manual Worktree Lifecycle Guide
 
-ghostgc inventories local Git worktrees and can remove one stale checkout only
-after explicit operator approval. Removal is never automatic, never deletes a
-branch, never consults GitHub or another network service, and never uses force.
+ghostgc inventories local Git worktrees and can retire one stale checkout only
+after explicit approval. Retirement is reversible. Later permanent removal is
+separate, grace-gated, foreground-only, non-force, and branch-preserving.
 
-## Configure discovery authority
+## Configure discovery
 
-Agent-associated discovery is enabled by default. Each repository path recorded
-for an observed coding-agent session grants read-only access to that repository's
-registered worktree list. Optional roots add operator-declared coding-agent
-workspace areas:
+Agent-associated repository discovery is enabled by default. Optional roots add
+operator-declared workspace discovery:
 
 ```yaml
 worktrees:
   enabled: true
   scanInterval: 5m
   staleAfter: 168h
+  retirementGrace: 168h
   roots:
     - /Users/example/worktrees/example-owner
 ```
 
-`staleAfter` cannot be shorter than 168 hours. Roots must already be absolute,
-physical, canonical directories. At most 32 are accepted. Filesystem roots,
-the whole home directory and symlink roots are refused. Traversal stops after
-four levels, never follows symlinks and is entry-bounded.
+`staleAfter` cannot be shorter than seven days and `retirementGrace` cannot be
+shorter than one day. Roots must be absolute canonical physical directories.
+Filesystem roots, the whole home, symlinks, more than 32 roots, and traversal
+beyond the bounded discovery depth are refused.
 
-Restart the daemon after changing configuration:
+## Inventory states
 
-```bash
-ghostgc service install
-ghostgc worktrees
-```
-
-## Understand inventory states
-
-- `active` — a live agent session or same-user process is working inside it.
-- `observing` — complete inactivity is accumulating but has not reached seven
-  days.
-- `stale` — seven uninterrupted days of complete, unchanged, safe evidence.
-- `protected` — the checkout is present but a hard protection applies.
-- `unknown` — a complete observation could not be made; inactivity was reset.
+- `active` — a live session or same-user process is working inside it.
+- `observing` — complete inactivity is accumulating.
+- `stale` — seven uninterrupted days of complete unchanged safe evidence.
+- `protected` — a hard protection applies.
+- `unknown` — observation was incomplete and inactivity reset.
 - `missing` — Git reports missing or prunable registration state; ghostgc does
   not prune it.
-- `removed` — a bounded tombstone for a completed manual removal.
+- `retired` — the complete checkout remains registered at a restorable sibling.
+- `removed` — a bounded tombstone after verified foreground finalization.
 
-Review one exact identity or unambiguous prefix:
+Only a present registered secondary can become stale. Primary, locked,
+prunable, missing, dirty, unreadable, symlinked, active, operation-in-progress,
+submodule, nested-mount, local-only-commit, and unsafe-detached worktrees are
+protected. Incomplete process or vnode inspection is also a refusal.
+
+The only ignored-material exception is a repository-root `.env` or `.envrc`
+symlink resolving exactly to the corresponding primary-checkout file. Contents
+are never read or retained.
+
+## Retire
 
 ```bash
-ghostgc worktrees --state protected
+ghostgc worktrees --state stale
 ghostgc worktree show '<id-or-prefix>'
-```
-
-The inactivity window starts only on a complete clean observation. A daemon
-restart, scan gap, clock reversal, active session, same-user CWD, Git-state
-change, dirty content, Git operation or incomplete evidence resets it. There is
-no supported shortcut for changing timestamps or bypassing the seven-day
-window.
-
-## Hard protections
-
-Only a present, registered secondary worktree can become stale. ghostgc refuses
-primary, locked, prunable, missing, unreadable or symlinked registrations;
-merge, rebase, cherry-pick, revert, bisect, lock and submodule state; staged,
-tracked, conflicted, untracked or ignored material; local-only commits; and an
-unreachable detached HEAD.
-
-Targeted preview and apply additionally inspect every same-user process for a
-working directory or open vnode inside the exact checkout and walk the
-filesystem for nested mounts. Permission denial, process-table churn, bounds or
-timeouts are refusals, never evidence of inactivity.
-
-On macOS, a SIP-protected process may hide vnode paths. ghostgc falls back to
-bounded scan-local device/inode comparison; if macOS denies that metadata too,
-the preview refuses and reports the exact process key. Retry only after the
-process or operating-system condition has changed.
-
-The only ignored/untracked exception is a repository-root `.env` or `.envrc`
-symlink resolving exactly to the matching file in the primary checkout. A
-regular environment file, broken link, unexpected target or any other symlink
-material remains protected. File contents are never retained.
-
-## Preview and apply
-
-When an entry is `stale`, request a preview by identity, never by raw path:
-
-```bash
 ghostgc worktree remove --dry-run --worktree '<id-or-prefix>'
 ```
 
-The preview sends no filesystem mutation. It binds the registration, checkout
-and Git-directory inodes, path, branch, ref, HEAD, aggregate status fingerprint,
-inactivity timestamps, discovery authority, exact Git executable, approved
-environment links, process usage and filesystem evidence. Its bearer approval
-is memory-only, single-use and valid for two minutes.
+Preview binds the stable registration, checkout and Git-directory identities,
+path, branch, ref, HEAD, status fingerprint, inactivity, discovery authority,
+approved links, process use, filesystem evidence, configuration, and exact Git
+executable. Its token is memory-only, single-use, and valid for two minutes.
 
-Read the output and run only its generated apply command. Apply serializes with
-daemon scans and other removals, consumes the approval once, and repeats every
-check. A changed fact records `rejected` without unlinking anything.
+Apply repeats every check and commits `attempting` before native non-force
+`git worktree move`. The destination is a deterministic absent sibling on the
+same filesystem. Success requires the original path to be absent, the directory
+inode to be unchanged, and the same stable registration to point at the
+retirement path. The action then becomes `retired`; no checkout content or
+branch was deleted.
 
-After successful revalidation, ghostgc commits
-`worktree.removal.attempting`, temporarily unlinks only verified environment
-links, and invokes native `git worktree remove <canonical-path>` without force.
-If Git refuses, those links are restored and the action becomes `failed`.
-Success requires both the directory and Git registration to be absent before
-the action becomes `removed`.
+## Restore
+
+```bash
+ghostgc worktrees --state retired
+ghostgc worktree show '<id-or-prefix>'
+ghostgc worktree restore --dry-run --worktree '<id-or-prefix>'
+```
+
+Restore has its own approval and fresh no-use, filesystem, identity, and absent-
+destination checks. Native non-force `git worktree move` returns the same
+registration and directory inode to the original path. A restored checkout
+must accumulate fresh observation before it can become stale again.
+
+## Permanently finalize
+
+Before the configured grace elapses, purge preview is refused. Afterward:
+
+```bash
+ghostgc worktree purge --dry-run --worktree '<id-or-prefix>'
+```
+
+Run only the generated apply command. It includes the complete worktree ID via
+`--confirm`; a prefix is insufficient. The daemon repeats all clean, published,
+no-use, filesystem, registration, configuration, and Git-executable checks,
+commits `purging`, and returns one short-lived exact plan. It cannot invoke
+native worktree removal.
+
+The foreground CLI pins the same Git executable, removes only approved root
+environment links, and invokes `git worktree remove <retired-path>` without
+force. It reports the result through a single-use completion capability. The
+daemon records `removed` only after it independently proves that both the path
+and registration are absent. The branch remains.
 
 ```bash
 ghostgc worktree actions --worktree '<id-or-prefix>'
-ghostgc logs --kind worktree.removal.removed
+ghostgc logs --kind worktree.retirement.retired
 ```
 
-## Branch preservation and recovery
-
-Removal leaves the local branch and commits intact. Every result includes a
-quoted recreation command, for example:
-
-```bash
-git -C '/path/to/primary' worktree add '/path/to/lane' 'GH-123'
-```
-
-If final persistence fails after Git removed the checkout, the durable action
-remains `attempting`; the error says that the branch remains and prints the same
-recreation command. Investigate the action and audit log before recreating.
-ghostgc never deletes a branch, fetches, prunes, resets, cleans, stashes, invokes
-a shell or recursively deletes a path.
+An ambiguous post-action state is recorded as partial and opens the filesystem
+mutation circuit. Restart the daemon, allow a fresh scan, and investigate the
+durable action. ghostgc never deletes a branch, uses force, fetches, prunes,
+resets, cleans, stashes, invokes a shell, or calls recursive filesystem delete.

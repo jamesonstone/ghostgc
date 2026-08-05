@@ -49,14 +49,16 @@ durable sessions ──▶ exact cache provider ──▶ metadata-only filesyst
                                            │
                          preview + fresh revalidation + approval
                                            │
-                     quarantine ⇄ restore      quarantine ──▶ purge
+                     quarantine ⇄ restore      prepare ──▶ foreground purge
 ```
 
 `internal/cacheprovider/codex` is the only real provider. It can derive only
-`CODEX_HOME/shell_snapshots` roots from persisted Codex session facts and maps
+`CODEX_HOME/shell_snapshots` roots from persisted Codex session facts, requires
+an exact configured-root match, and maps
 the UUID prefix in one immediate child name to exactly one native session ID.
-`internal/cachefs` owns metadata observation and every filesystem side effect;
-production code has one descriptor-anchored purge primitive. The cache lane has
+`internal/cachefs` owns descriptor-anchored metadata and reversible moves. A
+separate foreground purger owns the sole unlink; the daemon interface omits it.
+The cache lane has
 its own cadence, configuration digest, policy evaluator, approval map and mutex,
 and therefore cannot inherit process recommendation or SIGTERM authority.
 
@@ -65,7 +67,7 @@ registrations from session repositories and configured roots. It reduces Git
 and filesystem inspection to identity, counts and fingerprints, then persists
 the inventory beside process state. Worktree removal is never part of policy
 evaluation or automatic enforcement. A resolved Git binary that is writable by
-the daemon user is copied once into a private, content-addressed execution
+the user is copied once into a private, content-addressed execution
 snapshot under the canonicalized state directory; immutable system Git executes
 in place. The regular executable copy is capped at 128 MiB and detects size
 changes while reading. Every command revalidates the resolved source and the
@@ -128,9 +130,12 @@ anchor unresolved `attempting` actions survive both hard and age pruning.
 Manual preview and apply use a second, serialized path. Preview accepts only a
 stored ID or unambiguous prefix and binds two-minute memory-only authority to
 every identity, Git, filesystem, process, configuration and inactivity fact.
-Apply consumes the token once, holds the scan lane, repeats those checks,
-commits `attempting`, then calls native non-force `git worktree remove`. It
-verifies both the path and registration are absent before recording `removed`.
+Apply consumes the token once, holds the scan lane, repeats those checks, and
+commits `attempting` before native non-force `git worktree move` retires the
+checkout to a same-filesystem sibling. Restore is another approved move. After
+grace, purge prepares a foreground plan; only the CLI can call native non-force
+removal, and the daemon records `removed` after verifying path and registration
+absence.
 
 Retention compacts every 6 hours.
 
@@ -140,7 +145,8 @@ When explicitly enabled, the independent cache cadence:
 
 1. Loads durable Codex native session IDs, lifecycle, `CODEX_HOME` and exact
    live-process counts.
-2. Opens each derived `shell_snapshots` root without following symlinks and
+2. Accepts only roots exactly present in the configured allowlist, opens every
+   path component by descriptor without following symlinks, and
    observes only a bounded number of immediate entries.
 3. Maps exact `<thread-id>.<generation>.sh|ps1` names to one completed session;
    malformed, ambiguous, live, linked, foreign, cross-device or incomplete
@@ -156,9 +162,11 @@ configuration, identity, manifest and destination into a two-minute single-use
 approval. Apply serializes with cache observation, repeats every provider and
 session check, writes an `attempting` action, then atomically renames one file
 into a private same-filesystem quarantine. Restore is another approved rename
-to an absent origin. Purge operates only in quarantine, after grace and a new
-approval, with `purging` committed before the sole permanent unlink. An
-interruption or partial failure remains visible in durable action evidence.
+to an absent origin. Purge operates only in quarantine after grace, a new
+approval, and complete-ID confirmation. The daemon commits `purging` and emits
+one expiring exact plan; the foreground CLI owns the sole permanent unlink, and
+the daemon verifies absence. An interruption or ambiguous result remains
+visible and opens the mutation circuit.
 
 ## Why staged collection
 
@@ -256,7 +264,7 @@ automatic pre-action revalidation plus the final platform gate depend on it too.
 | `internal/adapters` | the adapter contract, evidence, confidence combination | `process` |
 | `internal/adapters/codex` | Codex detection and attribution | `adapters`, `process`, `repository` |
 | `internal/repository` | repository root, branch and lock metadata | nothing |
-| `internal/worktree` | bounded Git discovery, stable identity, status reduction and staleness | nothing |
+| `internal/worktree` | bounded Git discovery, stable identity, status reduction, reversible moves, and foreground-only finalizer | nothing |
 | `internal/storage` | SQLite schema, writes, queries, retention | nothing |
 | `internal/sessions` | reconciliation, durable ownership, audit emission | `adapters`, `process`, `storage` |
 | `internal/protection` | hard protections | `adapters`, `process` |
@@ -266,7 +274,7 @@ automatic pre-action revalidation plus the final platform gate depend on it too.
 | `internal/cacheprovider` | provider discovery contract over session facts and a narrow filesystem | `cacheartifact`, `cachefs` |
 | `internal/cacheprovider/codex` | exact Codex shell-snapshot attribution and protections | `cacheprovider` |
 | `internal/cachepolicy` | two-observation settling and independent exact cache authority | `cacheartifact`, `config` |
-| `internal/cachefs` | descriptor-anchored metadata, quarantine, restore and sole purge seam | `cacheartifact` |
+| `internal/cachefs` | descriptor-anchored metadata and reversible moves plus a separate foreground purger | `cacheartifact` |
 | `internal/config` | configuration, path validation and authority bounds | nothing |
 | `internal/api` | socket transport, request and response types | `adapters`, `protection`, `storage` |
 | `internal/daemon` | the loop, the API backend, diagnostics | everything above |
@@ -297,8 +305,8 @@ HTTP.
 | `cache_decisions` | exact cache policy results and rationale |
 | `cache_quarantines` | reversible location, identity, manifest, grace and current status |
 | `cache_actions` | preview-bound cleanup, restore and purge outcomes, including unresolved work |
-| `worktrees` | registered inventory, discovery sources, inactivity window, protections and removal tombstones |
-| `worktree_actions` | manual worktree attempts and removed, rejected or failed outcomes |
+| `worktrees` | registered inventory, inactivity, protections, retirement path/grace, and removal tombstones |
+| `worktree_actions` | manual retirement, restore, purge, rejection, partial, and failure outcomes |
 | `scans` | one row per cycle, including failures |
 | `sessions` | one row per detected session |
 | `session_processes` | durable ownership, never downgraded |

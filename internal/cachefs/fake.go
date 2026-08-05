@@ -141,6 +141,24 @@ func (f *Fake) Restore(ctx context.Context, root, quarantinePath, destination st
 	return current, nil
 }
 
+// QuarantineEntry observes one exact fake quarantine child.
+func (f *Fake) QuarantineEntry(ctx context.Context, root, quarantinePath string, expectedRoot cacheartifact.Identity) (cacheartifact.Identity, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.operationError("quarantine-entry"); err != nil {
+		return cacheartifact.Identity{}, false, err
+	}
+	if err := ctx.Err(); err != nil {
+		return cacheartifact.Identity{}, false, err
+	}
+	item := f.Roots[root]
+	if item == nil || !item.Identity.SameObject(expectedRoot) {
+		return cacheartifact.Identity{}, false, ErrChangedIdentity
+	}
+	current, ok := item.Entries[quarantinePath]
+	return current, ok, nil
+}
+
 // Purge is the fake permanent-deletion seam.
 func (f *Fake) Purge(ctx context.Context, root, quarantinePath string, expectedRoot, expected cacheartifact.Identity) error {
 	f.mu.Lock()

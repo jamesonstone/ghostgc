@@ -145,6 +145,9 @@ func (d *Daemon) issueCacheApproval(ctx context.Context, kind string, artifact c
 		return api.CachePreviewResponse{}, err
 	}
 	command := fmt.Sprintf("ghostgc cache %s --apply --approval %s --yes", kind, token)
+	if kind == "purge" {
+		command += " --confirm " + artifact.ID
+	}
 	return api.CachePreviewResponse{
 		Action: kind, Approval: token, ExpiresNs: approval.expires.UnixNano(), Artifact: artifact,
 		Quarantine: quarantine, Destination: destination, Command: command,
@@ -167,7 +170,7 @@ func (d *Daemon) currentCacheArtifact(ctx context.Context, id string) (cachearti
 }
 
 func (d *Daemon) cachePolicyEnabled(id string) bool {
-	if !d.cacheHealthy || !d.cacheGlobalRecommendEnabled() {
+	if !d.cacheHealthy || !d.filesystemMutationsHealthy() || !d.cacheGlobalRecommendEnabled() {
 		return false
 	}
 	for _, policy := range d.cfg.Cache.Policies {

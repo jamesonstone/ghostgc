@@ -1,6 +1,6 @@
 // Command ghostgc runs, inspects and controls the ghostgc daemon.
 //
-// Most commands read. Process cleanup and worktree removal each require a
+// Most commands read. Process cleanup and worktree lifecycle actions require a
 // short-lived approval emitted by an exact preview; runtime policy mutation
 // remains unavailable.
 package main
@@ -193,8 +193,8 @@ func init() {
 		},
 		{
 			name:    "worktree",
-			summary: "inspect or manually remove one stale worktree",
-			usage:   "show <id-or-prefix> | remove [flags] | actions [flags]",
+			summary: "inspect, retire, restore, or purge one worktree",
+			usage:   "show <id-or-prefix> | remove|restore|purge [flags] | actions [flags]",
 			run:     cmdWorktree,
 		},
 		{

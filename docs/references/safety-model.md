@@ -40,8 +40,9 @@ authority. It is disabled by default, has no automatic mode, and accepts only
 `disabled`, `audit` or `recommend`. Mutation needs cache-global `recommend`, one
 enabled exact policy and a fresh single-artifact approval.
 
-The sole real provider is pinned to Codex 0.146.0 shell snapshots. It derives
-only `CODEX_HOME/shell_snapshots` roots from observed Codex sessions and accepts
+The sole real provider is pinned to Codex shell snapshots. It derives only
+`CODEX_HOME/shell_snapshots` roots from observed Codex sessions, requires an
+exact configured-root match, and accepts
 only an immediate regular `<thread-id>.<generation>.sh|ps1` whose thread ID maps
 to exactly one completed session with zero live claimants. It observes names and
 filesystem metadata without opening file contents. Location, age, size or a
@@ -51,11 +52,11 @@ plausible name never establishes ownership.
 | --- | --- |
 | Exact provider names, ownership, ambiguity, links, UID/device and traversal limits | `internal/cacheprovider/codex/provider_test.go` |
 | Two committed unchanged observations are required | `internal/cachepolicy/evaluate_test.go` |
-| Descriptor-anchored quarantine/restore/purge and link/destination refusals | `internal/cachefs/real_unix_test.go` |
+| Component-walked descriptor observation, quarantine, restore, and link/destination refusals | `internal/cachefs/real_unix_test.go` |
 | Approval expiry, replay, concurrency, config/identity/session drift and PID reuse | `internal/daemon/cache_*_test.go` |
 | Full reversible lifecycle and grace-gated purge | `TestCacheLifecycleFixture` and `tests/end-to-end/local/cache-lifecycle-test.sh` |
 | Interrupted and partial actions remain durable | `internal/storage/cache_test.go`, `TestPartialPurgeRemainsVisible` |
-| Exactly one permanent cache unlink; no broad deletion or shell `rm` | `TestCacheDeletionPrimitiveIsSingleAuthorizedPurge` |
+| One foreground cache unlink and native worktree removal; no broad deletion or shell `rm` | `TestIrreversibleFilesystemCapabilitiesAreForegroundOnly` |
 
 Cleanup never deletes the observed path. After full fresh revalidation it first
 commits `attempting`, then atomically renames exactly one inode into a private
@@ -64,9 +65,11 @@ reversible containment and explicitly reclaims zero bytes. Restore requires an
 absent original destination and a separate approval.
 
 Permanent deletion can name only an exact quarantined file. It requires elapsed
-grace, unchanged policy/configuration/identity/manifest, a second approval and a
-durable `purging` record before the one `unlinkat` seam. Partial, failed and
-interrupted actions remain visible and never reuse an approval.
+grace, unchanged policy/configuration/identity/manifest, a second approval, the
+complete artifact ID, and a durable `purging` record. The daemon returns one
+expiring exact plan but has no unlink capability. Only the foreground CLI calls
+the descriptor-anchored `unlinkat`; the daemon independently verifies absence.
+An ambiguous result opens a mutation circuit until daemon restart.
 
 ## Configuration cannot widen what the daemon does
 
@@ -79,14 +82,16 @@ is an error rather than a silently ignored setting.
 
 Tested in `internal/config/config_test.go`.
 
-Worktree roots add discovery, never removal authority. Validation permits at
+Cache and worktree roots add discovery, never general deletion authority. Cache
+roots must exactly name canonical `shell_snapshots` provider paths and are
+opened component by component without following links. Worktree validation permits at
 most 32 absolute canonical directories, refuses symlinks, filesystem roots and
 the invoking user's whole home, and limits traversal to four levels without
 following symlinks. `staleAfter` cannot be shorter than seven days.
 
-## Worktree removal is manual and branch-preserving
+## Worktree retirement is reversible and finalization is foreground-only
 
-No policy or daemon scan can remove a worktree. A candidate must be a present,
+No policy or daemon scan can mutate a worktree. A candidate must be a present,
 registered secondary worktree with seven continuous days of complete evidence.
 Primary, locked, missing, prunable, dirty, unreadable, symlinked, active or
 operation-in-progress worktrees are protected. Local-only commits, unsafe
@@ -103,26 +108,50 @@ memory-only token expires after two minutes and binds the directory inode,
 common and administrative Git directories, HEAD/ref/branch, status
 fingerprint, inactivity window, discovery authority, allowed environment links
 and exact Git executable. Apply consumes it once, serializes with scans and
-other removals, and repeats every check. Any changed or unknown fact is a
+other actions, and repeats every check. Any changed or unknown fact is a
 durable rejection.
 
 If the resolved Git executable or one of its parent directories is writable by
 the daemon user, ghostgc executes a private content-addressed snapshot instead
 of the package-managed path. The SHA-256 digest is bound while the source and
 private execution-object identities are revalidated for every Git command and
-again immediately before removal. Snapshot reads accept only regular files up
+again immediately before mutation. Snapshot reads accept only regular files up
 to 128 MiB and reject size changes. Immutable system Git executes at its
 canonical path under the same identity checks.
 
-The `attempting` action and audit evidence commit before the side effect. Only
-verified root `.env` or `.envrc` links to matching primary-checkout files may be
-unlinked, and they are restored if native `git worktree remove <path>` fails.
-There is no force, prune, branch deletion, network request, shell invocation or
-recursive filesystem delete. Removal succeeds only after both the directory
-and Git registration disappear; the branch remains available for recreation.
+The `attempting` action and audit evidence commit before native non-force
+`git worktree move` retires the checkout to an absent same-filesystem sibling.
+The original path, retirement path, inode, registration, branch, and grace
+deadline are durable. A separate approval can restore it to the absent original
+path.
 
-Tested by `internal/worktree/*_test.go` and daemon worktree removal, scan and
+Permanent finalization requires elapsed grace, another fresh validation, a
+separate approval, and the complete worktree ID. The daemon commits `purging`
+and returns one exact expiring plan but cannot invoke native removal. The
+foreground CLI pins Git, removes only verified root environment links, and
+calls non-force `git worktree remove`. Approved links are opened through the
+exact worktree directory descriptor and rechecked immediately beside the one
+unlink site, so replacing a link with a regular file is refused. The daemon
+records `removed` only after proving path and registration absence. There is no
+force, prune, branch deletion, network request, shell invocation, or
+application-owned recursive filesystem delete.
+
+Tested by `internal/worktree/*_test.go` and daemon worktree lifecycle, scan, and
 approval tests using disposable real repositories.
+
+## Residual filesystem authority
+
+ghostgc cannot promise that deletion can never occur while a foreground purge
+runs with the user's normal filesystem permissions. A malicious or compromised
+same-user process already has comparable authority and can race filesystem
+names or Git itself; native non-force `git worktree remove` also owns its
+documented checkout removal behavior. The safeguards above make accidental
+broad deletion structurally unavailable to the daemon, constrain foreground
+execution to one exact approved object, preserve a reversible stage and stop
+new mutation after an ambiguous result. They do not form an operating-system
+sandbox or recover a kernel-accepted unlink. Mission-critical data should not
+be placed in provider cache roots or retired disposable worktrees, and ordinary
+backups remain necessary.
 
 ## Policies cannot widen authority
 

@@ -57,6 +57,8 @@ agents:
 cache:
   enabled: false
   globalMode: audit
+  # Exact canonical CODEX_HOME/shell_snapshots roots. Required when enabled.
+  roots: []
   scanInterval: 30m
   minStable: 24h
   quarantineGrace: 168h
@@ -71,6 +73,8 @@ worktrees:
   scanInterval: 5m
   # Values below seven days are rejected.
   staleAfter: 168h
+  # A retired checkout remains restorable for at least this long.
+  retirementGrace: 168h
   # Optional absolute canonical coding-agent workspace roots (maximum 32).
   # Agent-associated repository paths are discovered independently.
   roots: []

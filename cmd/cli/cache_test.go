@@ -14,6 +14,7 @@ func TestCacheCLIRefusesBroadOrUnconfirmedActions(t *testing.T) {
 		{name: "cleanup lacks policy", action: "cleanup", args: []string{"--dry-run", "--artifact", "ca_test"}},
 		{name: "purge lacks policy", action: "purge", args: []string{"--dry-run", "--artifact", "ca_test"}},
 		{name: "apply lacks yes", action: "cleanup", args: []string{"--apply", "--approval", "token"}},
+		{name: "purge lacks full confirmation", action: "purge", args: []string{"--apply", "--approval", "token", "--yes"}},
 		{name: "apply widens artifact", action: "cleanup", args: []string{"--apply", "--approval", "token", "--yes", "--artifact", "ca_test"}},
 		{name: "both modes", action: "cleanup", args: []string{"--dry-run", "--apply"}},
 	}

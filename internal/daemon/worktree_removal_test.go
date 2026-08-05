@@ -121,19 +121,19 @@ func staleWorktreeRecord(t *testing.T, d *Daemon, primary, secondary string) sto
 	}
 }
 
-func TestManualRemovalPreservesBranchAndRejectsReplay(t *testing.T) {
+func TestManualRetirementPreservesCheckoutBranchAndRejectsReplay(t *testing.T) {
 	h := newRemovalHarness(t, false)
-	nativeRemove := h.daemon.removeWorktree
-	h.daemon.removeWorktree = func(ctx context.Context, repository, path string) error {
+	nativeMove := h.daemon.moveWorktree
+	h.daemon.moveWorktree = func(ctx context.Context, repository, source, destination string) error {
 		actions, err := h.store.ListWorktreeActions(ctx, storage.WorktreeActionFilter{})
 		if err != nil || len(actions) != 1 || actions[0].Result != worktreeActionAttempting {
 			t.Fatalf("pre-side-effect action = %+v, %v", actions, err)
 		}
-		audit, err := h.store.ListAudit(ctx, storage.AuditFilter{Kind: "worktree.removal.attempting"})
+		audit, err := h.store.ListAudit(ctx, storage.AuditFilter{Kind: "worktree.retirement.attempting"})
 		if err != nil || len(audit) != 1 {
 			t.Fatalf("pre-side-effect audit = %+v, %v", audit, err)
 		}
-		return nativeRemove(ctx, repository, path)
+		return nativeMove(ctx, repository, source, destination)
 	}
 	preview, err := h.daemon.WorktreeRemovalPreview(context.Background(), api.WorktreeRemovalPreviewRequest{WorktreeID: ""})
 	if err == nil || preview.Approval != "" {
@@ -145,24 +145,28 @@ func TestManualRemovalPreservesBranchAndRejectsReplay(t *testing.T) {
 		t.Fatalf("preview = %+v, %v", preview, err)
 	}
 	result, err := h.daemon.WorktreeRemovalApply(context.Background(), api.WorktreeRemovalApplyRequest{Approval: preview.Approval})
-	if err != nil || result.Result != worktreeActionRemoved {
+	if err != nil || result.Result != worktreeActionRetired {
 		t.Fatalf("apply = %+v, %v", result, err)
 	}
 	if _, err := os.Lstat(h.secondary); !os.IsNotExist(err) {
 		t.Fatalf("secondary still exists: %v", err)
 	}
+	retired := h.secondary + ".ghostgc-retired-" + records[0].WorktreeID[:shortIDLength]
+	if _, err := os.Lstat(retired); err != nil {
+		t.Fatalf("retired checkout is unavailable: %v", err)
+	}
 	if output := removalGit(t, h.primary, "show-ref", "--verify", "refs/heads/cleanup"); output == "" {
 		t.Fatal("branch was deleted")
 	}
-	if !strings.Contains(result.RecreateCommand, "worktree add") || !strings.Contains(result.RecreateCommand, "cleanup") {
-		t.Fatalf("recreate command = %q", result.RecreateCommand)
+	if !strings.Contains(result.RecreateCommand, "worktree restore") {
+		t.Fatalf("restore command = %q", result.RecreateCommand)
 	}
 	replay, err := h.daemon.WorktreeRemovalApply(context.Background(), api.WorktreeRemovalApplyRequest{Approval: preview.Approval})
 	if err != nil || replay.Result != worktreeActionRejected {
 		t.Fatalf("replay = %+v, %v", replay, err)
 	}
 	actions, _ := h.store.ListWorktreeActions(context.Background(), storage.WorktreeActionFilter{})
-	if len(actions) != 2 || actions[1].Result != worktreeActionRemoved {
+	if len(actions) != 2 || actions[1].Result != worktreeActionRetired {
 		t.Fatalf("actions = %+v", actions)
 	}
 }
@@ -252,14 +256,14 @@ func TestApprovalExpiryAndBoundFactInvalidation(t *testing.T) {
 	})
 }
 
-func TestRemovalFailureRestoresApprovedEnvironmentLink(t *testing.T) {
+func TestRetirementFailureLeavesApprovedEnvironmentLink(t *testing.T) {
 	h := newRemovalHarness(t, true)
 	records, _ := h.store.ListWorktrees(context.Background(), storage.WorktreeFilter{})
 	preview, err := h.daemon.WorktreeRemovalPreview(context.Background(), api.WorktreeRemovalPreviewRequest{WorktreeID: records[0].WorktreeID})
 	if err != nil {
 		t.Fatal(err)
 	}
-	h.daemon.removeWorktree = func(context.Context, string, string) error {
+	h.daemon.moveWorktree = func(context.Context, string, string, string) error {
 		return errUnavailable{}
 	}
 	result, err := h.daemon.WorktreeRemovalApply(context.Background(), api.WorktreeRemovalApplyRequest{Approval: preview.Approval})

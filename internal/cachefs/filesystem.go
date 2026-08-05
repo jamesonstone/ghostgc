@@ -21,11 +21,16 @@ type Snapshot struct {
 	Complete bool                   `json:"complete"`
 }
 
-// Filesystem is the only cache metadata and mutation seam.
+// Filesystem exposes observation and reversible mutation to the daemon.
 type Filesystem interface {
 	Snapshot(ctx context.Context, root string, limit int) (Snapshot, error)
 	Quarantine(ctx context.Context, root, relativePath, destination string, expectedRoot, expected cacheartifact.Identity) (cacheartifact.Identity, error)
 	Restore(ctx context.Context, root, quarantinePath, destination string, expectedRoot, expected cacheartifact.Identity) (cacheartifact.Identity, error)
+	QuarantineEntry(ctx context.Context, root, quarantinePath string, expectedRoot cacheartifact.Identity) (cacheartifact.Identity, bool, error)
+}
+
+// Purger is the foreground-only permanent-deletion capability.
+type Purger interface {
 	Purge(ctx context.Context, root, quarantinePath string, expectedRoot, expected cacheartifact.Identity) error
 }
 

@@ -18,6 +18,8 @@ import (
 
 const (
 	worktreeActionAttempting = "attempting"
+	worktreeActionRetired    = "retired"
+	worktreeActionRestored   = "restored"
 	worktreeActionRemoved    = "removed"
 	worktreeActionRejected   = "rejected"
 	worktreeActionFailed     = "failed"
@@ -26,7 +28,7 @@ const (
 // WorktreeRemovalApply consumes one approval and repeats every safety check.
 func (d *Daemon) WorktreeRemovalApply(ctx context.Context, req api.WorktreeRemovalApplyRequest) (api.WorktreeRemovalApplyResponse, error) {
 	if req.Approval == "" {
-		return api.WorktreeRemovalApplyResponse{}, errors.New("worktree removal apply requires an approval")
+		return api.WorktreeRemovalApplyResponse{}, errors.New("worktree retirement apply requires an approval")
 	}
 	d.worktreeActionMu.Lock()
 	defer d.worktreeActionMu.Unlock()
@@ -34,6 +36,9 @@ func (d *Daemon) WorktreeRemovalApply(ctx context.Context, req api.WorktreeRemov
 	approval, refusal := d.consumeWorktreeApproval(req.Approval, now)
 	if approval == nil {
 		return api.WorktreeRemovalApplyResponse{}, errors.New(refusal)
+	}
+	if approval.kind != "retire" {
+		refusal = "approval action does not match worktree retirement"
 	}
 	actionID, err := newWorktreeActionID()
 	if err != nil {
@@ -67,11 +72,15 @@ func (d *Daemon) WorktreeRemovalApply(ctx context.Context, req api.WorktreeRemov
 
 func (d *Daemon) executeWorktreeRemoval(ctx context.Context, actionID string,
 	record storage.WorktreeRecord, validation worktreeValidation, requested time.Time) (api.WorktreeRemovalApplyResponse, error) {
+	destination, err := retirementPath(record)
+	if err != nil {
+		return d.rejectWorktreeAction(ctx, actionID, &worktreeApproval{record: record, validation: validation}, err.Error(), requested)
+	}
 	evidence := validationEvidence(validation)
 	attempt := storage.WorktreeActionRecord{
 		ActionID: actionID, WorktreeID: record.WorktreeID, Path: record.Path, Branch: record.Branch,
 		RequestedNs: requested.UnixNano(), UpdatedNs: time.Now().UnixNano(), Result: worktreeActionAttempting,
-		Reason:       "full fresh revalidation passed; native non-force worktree removal is about to be attempted",
+		Reason:       "full fresh revalidation passed; reversible native worktree retirement is about to be attempted",
 		EvidenceJSON: evidence, RecreateCommand: validation.RecreateCommand,
 	}
 	if err := d.store.WithTx(ctx, func(tx *storage.Tx) error {
@@ -79,62 +88,101 @@ func (d *Daemon) executeWorktreeRemoval(ctx context.Context, actionID string,
 			return err
 		}
 		return tx.AppendAudit(storage.AuditRecord{
-			TsNs: attempt.UpdatedNs, Kind: "worktree.removal.attempting", Subject: record.WorktreeID,
-			Summary:      fmt.Sprintf("worktree action %s committed before native non-force removal", actionID),
+			TsNs: attempt.UpdatedNs, Kind: "worktree.retirement.attempting", Subject: record.WorktreeID,
+			Summary:      fmt.Sprintf("worktree action %s committed before reversible move", actionID),
 			EvidenceJSON: evidence,
 		})
 	}); err != nil {
 		return api.WorktreeRemovalApplyResponse{}, err
 	}
-	links := validation.Observation.ApprovedLinks
-	removedLinks, sideEffectErr := d.unlinkWorktreeLinks(record.Path, links)
-	linksChanged := len(removedLinks) > 0
-	removeAttempted := false
-	if sideEffectErr == nil {
-		removeAttempted = true
-		sideEffectErr = d.removeWorktree(ctx, validation.PrimaryPath, record.Path)
-	}
-	if sideEffectErr != nil {
-		restoreErr := restoreApprovedLinks(record.Path, removedLinks)
-		reason := "approved environment link preparation failed: " + sideEffectErr.Error()
-		if removeAttempted {
-			reason = "native non-force worktree removal failed: " + sideEffectErr.Error()
+	if err := d.moveWorktree(ctx, validation.PrimaryPath, record.Path, destination); err != nil {
+		if ambiguousWorktreeMove(record.Path, destination) {
+			d.tripFilesystemCircuit("worktree retirement failed with ambiguous path state: " + err.Error())
+			return d.finishPartialWorktreeAction(ctx, attempt,
+				"native worktree retirement returned an error after an ambiguous path change: "+err.Error(), time.Now())
 		}
-		if restoreErr != nil {
-			reason += "; restoring approved environment links also failed: " + restoreErr.Error()
-		}
-		return d.finishFailedWorktreeAction(ctx, attempt, reason, time.Now(), linksChanged, removeAttempted)
+		return d.finishFailedWorktreeAction(ctx, attempt, "native worktree retirement failed: "+err.Error(), time.Now(), false, true)
 	}
-	if err := d.verifyRemovedWorktree(ctx, validation.PrimaryPath, record.Path); err != nil {
-		return d.finishFailedWorktreeAction(ctx, attempt,
-			"post-removal verification failed: "+err.Error(), time.Now(), linksChanged, true)
+	if err := d.verifyMovedWorktree(ctx, validation.PrimaryPath, record, destination); err != nil {
+		d.tripFilesystemCircuit("worktree retirement verification failed: " + err.Error())
+		return d.finishPartialWorktreeAction(ctx, attempt, "post-retirement verification failed: "+err.Error(), time.Now())
 	}
 	completed := time.Now()
-	reason := "registered worktree and directory were removed; the branch remains available"
-	record.State = string(worktree.StateRemoved)
+	reason := "registered worktree was moved to a restorable same-filesystem retirement path"
+	record.OriginalPath = record.Path
+	record.Path = destination
+	record.State = string(worktree.StateRetired)
 	record.LastSeenNs = completed.UnixNano()
-	record.Complete = false
-	record.RemovedNs = pointer(completed.UnixNano())
-	record.RecreateCommand = validation.RecreateCommand
-	record.Registered = false
-	record.ProtectionJSON = `[]`
+	record.Complete = true
+	record.RetiredNs = pointer(completed.UnixNano())
+	record.RetirementGraceNs = completed.Add(d.cfg.Worktrees.RetirementGrace.D()).UnixNano()
+	record.RecreateCommand = "ghostgc worktree restore --dry-run --worktree " + record.WorktreeID
+	record.Registered = true
+	record.ProtectionJSON = `["retirement_grace"]`
 	record.EvidenceJSON = evidence
 	if err := d.store.WithTx(ctx, func(tx *storage.Tx) error {
-		if err := tx.UpdateWorktreeAction(actionID, worktreeActionRemoved, reason, evidence, completed.UnixNano()); err != nil {
+		if err := tx.UpdateWorktreeAction(actionID, worktreeActionRetired, reason, evidence, completed.UnixNano()); err != nil {
 			return err
 		}
 		if err := tx.UpsertWorktree(record); err != nil {
 			return err
 		}
 		return tx.AppendAudit(storage.AuditRecord{
-			TsNs: completed.UnixNano(), Kind: "worktree.removal.removed", Subject: record.WorktreeID,
-			Summary:      fmt.Sprintf("worktree action %s removed the checkout; branch %s remains", actionID, record.Branch),
+			TsNs: completed.UnixNano(), Kind: "worktree.retirement.retired", Subject: record.WorktreeID,
+			Summary:      fmt.Sprintf("worktree action %s retired the checkout; branch %s remains", actionID, record.Branch),
 			EvidenceJSON: evidence,
 		})
 	}); err != nil {
-		return api.WorktreeRemovalApplyResponse{}, fmt.Errorf("worktree was removed but durable action %s remains unresolved as attempting: %w; the branch remains; recreate with: %s", actionID, err, validation.RecreateCommand)
+		return api.WorktreeRemovalApplyResponse{}, fmt.Errorf("worktree was retired but durable action %s remains unresolved as attempting: %w", actionID, err)
 	}
-	return worktreeActionResponse(attempt, worktreeActionRemoved, reason, evidence, completed), nil
+	response := worktreeActionResponse(attempt, worktreeActionRetired, reason, evidence, completed)
+	response.RecreateCommand = record.RecreateCommand
+	return response, nil
+}
+
+func retirementPath(record storage.WorktreeRecord) (string, error) {
+	if record.Path == "" || record.WorktreeID == "" {
+		return "", errors.New("worktree retirement requires exact path and identity")
+	}
+	destination := filepath.Clean(record.Path + ".ghostgc-retired-" + shortID(record.WorktreeID))
+	if destination == record.Path || filepath.Dir(destination) != filepath.Dir(record.Path) {
+		return "", errors.New("worktree retirement destination escaped the source parent")
+	}
+	if _, err := os.Lstat(destination); !errors.Is(err, os.ErrNotExist) {
+		return "", errors.New("worktree retirement destination exists or is unreadable")
+	}
+	return destination, nil
+}
+
+func ambiguousWorktreeMove(source, destination string) bool {
+	_, sourceErr := os.Lstat(source)
+	_, destinationErr := os.Lstat(destination)
+	return sourceErr != nil || !errors.Is(destinationErr, os.ErrNotExist)
+}
+
+func (d *Daemon) verifyRetiredWorktree(ctx context.Context, repository string,
+	record storage.WorktreeRecord, destination string) error {
+	if _, err := os.Lstat(record.Path); !errors.Is(err, os.ErrNotExist) {
+		return errors.New("original worktree path is still present or unreadable")
+	}
+	identity, err := worktree.Identify(destination)
+	if err != nil || identity.Device != record.PathDevice || identity.Inode != record.PathInode {
+		return errors.New("retired worktree directory identity changed")
+	}
+	registrations, err := d.worktreeGit.Registrations(ctx, repository)
+	if err != nil {
+		return err
+	}
+	for _, registration := range registrations {
+		if filepath.Clean(registration.Path) != destination {
+			continue
+		}
+		id, idErr := d.worktreeGit.RegistrationID(registration)
+		if idErr == nil && id == record.WorktreeID {
+			return nil
+		}
+	}
+	return errors.New("retired worktree registration is missing or changed")
 }
 
 func (d *Daemon) finishFailedWorktreeAction(ctx context.Context, attempt storage.WorktreeActionRecord,
@@ -145,7 +193,7 @@ func (d *Daemon) finishFailedWorktreeAction(ctx context.Context, attempt storage
 			return err
 		}
 		return tx.AppendAudit(storage.AuditRecord{
-			TsNs: at.UnixNano(), Kind: "worktree.removal.failed", Subject: attempt.WorktreeID,
+			TsNs: at.UnixNano(), Kind: "worktree.lifecycle.failed", Subject: attempt.WorktreeID,
 			Summary: fmt.Sprintf("worktree action %s failed: %s", attempt.ActionID, reason), EvidenceJSON: evidence,
 		})
 	}); err != nil {
@@ -164,7 +212,7 @@ func (d *Daemon) finishFailedWorktreeAction(ctx context.Context, attempt storage
 
 func (d *Daemon) rejectWorktreeAction(ctx context.Context, actionID string, approval *worktreeApproval,
 	reason string, at time.Time) (api.WorktreeRemovalApplyResponse, error) {
-	evidence := marshalJSON([]map[string]string{{"rule": "worktree-removal-refusal-v1", "detail": reason}}, "[]")
+	evidence := marshalJSON([]map[string]string{{"rule": "worktree-lifecycle-refusal-v1", "detail": reason}}, "[]")
 	record := storage.WorktreeActionRecord{
 		ActionID: actionID, WorktreeID: approval.record.WorktreeID, Path: approval.record.Path,
 		Branch: approval.record.Branch, RequestedNs: at.UnixNano(), UpdatedNs: at.UnixNano(),
@@ -176,8 +224,8 @@ func (d *Daemon) rejectWorktreeAction(ctx context.Context, actionID string, appr
 			return err
 		}
 		return tx.AppendAudit(storage.AuditRecord{
-			TsNs: at.UnixNano(), Kind: "worktree.removal.rejected", Subject: record.WorktreeID,
-			Summary: fmt.Sprintf("worktree action %s rejected before removal: %s", actionID, reason), EvidenceJSON: evidence,
+			TsNs: at.UnixNano(), Kind: "worktree.lifecycle.rejected", Subject: record.WorktreeID,
+			Summary: fmt.Sprintf("worktree action %s rejected before mutation: %s", actionID, reason), EvidenceJSON: evidence,
 		})
 	}); err != nil {
 		return api.WorktreeRemovalApplyResponse{}, err
@@ -225,35 +273,6 @@ func recreateWorktreeCommand(primary string, record storage.WorktreeRecord) stri
 }
 
 func shellQuote(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'" }
-
-func unlinkApprovedLinks(root string, links []worktree.ApprovedLink) ([]worktree.ApprovedLink, error) {
-	if err := worktree.ValidateApprovedLinks(root, links); err != nil {
-		return nil, err
-	}
-	var removed []worktree.ApprovedLink
-	for _, link := range links {
-		if err := os.Remove(filepath.Join(root, link.Name)); err != nil {
-			return removed, err
-		}
-		removed = append(removed, link)
-	}
-	return removed, nil
-}
-
-func restoreApprovedLinks(root string, links []worktree.ApprovedLink) error {
-	var failures []error
-	for _, link := range links {
-		path := filepath.Join(root, link.Name)
-		if _, err := os.Lstat(path); err == nil {
-			failures = append(failures, fmt.Errorf("approved %s destination was recreated", link.Name))
-			continue
-		}
-		if err := os.Symlink(link.LinkText, path); err != nil {
-			failures = append(failures, fmt.Errorf("restoring approved %s link: %w", link.Name, err))
-		}
-	}
-	return errors.Join(failures...)
-}
 
 func (d *Daemon) verifyWorktreeAbsent(ctx context.Context, repository, path string) error {
 	if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {

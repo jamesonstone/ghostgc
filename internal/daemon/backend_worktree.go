@@ -38,6 +38,8 @@ func worktreeView(record storage.WorktreeRecord, now time.Time) api.WorktreeView
 		FirstSeenNs: record.FirstSeenNs, LastSeenNs: record.LastSeenNs,
 		LastActivityNs: record.LastActivityNs, InactiveSinceNs: record.InactiveSinceNs,
 		Complete: record.Complete, RemovedNs: record.RemovedNs, RecreateCommand: record.RecreateCommand,
+		OriginalPath: record.OriginalPath, RetiredNs: record.RetiredNs,
+		RetirementGraceNs: record.RetirementGraceNs,
 	}
 	if record.InactiveSinceNs > 0 {
 		view.InactiveSeconds = now.Sub(time.Unix(0, record.InactiveSinceNs)).Seconds()

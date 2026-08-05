@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -63,6 +64,7 @@ type CachePolicy struct {
 type Cache struct {
 	Enabled             bool          `yaml:"enabled" json:"enabled"`
 	GlobalMode          Mode          `yaml:"globalMode" json:"global_mode"`
+	Roots               []string      `yaml:"roots" json:"roots"`
 	ScanInterval        Duration      `yaml:"scanInterval" json:"scan_interval"`
 	MinStable           Duration      `yaml:"minStable" json:"min_stable"`
 	QuarantineGrace     Duration      `yaml:"quarantineGrace" json:"quarantine_grace"`
@@ -113,6 +115,19 @@ func (c Cache) Validate(agents map[string]Agent) error {
 	if c.MaxEntriesPerScan > maxCacheScanEntries || c.MaxEntriesPerAction > maxCacheActionEntries || c.MaxBytesPerAction > maxCacheActionBytes {
 		return fmt.Errorf("cache bounds exceed hard maxima of %d scan entries, %d action entries and 1TiB",
 			maxCacheScanEntries, maxCacheActionEntries)
+	}
+	if c.Enabled && len(c.Roots) == 0 {
+		return fmt.Errorf("cache.roots must explicitly allow at least one exact provider root when cache observation is enabled")
+	}
+	seenRoots := make(map[string]bool, len(c.Roots))
+	for _, root := range c.Roots {
+		if !filepath.IsAbs(root) || filepath.Clean(root) != root || filepath.Base(root) != "shell_snapshots" {
+			return fmt.Errorf("cache.roots entry %q must be an absolute canonical shell_snapshots provider root", root)
+		}
+		if seenRoots[root] {
+			return fmt.Errorf("cache.roots contains duplicate exact root %q", root)
+		}
+		seenRoots[root] = true
 	}
 	ids := make(map[string]bool)
 	enabled := 0

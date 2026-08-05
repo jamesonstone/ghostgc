@@ -48,6 +48,22 @@ func TestCacheAcceptsOnlyExactProvenSelector(t *testing.T) {
 	}
 }
 
+func TestCacheRequiresExactApprovedRootsWhenEnabled(t *testing.T) {
+	cfg := Default()
+	cfg.Cache.Enabled = true
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "cache.roots") {
+		t.Fatalf("enabled cache without roots must fail closed, got %v", err)
+	}
+	cfg.Cache.Roots = []string{"relative/shell_snapshots"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("relative cache root must be rejected")
+	}
+	cfg.Cache.Roots = []string{"/tmp/codex/cache"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("non-provider cache root must be rejected")
+	}
+}
+
 func TestCacheRequiresTwoBoundedObservationIntervals(t *testing.T) {
 	for name, mutate := range map[string]func(*Cache){
 		"scan":           func(c *Cache) { c.ScanInterval = Duration(time.Second) },
@@ -93,6 +109,7 @@ func validCacheYAML(mode string) string {
 		"cache:\n" +
 		"  enabled: true\n" +
 		"  globalMode: recommend\n" +
+		"  roots: [/tmp/codex/shell_snapshots]\n" +
 		"  policies:\n" +
 		"    - id: codex-snapshots\n" +
 		"      description: completed Codex shell snapshots\n" +

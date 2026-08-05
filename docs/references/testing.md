@@ -28,7 +28,7 @@
 | Narrow enforcement | live-integration | local macOS | enable the singular fixture-only enforce policy, orphan the fixture and wait through the stable window | automatic by daemon | one automatic action per evaluation, exact target exits, durable authority/evidence, all non-target fixture processes survive |
 | Session cache lifecycle | high-level integration | local macOS or Linux | `tests/end-to-end/local/cache-lifecycle-test.sh` | deterministic, no daemon or real cache | settle, quarantine, replay refusal, restore, re-settle, grace-gated purge and durable transition evidence |
 | Worktree inventory | integration + live | local macOS or Linux | configure one disposable repository root and run a scan | manual | registered primary/secondary identities, merged sources and state in CLI plus JSON |
-| Manual worktree removal | integration + live | local macOS | create a disposable secondary worktree, seed seven-day complete evidence, preview and apply its exact ID | manual | integration proves native non-force removal and branch survival; real platform acceptance proves removal when inspection is complete or unchanged state on fail-closed refusal |
+| Worktree lifecycle | integration + live | local macOS | retire, restore, retire again, elapse grace, and foreground-finalize a disposable secondary | manual | exact move/restore, checkout and branch survival, daemon inability to remove, full-ID confirmation, native non-force finalization, and canary survival |
 | Resource budget | live-integration | local macOS | run `ghostgc daemon`, then `ghostgc metrics` | manual | scan duration, CPU, RSS, database size |
 
 ## Environment Preflights
@@ -55,17 +55,17 @@
 - `internal/platform/signal_gate_test.go` walks the whole repository and fails
   unless there is exactly one authorized literal SIGTERM system-call site; it
   also rejects alternate primitives and shell terminators.
-- The same repository safety test requires exactly one cache `unlinkat` in
-  `internal/cachefs/purge_unix.go`, rejects production `os.RemoveAll`, shell
-  `rm` and alternate cache deletion primitives, and leaves the SIGTERM gate
-  unchanged.
+- The same AST-based repository safety test requires exactly one cache
+  `unlinkat` and one native `git worktree remove`, both in foreground-only
+  executors. It rejects production `os.RemoveAll`, unanchored unlink, shell
+  `rm`, and any irreversible executor call from `internal/daemon`.
 - Never weaken a safety test to make it pass. If a safety condition blocks a
   change, the change is wrong.
 - Worktree tests use disposable real Git repositories to cover unusual
   NUL-delimited paths, stable identity, the exact seven-day boundary, every
-  protection, approval expiry/replay/restart/invalidation, approved-link
-  restoration, branch preservation and the absence of force, prune, network,
-  branch-delete and recursive-delete paths.
+  protection, approval expiry/replay/restart/invalidation, retirement restore,
+  grace, completion replay, branch and canary preservation, and the absence of
+  force, prune, network, branch-delete and recursive-delete paths.
 
 ## Credentials And Test Data
 

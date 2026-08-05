@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"time"
 
 	"github.com/jamesonstone/ghostgc/internal/api"
+	"github.com/jamesonstone/ghostgc/internal/worktree"
 )
 
 func cmdWorktrees(ctx context.Context, e *env, args []string) error {
@@ -33,7 +36,7 @@ func cmdWorktrees(ctx context.Context, e *env, args []string) error {
 
 func cmdWorktree(ctx context.Context, e *env, args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: ghostgc worktree show <id-or-prefix> | remove [flags] | actions [flags]")
+		return errors.New("usage: ghostgc worktree show <id-or-prefix> | remove|restore|purge [flags] | actions [flags]")
 	}
 	switch args[0] {
 	case "show":
@@ -50,7 +53,11 @@ func cmdWorktree(ctx context.Context, e *env, args []string) error {
 		renderWorktree(response)
 		return nil
 	case "remove":
-		return cmdWorktreeRemove(ctx, e, args[1:])
+		return cmdWorktreeAction(ctx, e, "remove", args[1:])
+	case "restore":
+		return cmdWorktreeAction(ctx, e, "restore", args[1:])
+	case "purge":
+		return cmdWorktreeAction(ctx, e, "purge", args[1:])
 	case "actions":
 		return cmdWorktreeActions(ctx, e, args[1:])
 	default:
@@ -58,13 +65,14 @@ func cmdWorktree(ctx context.Context, e *env, args []string) error {
 	}
 }
 
-func cmdWorktreeRemove(ctx context.Context, e *env, args []string) error {
-	fs := newFlagSet(e, "worktree remove", "--dry-run --worktree <id-or-prefix> | --apply --approval <token> --yes")
-	dryRun := fs.Bool("dry-run", false, "issue an exact short-lived removal preview")
+func cmdWorktreeAction(ctx context.Context, e *env, action string, args []string) error {
+	fs := newFlagSet(e, "worktree "+action, "--dry-run --worktree <id-or-prefix> | --apply --approval <token> --yes [--confirm <full-id>]")
+	dryRun := fs.Bool("dry-run", false, "issue an exact short-lived lifecycle preview")
 	apply := fs.Bool("apply", false, "consume a preview approval")
 	worktreeID := fs.String("worktree", "", "worktree identity or unambiguous prefix")
 	approval := fs.String("approval", "", "single-use approval from --dry-run")
-	yes := fs.Bool("yes", false, "confirm the approved native removal")
+	yes := fs.Bool("yes", false, "confirm the approved lifecycle action")
+	confirmation := fs.String("confirm", "", "full worktree id required for permanent purge")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -72,10 +80,10 @@ func cmdWorktreeRemove(ctx context.Context, e *env, args []string) error {
 		return errors.New("choose exactly one of --dry-run or --apply")
 	}
 	if *dryRun {
-		if *worktreeID == "" || *approval != "" || *yes {
+		if *worktreeID == "" || *approval != "" || *yes || *confirmation != "" {
 			return errors.New("--dry-run requires only --worktree")
 		}
-		response, err := e.api().WorktreeRemovalPreview(ctx, api.WorktreeRemovalPreviewRequest{WorktreeID: *worktreeID})
+		response, err := worktreePreview(ctx, e.api(), action, api.WorktreeRemovalPreviewRequest{WorktreeID: *worktreeID})
 		if err != nil {
 			return err
 		}
@@ -86,9 +94,15 @@ func cmdWorktreeRemove(ctx context.Context, e *env, args []string) error {
 		return nil
 	}
 	if *approval == "" || !*yes || *worktreeID != "" {
-		return errors.New("--apply requires only --approval and --yes")
+		return errors.New("--apply requires --approval and --yes")
 	}
-	response, err := e.api().WorktreeRemovalApply(ctx, api.WorktreeRemovalApplyRequest{Approval: *approval})
+	if action == "purge" && *confirmation == "" {
+		return errors.New("purge --apply also requires --confirm with the full worktree id")
+	}
+	if action != "purge" && *confirmation != "" {
+		return errors.New("--confirm is accepted only for permanent purge")
+	}
+	response, err := worktreeApply(ctx, e, action, api.WorktreeRemovalApplyRequest{Approval: *approval, Confirmation: *confirmation})
 	if err != nil {
 		return err
 	}
@@ -97,6 +111,64 @@ func cmdWorktreeRemove(ctx context.Context, e *env, args []string) error {
 	}
 	renderWorktreeRemoval(response)
 	return nil
+}
+
+func worktreePreview(ctx context.Context, client *api.Client, action string,
+	req api.WorktreeRemovalPreviewRequest) (api.WorktreeRemovalPreviewResponse, error) {
+	switch action {
+	case "restore":
+		return client.WorktreeRestorePreview(ctx, req)
+	case "purge":
+		return client.WorktreePurgePreview(ctx, req)
+	default:
+		return client.WorktreeRemovalPreview(ctx, req)
+	}
+}
+
+func worktreeApply(ctx context.Context, e *env, action string,
+	req api.WorktreeRemovalApplyRequest) (api.WorktreeRemovalApplyResponse, error) {
+	switch action {
+	case "restore":
+		return e.api().WorktreeRestoreApply(ctx, req)
+	case "purge":
+		return executeWorktreePurge(ctx, e, req)
+	default:
+		return e.api().WorktreeRemovalApply(ctx, req)
+	}
+}
+
+func executeWorktreePurge(ctx context.Context, e *env,
+	req api.WorktreeRemovalApplyRequest) (api.WorktreeRemovalApplyResponse, error) {
+	prepared, err := e.api().WorktreePurgeApply(ctx, req)
+	if err != nil || prepared.Action.Result != "purging" {
+		return prepared.Action, err
+	}
+	if time.Now().UnixNano() >= prepared.Plan.ExpiresNs {
+		return e.api().WorktreePurgeComplete(ctx, api.WorktreePurgeCompleteRequest{
+			ActionID: prepared.Plan.ActionID, Completion: prepared.Plan.Completion,
+			ExecutionError: "foreground worktree purge plan expired before execution",
+		})
+	}
+	finalizer, err := worktree.NewFinalizer(filepath.Join(e.paths.StateDir, "git-exec"))
+	if err != nil {
+		return e.api().WorktreePurgeComplete(ctx, api.WorktreePurgeCompleteRequest{
+			ActionID: prepared.Plan.ActionID, Completion: prepared.Plan.Completion,
+			ExecutionError: "foreground finalizer unavailable: " + err.Error(),
+		})
+	}
+	executionErr := finalizer.Finalize(ctx, prepared.Plan.PrimaryPath, prepared.Plan.RetiredPath,
+		prepared.Plan.GitIdentity, prepared.Plan.PathIdentity, prepared.Plan.ApprovedLinks)
+	errText := ""
+	if executionErr != nil {
+		errText = executionErr.Error()
+	}
+	result, completeErr := e.api().WorktreePurgeComplete(ctx, api.WorktreePurgeCompleteRequest{
+		ActionID: prepared.Plan.ActionID, Completion: prepared.Plan.Completion, ExecutionError: errText,
+	})
+	if completeErr != nil {
+		return api.WorktreeRemovalApplyResponse{}, errors.Join(executionErr, completeErr)
+	}
+	return result, nil
 }
 
 func cmdWorktreeActions(ctx context.Context, e *env, args []string) error {

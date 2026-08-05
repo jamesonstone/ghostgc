@@ -18,6 +18,7 @@ func TestRealFilesystemQuarantineRestoreAndPurge(t *testing.T) {
 	name := "019fcde3-594a-7eb1-a102-ee8c7893c2dc.1.sh"
 	mustWrite(t, filepath.Join(root, name))
 	real := New()
+	purger := NewPurger()
 	snapshot := mustSnapshot(t, real, root)
 
 	moved, err := real.Quarantine(context.Background(), root, name, "ca_test", snapshot.Root, snapshot.Entries[0].Identity)
@@ -44,7 +45,7 @@ func TestRealFilesystemQuarantineRestoreAndPurge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := real.Purge(context.Background(), root, qpath, snapshot.Root, moved); err != nil {
+	if err := purger.Purge(context.Background(), root, qpath, snapshot.Root, moved); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Lstat(filepath.Join(root, qpath)); !errors.Is(err, os.ErrNotExist) {
@@ -88,6 +89,7 @@ func TestRealFilesystemRejectsLinksAndDoesNotCreateOnReadActions(t *testing.T) {
 	name := "019fcde3-594a-7eb1-a102-ee8c7893c2dc.1.sh"
 	mustWrite(t, filepath.Join(root, name))
 	real := New()
+	purger := NewPurger()
 	snapshot := mustSnapshot(t, real, root)
 	if err := os.Link(filepath.Join(root, name), filepath.Join(root, "alias")); err != nil {
 		t.Fatal(err)
@@ -117,12 +119,19 @@ func TestRealFilesystemRejectsLinksAndDoesNotCreateOnReadActions(t *testing.T) {
 	if _, err := real.Snapshot(context.Background(), linkedRoot, 10); !errors.Is(err, ErrUnsafePath) {
 		t.Fatalf("symlink root must be refused, got %v", err)
 	}
+	linkedParent := filepath.Join(parent, "linked-parent")
+	if err := os.Symlink(parent, linkedParent); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := real.Snapshot(context.Background(), filepath.Join(linkedParent, "shell_snapshots"), 10); !errors.Is(err, ErrUnsafePath) {
+		t.Fatalf("symlink path component must be refused, got %v", err)
+	}
 
 	emptyRoot := filepath.Join(parent, "empty")
 	mustMkdir(t, emptyRoot)
 	empty := mustSnapshot(t, real, emptyRoot)
 	missing := cacheartifact.Identity{UID: empty.Root.UID, Device: empty.Root.Device, Inode: 9, Nlink: 1, EntryType: "regular"}
-	_ = real.Purge(context.Background(), emptyRoot, filepath.Join(cacheartifact.QuarantineDirectory, "absent"), empty.Root, missing)
+	_ = purger.Purge(context.Background(), emptyRoot, filepath.Join(cacheartifact.QuarantineDirectory, "absent"), empty.Root, missing)
 	if _, err := os.Lstat(filepath.Join(emptyRoot, cacheartifact.QuarantineDirectory)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("purge validation must not create quarantine, got %v", err)
 	}

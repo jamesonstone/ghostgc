@@ -27,6 +27,9 @@ type WorktreeRecord struct {
 	Complete          bool   `json:"complete"`
 	RemovedNs         *int64 `json:"removed_ns,omitempty"`
 	RecreateCommand   string `json:"recreate_command,omitempty"`
+	OriginalPath      string `json:"original_path,omitempty"`
+	RetiredNs         *int64 `json:"retired_ns,omitempty"`
+	RetirementGraceNs int64  `json:"retirement_grace_until_ns,omitempty"`
 }
 
 // WorktreeActionRecord is one durable manual removal attempt.

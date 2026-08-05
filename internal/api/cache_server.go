@@ -66,4 +66,11 @@ func (s *Server) registerCacheRoutes(mux *http.ServeMux, prefix string) {
 		func(r *http.Request, request CacheApplyRequest) (any, error) {
 			return s.Backend.CachePurgeApply(r.Context(), request)
 		})
+	mux.HandleFunc("POST "+prefix+"/cache/purge/complete", s.handle(func(r *http.Request) (any, error) {
+		var request CachePurgeCompleteRequest
+		if err := decodeRequest(r, &request); err != nil {
+			return nil, err
+		}
+		return s.Backend.CachePurgeComplete(r.Context(), request)
+	}))
 }

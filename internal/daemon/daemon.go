@@ -66,10 +66,11 @@ type Daemon struct {
 	cacheProvider         cacheprovider.Provider
 	cacheClock            func() time.Time
 	cacheHealthy          bool
+	filesystemHealthy     bool
 	worktreeGit           *worktree.Git
 	worktreeGitErr        error
-	unlinkWorktreeLinks   func(string, []worktree.ApprovedLink) ([]worktree.ApprovedLink, error)
-	removeWorktree        func(context.Context, string, string) error
+	moveWorktree          func(context.Context, string, string, string) error
+	verifyMovedWorktree   func(context.Context, string, storage.WorktreeRecord, string) error
 	verifyRemovedWorktree func(context.Context, string, string) error
 	selfPI                int
 
@@ -92,7 +93,9 @@ type Daemon struct {
 	lastWorktreeAt         time.Time
 	approvals              map[string]*cleanupApproval
 	cacheApprovals         map[string]*cacheApproval
+	cachePurgePlans        map[string]*cachePurgeExecution
 	worktreeApprovals      map[string]*worktreeApproval
+	worktreePurgePlans     map[string]*worktreePurgeExecution
 	worktreeActionMu       sync.Mutex
 }
 
@@ -149,7 +152,7 @@ func New(opts Options) (*Daemon, error) {
 	}
 	cacheProvider := opts.CacheProvider
 	if cacheProvider == nil {
-		cacheProvider = cachecodex.New(opts.Platform.SelfUID())
+		cacheProvider = cachecodex.New(opts.Platform.SelfUID(), opts.Config.Cache.Roots...)
 	}
 	cacheClock := opts.CacheClock
 	if cacheClock == nil {
@@ -172,20 +175,23 @@ func New(opts Options) (*Daemon, error) {
 		cacheFS:                cacheFilesystem,
 		cacheProvider:          cacheProvider,
 		cacheClock:             cacheClock,
+		filesystemHealthy:      true,
 		repos:                  repos,
 		worktreeGit:            worktreeGit,
 		worktreeGitErr:         worktreeGitErr,
-		unlinkWorktreeLinks:    unlinkApprovedLinks,
 		selfPI:                 os.Getpid(),
 		startedAt:              time.Now(),
 		activityBaseline:       make(map[string]process.ActivitySample),
 		classificationPrevious: make(map[string]classification.Previous),
 		approvals:              make(map[string]*cleanupApproval),
 		cacheApprovals:         make(map[string]*cacheApproval),
+		cachePurgePlans:        make(map[string]*cachePurgeExecution),
 		worktreeApprovals:      make(map[string]*worktreeApproval),
+		worktreePurgePlans:     make(map[string]*worktreePurgeExecution),
 	}
 	if worktreeGit != nil {
-		d.removeWorktree = worktreeGit.Remove
+		d.moveWorktree = worktreeGit.Move
+		d.verifyMovedWorktree = d.verifyRetiredWorktree
 		d.verifyRemovedWorktree = d.verifyWorktreeAbsent
 	}
 	d.recon = sessions.New(reg, d.selfPI, opts.Platform.SelfUID(), repos)

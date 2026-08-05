@@ -41,7 +41,7 @@ func TestGitExecutionUsesPinnedSnapshotAcrossSourcePathSwap(t *testing.T) {
 	}
 }
 
-func TestRemoveRefusesExecutableChangedBeforeInvocation(t *testing.T) {
+func TestMoveRefusesExecutableChangedBeforeInvocation(t *testing.T) {
 	path := writeFakeGitExecutable(t)
 	git, err := newGit(path, filepath.Join(filepath.Dir(path), "snapshots"))
 	if err != nil {
@@ -53,8 +53,8 @@ func TestRemoveRefusesExecutableChangedBeforeInvocation(t *testing.T) {
 	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := git.Remove(context.Background(), t.TempDir(), t.TempDir()); err == nil {
-		t.Fatal("changed executable was accepted for removal")
+	if err := git.Move(context.Background(), t.TempDir(), t.TempDir(), filepath.Join(t.TempDir(), "destination")); err == nil {
+		t.Fatal("changed executable was accepted for move")
 	}
 }
 

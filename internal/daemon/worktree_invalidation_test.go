@@ -3,13 +3,11 @@ package daemon
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/jamesonstone/ghostgc/internal/api"
 	"github.com/jamesonstone/ghostgc/internal/storage"
-	"github.com/jamesonstone/ghostgc/internal/worktree"
 )
 
 func previewRemoval(t *testing.T, h *removalHarness) (storage.WorktreeRecord, api.WorktreeRemovalPreviewResponse) {
@@ -31,9 +29,9 @@ func TestPostRemovalPersistenceFailureLeavesAttemptingRecord(t *testing.T) {
 	h := newRemovalHarness(t, false)
 	_, preview := previewRemoval(t, h)
 	databasePath := h.store.Path()
-	nativeRemove := h.daemon.removeWorktree
-	h.daemon.removeWorktree = func(ctx context.Context, repository, path string) error {
-		if err := nativeRemove(ctx, repository, path); err != nil {
+	nativeMove := h.daemon.moveWorktree
+	h.daemon.moveWorktree = func(ctx context.Context, repository, source, destination string) error {
+		if err := nativeMove(ctx, repository, source, destination); err != nil {
 			return err
 		}
 		return h.store.Close()
@@ -58,67 +56,6 @@ func TestPostRemovalPersistenceFailureLeavesAttemptingRecord(t *testing.T) {
 	}
 	if output := removalGit(t, h.primary, "show-ref", "--verify", "refs/heads/cleanup"); output == "" {
 		t.Fatal("branch was deleted")
-	}
-}
-
-func TestVerificationAndPersistenceFailureIncludesRecovery(t *testing.T) {
-	h := newRemovalHarness(t, false)
-	_, preview := previewRemoval(t, h)
-	databasePath := h.store.Path()
-	nativeRemove := h.daemon.removeWorktree
-	h.daemon.removeWorktree = func(ctx context.Context, repository, path string) error {
-		return nativeRemove(ctx, repository, path)
-	}
-	h.daemon.verifyRemovedWorktree = func(context.Context, string, string) error {
-		if err := h.store.Close(); err != nil {
-			return err
-		}
-		return errUnavailable{}
-	}
-	_, err := h.daemon.WorktreeRemovalApply(context.Background(), api.WorktreeRemovalApplyRequest{
-		Approval: preview.Approval,
-	})
-	if err == nil || !strings.Contains(err.Error(), "branch remains") ||
-		!strings.Contains(err.Error(), "worktree add") {
-		t.Fatalf("combined post-side-effect failure omitted recovery: %v", err)
-	}
-	if _, statErr := os.Lstat(h.secondary); !os.IsNotExist(statErr) {
-		t.Fatalf("secondary still exists: %v", statErr)
-	}
-	reopened, openErr := storage.Open(databasePath)
-	if openErr != nil {
-		t.Fatal(openErr)
-	}
-	t.Cleanup(func() { _ = reopened.Close() })
-	actions, listErr := reopened.ListWorktreeActions(context.Background(), storage.WorktreeActionFilter{})
-	if listErr != nil || len(actions) != 1 || actions[0].Result != worktreeActionAttempting {
-		t.Fatalf("unresolved action = %+v, %v", actions, listErr)
-	}
-}
-
-func TestPartialLinkAndPersistenceFailureIncludesRecovery(t *testing.T) {
-	h := newRemovalHarness(t, true)
-	_, preview := previewRemoval(t, h)
-	h.daemon.unlinkWorktreeLinks = func(root string, links []worktree.ApprovedLink) ([]worktree.ApprovedLink, error) {
-		removed, err := unlinkApprovedLinks(root, links)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(root, ".env"), []byte("replacement"), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		if err := h.store.Close(); err != nil {
-			t.Fatal(err)
-		}
-		return removed, errUnavailable{}
-	}
-	_, err := h.daemon.WorktreeRemovalApply(context.Background(), api.WorktreeRemovalApplyRequest{
-		Approval: preview.Approval,
-	})
-	if err == nil || !strings.Contains(err.Error(), "restoring approved environment links also failed") ||
-		!strings.Contains(err.Error(), "unpersisted failure") ||
-		!strings.Contains(err.Error(), "approved environment links may require repair") {
-		t.Fatalf("partial link recovery error = %v", err)
 	}
 }
 
