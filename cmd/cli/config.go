@@ -44,7 +44,7 @@ func configInit(e *env, args []string) error {
 		return err
 	}
 	fmt.Printf("Wrote %s\n", e.paths.Config)
-	fmt.Println("The generated configuration starts in audit mode; cleanup authority must be enabled explicitly.")
+	fmt.Println("This optional overlay preserves the selected startup profile until you add an override.")
 	return nil
 }
 

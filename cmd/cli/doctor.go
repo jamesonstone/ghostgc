@@ -24,7 +24,7 @@ func cmdDoctor(ctx context.Context, e *env, args []string) error {
 			Name:   "daemon",
 			Status: api.CheckWarn,
 			Detail: "the daemon is not reachable on " + e.socket,
-			Remedy: "run `ghostgc service install`, or start `ghostgc daemon` in the foreground to see why it exits",
+			Remedy: "run `ghostgc start`, or start `ghostgc daemon` in the foreground to see why it exits",
 		})
 	}
 
@@ -54,8 +54,7 @@ func localChecks(ctx context.Context, e *env) []api.DoctorCheck {
 	case err != nil:
 		add("config-file", api.CheckError, err.Error(), "correct "+e.paths.Config+", or delete it to fall back to the built-in defaults")
 	case cfg.Defaulted:
-		add("config-file", api.CheckWarn, "no configuration file at "+e.paths.Config+"; built-in defaults are in use",
-			"run `ghostgc config init`")
+		add("config-file", api.CheckOK, "no configuration file at "+e.paths.Config+"; built-in defaults are in use", "")
 	default:
 		add("config-file", api.CheckOK, e.paths.Config, "")
 	}

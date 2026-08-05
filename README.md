@@ -5,13 +5,13 @@
 ██    ██ ██   ██ ██    ██      ██    ██    ██    ██ ██
  ██████  ██   ██  ██████  ███████    ██     ██████   ██████
 
-                    👻 garbage collection for abandoned AI coding runtimes
+                    garbage collection for abandoned coding runtimes
 ```
 
-ghostgc is a local daemon that attributes operating-system processes to AI
-coding sessions, tracks them across reparenting and PID reuse, and explains its
-conclusions. It also inventories registered Git worktrees and narrowly scoped
-session cache artifacts.
+ghostgc is a local background service for abandoned AI coding runtimes. It
+attributes processes to Codex sessions, explains stale-process decisions, and
+tracks recoverable lifecycle candidates for Codex shell snapshots and Git
+worktrees.
 
 <!-- BEGIN KIT-MANAGED README BADGES -->
 
@@ -19,84 +19,67 @@ session cache artifacts.
 
 <!-- END KIT-MANAGED README BADGES -->
 
-Audit is the default. Unknown or incomplete evidence is protected. Process
-cleanup sends only one exact SIGTERM after fresh revalidation; it never
-escalates. Cache cleanup quarantines before a separately approved foreground
-purge. Worktree cleanup first moves a checkout to a restorable retirement path;
-the daemon has no permanent cache-unlink or native worktree-removal capability.
+Audit is always the default. Unknown evidence is protected, actions require a
+fresh exact preview, and permanent filesystem operations run only in a
+short-lived foreground command after full-ID confirmation. See the
+[safety model](docs/references/safety-model.md) for the complete boundary.
 
-See the [safety model](docs/references/safety-model.md) for the complete boundary
-and residual risks.
+## Install
 
-## Install and run
-
-ghostgc requires Go 1.25 or newer. macOS collection also requires the Xcode
-command line tools.
+Requires Go 1.25 or newer. On macOS, install the Xcode command line tools, then:
 
 ```bash
 make install
-ghostgc config init
-ghostgc service install
-ghostgc status
 ```
 
-`make install` installs the single binary at `~/.local/bin/ghostgc`. To run it
-without a background service:
+## Run
+
+Start safely in audit/shadow mode with no configuration required:
 
 ```bash
-ghostgc daemon --log-level debug
+ghostgc start
 ```
+
+Enable live, manually approved reconciliation:
+
+```bash
+ghostgc start --mode reconcile
+```
+
+Both modes include narrow defaults for Codex CLI and the macOS Codex app under
+`~/.codex`. Reconcile mode permits recommendations and exact manual actions; it
+does not enable automatic cleanup.
 
 ## Use
 
-Inspect sessions and processes:
-
 ```bash
+ghostgc status
 ghostgc sessions
-ghostgc session show '<session-id>'
 ghostgc processes
-ghostgc explain '<pid>'
 ghostgc candidates
+ghostgc cache candidates
+ghostgc worktrees
+ghostgc doctor
 ```
 
-Every mutation starts with an exact, expiring preview. Run only the apply
-command printed by that preview:
+Run `ghostgc --help` for all commands. To override defaults, generate the
+optional strict configuration and restart in either mode:
 
 ```bash
-ghostgc cleanup --dry-run --process '<pid:start-time-ns>' --policy '<policy-id>'
-
-ghostgc cache candidates
-ghostgc cache cleanup --dry-run --artifact '<artifact-id>' --policy '<policy-id>'
-ghostgc cache quarantined
-ghostgc cache purge --dry-run --artifact '<artifact-id>' --policy '<policy-id>'
-
-ghostgc worktrees --state stale
-ghostgc worktree remove --dry-run --worktree '<id-or-prefix>'
-ghostgc worktrees --state retired
-ghostgc worktree restore --dry-run --worktree '<id-or-prefix>'
-ghostgc worktree purge --dry-run --worktree '<id-or-prefix>'
+ghostgc config init
+ghostgc start                  # audit ceiling
+ghostgc start --mode reconcile # manual-action ceiling
 ```
 
-Permanent cache or worktree purge additionally requires the complete opaque ID
-through `--confirm` and runs only in the foreground after its configured grace
-period. Add `--json` to commands for machine-readable output.
-
-Use `ghostgc --help`, `ghostgc doctor`, and the
-[operator guide](docs/references/operator-guide.md) for configuration, command
-details, lifecycle procedures, storage paths, and troubleshooting.
-
-## Documentation
+## References
 
 - [Operator guide](docs/references/operator-guide.md) — commands, configuration,
-  lifecycle workflows, local data, and metrics
-- [Safety model](docs/references/safety-model.md) — guarantees, capability
-  boundaries, and residual risk
-- [Architecture](docs/references/architecture.md) — daemon, storage, and package
-  design
-- [Testing](docs/references/testing.md) — development and validation commands
-- [Project history](docs/references/project-history.md) — rationale, measured
-  behavior, and delivery phases
-- [Constitution](docs/CONSTITUTION.md) — demonstrated project invariants
+  lifecycle procedures, paths, and troubleshooting
+- [Dogfooding guide](docs/references/dogfooding.md) — safely evaluate audit and
+  reconciliation modes
+- [Safety model](docs/references/safety-model.md) — guarantees and residual risk
+- [Architecture](docs/references/architecture.md) — runtime and package design
+- [Testing](docs/references/testing.md) — development and validation
 
 ## Maintainers
 

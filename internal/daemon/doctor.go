@@ -40,9 +40,8 @@ func (d *Daemon) Doctor(ctx context.Context) (api.DoctorResponse, error) {
 	}
 
 	if d.cfg.Defaulted {
-		add("configuration", api.CheckWarn,
-			"no configuration file was found; built-in defaults are in use",
-			"run `ghostgc config init` to write "+d.cfg.SourcePath)
+		add("configuration", api.CheckOK,
+			"no configuration file was found; built-in defaults are in use", "")
 	} else {
 		add("configuration", api.CheckOK, "loaded from "+d.cfg.SourcePath, "")
 	}
@@ -176,10 +175,10 @@ func (d *Daemon) Doctor(ctx context.Context) (api.DoctorResponse, error) {
 			add("service", api.CheckOK, fmt.Sprintf("%s is loaded and running as pid %d", state.Label, state.PID), "")
 		case state.Installed:
 			add("service", api.CheckWarn, fmt.Sprintf("%s is installed at %s but not running", state.Label, state.UnitPath),
-				"run `ghostgc service install` to reload it")
+				"run `ghostgc start` to reload it")
 		default:
 			add("service", api.CheckWarn, "the daemon is not registered with the platform service manager",
-				"run `ghostgc service install` so the daemon starts at login")
+				"run `ghostgc start` so the daemon starts at login")
 		}
 	}
 

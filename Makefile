@@ -60,7 +60,7 @@ check: fmt-check vet size test ## everything required before delivery
 install: build ## install ghostgc into ~/.local/bin
 	@mkdir -p $(HOME)/.local/bin
 	install -m 0755 $(BIN_DIR)/ghostgc  $(HOME)/.local/bin/ghostgc
-	@echo "Installed to $(HOME)/.local/bin. Run 'ghostgc service install' to start the daemon at login."
+	@echo "Installed to $(HOME)/.local/bin. Run 'ghostgc start' for safe audit mode."
 
 uninstall: ## remove the service registration and installed executable
 	-$(HOME)/.local/bin/ghostgc service uninstall

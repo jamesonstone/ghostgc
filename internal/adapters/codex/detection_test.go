@@ -2,14 +2,16 @@ package codex
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/jamesonstone/ghostgc/internal/adapters"
 	"github.com/jamesonstone/ghostgc/internal/process"
 )
 
-// Command lines recorded from a real machine. The negative cases are the point:
-// each one contains "codex" somewhere and none of them is a Codex CLI session.
+// Command lines recorded from a real machine. Exact Codex backends are accepted;
+// near misses that merely contain "codex" remain refused.
 func TestInspectProcessAgainstRealWorldCommandLines(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -38,6 +40,12 @@ func TestInspectProcessAgainstRealWorldCommandLines(t *testing.T) {
 					"CODEX_MANAGED_BY_NPM":       "1",
 					"CODEX_MANAGED_PACKAGE_ROOT": "/Users/dev/.nvm/versions/node/v22.19.0/lib/node_modules/@openai/codex",
 				}),
+			wantDetect: true,
+		},
+		{
+			name: "macOS Codex app backend",
+			proc: mk(4200, 4000, "/Applications/ChatGPT.app/Contents/Resources/codex",
+				[]string{"codex", "-c", "features.code_mode_host=true", "app-server"}, nil),
 			wantDetect: true,
 		},
 		{
@@ -142,5 +150,26 @@ func TestApplicationBundleProducesRecordedConflict(t *testing.T) {
 	s := InspectProcess(p)
 	if len(s.Conflicts) == 0 {
 		t.Fatal("a near miss must record why it was refused, not fail silently")
+	}
+}
+
+func TestSessionMetadataUsesPhysicalDefaultCodexHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	codexHome := filepath.Join(home, ".codex")
+	if err := os.Mkdir(codexHome, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	want, err := filepath.EvalSymlinks(codexHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta, err := New(nil).ExtractSessionMetadata(context.Background(),
+		mk(1, 0, "/Applications/ChatGPT.app/Contents/Resources/codex", []string{"codex", "app-server"}, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := meta.Extra["CODEX_HOME"]; got != want {
+		t.Fatalf("default CODEX_HOME = %q, want %q", got, want)
 	}
 }

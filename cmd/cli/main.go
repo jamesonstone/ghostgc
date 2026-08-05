@@ -90,7 +90,7 @@ func run(ctx context.Context, argv []string) int {
 		}
 		_, _ = fmt.Fprintln(cliErrorOutput, "ghostgc:", err)
 		if errors.Is(err, api.ErrDaemonUnreachable) {
-			_, _ = fmt.Fprintln(cliErrorOutput, "\nStart it with `ghostgc service install`, or run `ghostgc daemon` in the foreground.")
+			_, _ = fmt.Fprintln(cliErrorOutput, "\nStart it with `ghostgc start`, or run `ghostgc daemon` in the foreground.")
 		}
 		return 1
 	}
@@ -122,6 +122,12 @@ var commands map[string]command
 
 func init() {
 	list := []command{
+		{
+			name:    "start",
+			summary: "start in audit mode, or select manual reconciliation",
+			usage:   "[--mode audit|reconcile]",
+			run:     cmdStart,
+		},
 		{
 			name:    "status",
 			summary: "show daemon health, mode and the last scan",
@@ -206,7 +212,7 @@ func init() {
 		{
 			name:    "daemon",
 			summary: "run the observation daemon in the foreground",
-			usage:   "[--config <path>] [--log-level <level>] [--once] [--version]",
+			usage:   "[--mode audit|reconcile] [--config <path>] [--log-level <level>] [--once] [--version]",
 			run:     cmdDaemon,
 		},
 		{

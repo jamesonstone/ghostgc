@@ -42,6 +42,7 @@ func TestServiceInstallRegistersCurrentBinaryAsDaemon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	paths.Socket = "/tmp/ghostgc-service-test.sock"
 	fake := platformtest.New(501)
 	if err := serviceInstall(context.Background(), &env{paths: paths}, fake, nil); err != nil {
 		t.Fatal(err)
@@ -59,11 +60,54 @@ func TestServiceInstallRegistersCurrentBinaryAsDaemon(t *testing.T) {
 	if !reflect.DeepEqual(opts.Arguments, wantArgs) {
 		t.Errorf("arguments = %#v, want %#v", opts.Arguments, wantArgs)
 	}
-	if _, err := os.Stat(paths.Config); err != nil {
-		t.Errorf("default config was not created: %v", err)
+	if _, err := os.Stat(paths.Config); !os.IsNotExist(err) {
+		t.Errorf("service install created an unnecessary config: %v", err)
 	}
 	if _, err := os.Lstat(legacy); !os.IsNotExist(err) {
 		t.Errorf("legacy executable still exists after migration: %v", err)
+	}
+}
+
+func TestStartDefaultsToAuditAndAcceptsReconcile(t *testing.T) {
+	for _, tt := range []struct {
+		args []string
+		want config.StartupMode
+	}{
+		{want: config.StartupAudit},
+		{args: []string{"--mode", "reconcile"}, want: config.StartupReconcile},
+		{args: []string{"--mode", "shadow"}, want: config.StartupAudit},
+		{args: []string{"--mode", "live"}, want: config.StartupReconcile},
+	} {
+		got, err := startMode(&env{}, tt.args)
+		if err != nil || got != tt.want {
+			t.Fatalf("startMode(%v) = %q, %v; want %q", tt.args, got, err, tt.want)
+		}
+	}
+	if _, err := startMode(&env{}, []string{"--mode", "enforce"}); err == nil {
+		t.Fatal("start accepted an automatic enforcement mode")
+	}
+}
+
+func TestInstallBackgroundPersistsReconcileMode(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	_, link := executableFixture(t)
+	stubExecutablePath(t, link)
+	paths, err := config.DefaultPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths.Socket = "/tmp/ghostgc-reconcile-test.sock"
+	fake := platformtest.New(501)
+	mode := config.StartupReconcile
+	if err := installBackground(context.Background(), &env{paths: paths}, fake, &mode); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"daemon", "--mode", "reconcile", "--config", paths.Config}
+	if got := fake.InstalledService().Arguments; !reflect.DeepEqual(got, want) {
+		t.Fatalf("service arguments = %#v, want %#v", got, want)
+	}
+	if _, err := os.Stat(paths.Config); !os.IsNotExist(err) {
+		t.Errorf("start created an unnecessary config: %v", err)
 	}
 }
 

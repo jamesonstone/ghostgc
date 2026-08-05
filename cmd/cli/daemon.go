@@ -19,8 +19,9 @@ import (
 // cmdDaemon runs the persistent observation process from the same executable
 // as the short-lived control commands.
 func cmdDaemon(ctx context.Context, e *env, args []string) error {
-	fs := newFlagSet(e, "daemon", "[--config <path>] [--log-level <level>] [--once] [--version]")
+	fs := newFlagSet(e, "daemon", "[--mode audit|reconcile] [--config <path>] [--log-level <level>] [--once] [--version]")
 	configPath := fs.String("config", "", "path to config.yaml")
+	startupMode := fs.String("mode", "", "startup mode: audit or reconcile")
 	logLevel := fs.String("log-level", "info", "log level: debug, info, warn, error")
 	showVersion := fs.Bool("version", false, "print version and exit")
 	once := fs.Bool("once", false, "run a single observation cycle and exit")
@@ -39,7 +40,16 @@ func cmdDaemon(ctx context.Context, e *env, args []string) error {
 	if err != nil {
 		return err
 	}
-	cfg, err := config.Load(paths.Config)
+	var cfg config.Config
+	if *startupMode == "" {
+		cfg, err = config.Load(paths.Config)
+	} else {
+		mode, parseErr := config.ParseStartupMode(*startupMode)
+		if parseErr != nil {
+			return parseErr
+		}
+		cfg, err = config.LoadForStartup(paths.Config, mode)
+	}
 	if err != nil {
 		return err
 	}

@@ -1,12 +1,20 @@
 # Manual Cleanup Guide
 
-Phase 6 cleanup is local, explicit and single-use. The default configuration is
-still audit-only and cannot signal anything.
+Process cleanup is local, explicit and single-use. Audit startup cannot signal
+anything; reconciliation startup enables exact manual previews only.
 
 ## Enable one exact recommendation
 
-Start from `ghostgc config init`. Set the global mode to `recommend`, then add
-or change one policy whose agent, executable and strong state are exact:
+The built-in Codex policy becomes a recommendation with one command:
+
+```bash
+ghostgc start --mode reconcile
+ghostgc policies
+ghostgc candidates
+```
+
+For another executable class, start from `ghostgc config init`, then add or
+change one policy whose agent, executable and strong state are exact:
 
 ```yaml
 globalMode: recommend

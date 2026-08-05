@@ -7,7 +7,7 @@ import (
 	"github.com/jamesonstone/ghostgc/internal/cacheartifact"
 )
 
-const cacheBoundaryNote = "Cache observation is default-disabled and limited to exact Codex shell snapshots. Quarantine is reversible containment on the same filesystem and does not reclaim disk space."
+const cacheBoundaryNote = "Cache observation is limited to exact allowed Codex shell snapshots. Quarantine is reversible containment on the same filesystem and does not reclaim disk space."
 
 // CacheArtifacts implements api.Backend.
 func (d *Daemon) CacheArtifacts(ctx context.Context, opts api.CacheArtifactOptions) (api.CacheArtifactsResponse, error) {

@@ -57,15 +57,21 @@ func InspectProcess(p process.Process) Signals {
 	execBase := path.Base(p.ExecPath)
 	segs := segments(p.ExecPath)
 
-	// A GUI application bundle is never the Codex CLI. The ChatGPT desktop
-	// app ships "Codex Framework.framework" and helper executables whose names
-	// begin with "Codex"; recording the conflict makes the refusal visible in
-	// `ghostgc explain` rather than silent.
+	// The macOS app runs the same agent backend from one exact resource path.
+	// Other app-bundle executables remain near misses: Electron ships framework
+	// helpers whose names begin with Codex but which are not agent sessions.
 	inAppBundle := containsSegmentSuffix(segs, ".app") && containsSegment(segs, "Contents")
-	if inAppBundle && strings.HasPrefix(strings.ToLower(execBase), "codex") {
+	desktopBackend := isDesktopBackend(segs, execBase)
+	if desktopBackend {
+		s.Identity = append(s.Identity, adapters.Evidence{
+			Kind:   adapters.EvidenceExecutable,
+			Detail: "executable is the exact Codex macOS app backend (" + p.ExecPath + ")",
+			Weight: 0.9,
+		})
+	} else if inAppBundle && strings.HasPrefix(strings.ToLower(execBase), "codex") {
 		s.Conflicts = append(s.Conflicts, adapters.Evidence{
 			Kind:   adapters.EvidenceExecutable,
-			Detail: "executable lives inside a macOS application bundle (" + p.ExecPath + "); the Codex CLI does not",
+			Detail: "executable is an unrecognized helper inside a macOS application bundle (" + p.ExecPath + ")",
 		})
 		return s
 	}
@@ -148,4 +154,14 @@ func InspectProcess(p process.Process) Signals {
 	}
 
 	return s
+}
+
+func isDesktopBackend(segs []string, execBase string) bool {
+	if execBase != "codex" || len(segs) < 4 {
+		return false
+	}
+	n := len(segs)
+	bundle := segs[n-4]
+	return (bundle == "Codex.app" || bundle == "ChatGPT.app") &&
+		segs[n-3] == "Contents" && segs[n-2] == "Resources" && segs[n-1] == "codex"
 }

@@ -3,10 +3,29 @@ package codex
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/jamesonstone/ghostgc/internal/adapters"
 )
+
+func defaultCodexHome() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	candidate := filepath.Join(home, ".codex")
+	info, err := os.Lstat(candidate)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return ""
+	}
+	canonical, err := filepath.EvalSymlinks(candidate)
+	if err != nil {
+		return ""
+	}
+	return canonical
+}
 
 // DeriveSessionID produces a stable session identifier.
 //
