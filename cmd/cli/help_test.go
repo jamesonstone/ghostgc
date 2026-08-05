@@ -27,6 +27,8 @@ func TestRootHelpIsGroupedAndCompact(t *testing.T) {
 		"Local-first • explainable • fail-closed",
 		"Usage",
 		"Available Commands",
+		"Run",
+		"start",
 		"Observe",
 		"Policy & Cleanup",
 		"Worktrees",

@@ -102,7 +102,7 @@ func TestPolicyConfigIsStrictAndExampleLoads(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg, err := Load(path)
-	if err != nil || len(cfg.Policies) != 1 || cfg.Policies[0].Enabled {
+	if err != nil || len(cfg.Policies) != 0 {
 		t.Fatalf("example policy = %+v, %v", cfg.Policies, err)
 	}
 }

@@ -54,7 +54,7 @@ durable sessions ──▶ exact cache provider ──▶ metadata-only filesyst
 
 `internal/cacheprovider/codex` is the only real provider. It can derive only
 `CODEX_HOME/shell_snapshots` roots from persisted Codex session facts, requires
-an exact configured-root match, and maps
+an exact match with a pinned standard or configured root, and maps
 the UUID prefix in one immediate child name to exactly one native session ID.
 `internal/cachefs` owns descriptor-anchored metadata and reversible moves. A
 separate foreground purger owns the sole unlink; the daemon interface omits it.
@@ -75,8 +75,12 @@ execution object.
 
 The CLI and daemon are two process roles of the same `ghostgc` executable.
 Short-lived commands use the Unix socket; `ghostgc daemon` owns the persistent
-observation loop. Keeping the process boundary preserves isolation while one
-artifact makes installation and service registration self-contained.
+observation loop. `ghostgc start` registers that role with an audit startup
+profile, while `--mode reconcile` permits manual recommendations. Startup
+profiles supply pinned standard Codex roots, accept an optional strict YAML
+overlay, and cap the resulting authority below automatic enforcement. Keeping
+the process boundary preserves isolation while one artifact makes installation
+and service registration self-contained.
 
 ## The observation cycle
 

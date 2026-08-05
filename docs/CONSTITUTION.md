@@ -6,6 +6,9 @@
   short-lived, single-use manual approval. Enforcement requires global consent
   plus one singular orphan-only automatic policy. Both paths fully revalidate,
   and each authorized action can send only one exact-key SIGTERM.
+- Startup authority is capped by the command: `ghostgc start` is audit-only,
+  while `ghostgc start --mode reconcile` permits manual recommendation but
+  never automatic enforcement. Configuration may narrow either ceiling.
 - Every classification carries the observations that produced it. A conclusion
   without evidence is a defect, not a shortcut.
 - Fail closed. Where ownership or safety cannot be established, nothing happens.
@@ -60,9 +63,10 @@
   metadata and reads version-control plumbing only; worktree inspection retains
   aggregate dirty evidence, never filenames.
 - Cache artifact contents are never read. A cache provider must prove one exact
-  explicitly allowed root, file contract and exclusive session owner from
-  primary-source-backed metadata. Roots are descriptor-walked without following
-  components; an unproven, shared, linked, changed or incomplete artifact is protected.
+  pinned standard or explicitly configured root, file contract and exclusive
+  session owner from primary-source-backed metadata. Roots are descriptor-walked
+  without following components; an unproven, shared, linked, changed or
+  incomplete artifact is protected.
 - Expensive activity inspection is restricted to live, same-user processes
   already attributed to a coding-agent session. File paths and socket endpoints
   discovered during that pass never reach storage.

@@ -4,10 +4,23 @@ This guide contains the operational detail intentionally omitted from the
 README. ghostgc is local-only: its control API is an owner-only Unix socket and
 it opens no TCP port.
 
+## Startup modes
+
+`ghostgc start` installs or refreshes the background service in audit mode.
+`ghostgc start --mode reconcile` enables recommendations and exact manually
+approved actions. Neither command enables automatic cleanup, and neither needs
+a configuration file.
+
+The built-in profile enables Codex CLI and the macOS Codex app, the exact
+physical `~/.codex/shell_snapshots` and `~/.codex/worktrees` directories when
+they exist, and narrow Codex process and cache policies. Audit mode records
+matches only. Reconcile mode permits the existing preview/apply workflows.
+
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
+| `ghostgc start [--mode audit\|reconcile]` | start or refresh the background service |
 | `ghostgc status` | daemon health, mode, counts, and last scan |
 | `ghostgc sessions` | observed agent sessions |
 | `ghostgc session show <id>` | one session's evidence, processes, graph, and audit trail |
@@ -33,15 +46,31 @@ it opens no TCP port.
 
 Add `--json` for machine-readable output.
 
+## Optional configuration
+
+Built-in settings are sufficient for standard Codex installations. For custom
+roots, policies, bounds, cadence, privacy, or storage paths, run
+`ghostgc config init`, edit `~/.config/ghostgc/config.yaml`, then run either
+startup command again. The strict YAML file overlays the selected profile. It
+can narrow the mode, but audit startup cannot become actionable and reconcile
+startup cannot become automatic. Unknown fields and unsafe values stop startup.
+
 ## Process cleanup
 
-The generated config includes a disabled exact-match policy. Start in `audit`,
-inspect candidates, then use `recommend` only after the selector is proven:
+The built-in exact-match policy audits orphaned `chrome-headless-shell`
+processes attributed to ended Codex sessions. Inspect it in audit mode:
 
 ```bash
 ghostgc policies
 ghostgc candidates
 ghostgc logs --kind policy.candidate
+```
+
+When the matches are correct, enable manual reconciliation and request one
+exact preview:
+
+```bash
+ghostgc start --mode reconcile
 ghostgc cleanup --dry-run --process '<pid:start-time-ns>' --policy '<policy-id>'
 ```
 
@@ -53,9 +82,10 @@ SIGTERM. See [manual-cleanup.md](manual-cleanup.md) and
 
 ## Session cache artifacts
 
-Cache authority is disabled by default and supports only Codex shell snapshots.
-When enabled, `roots` must explicitly list every exact canonical
-`CODEX_HOME/shell_snapshots` directory that may be observed:
+The startup profile observes only the existing physical
+`~/.codex/shell_snapshots` root and supports no automatic mode. Custom Codex
+homes must explicitly list every exact canonical `CODEX_HOME/shell_snapshots`
+directory that may be observed:
 
 ```yaml
 cache:

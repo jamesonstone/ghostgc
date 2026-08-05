@@ -36,13 +36,15 @@ not that ghostgc has fabricated proof of process exit.
 ## Cache authority is independent and provider-specific
 
 Cache handling does not reuse process policy, signal approvals or executable
-authority. It is disabled by default, has no automatic mode, and accepts only
-`disabled`, `audit` or `recommend`. Mutation needs cache-global `recommend`, one
-enabled exact policy and a fresh single-artifact approval.
+authority. Audit startup can observe the existing physical default Codex root;
+there is no automatic cache mode, and only `disabled`, `audit` or `recommend`
+are accepted. Mutation needs cache-global `recommend`, one enabled exact policy
+and a fresh single-artifact approval.
 
 The sole real provider is pinned to Codex shell snapshots. It derives only
 `CODEX_HOME/shell_snapshots` roots from observed Codex sessions, requires an
-exact configured-root match, and accepts
+exact match with the pinned physical `~/.codex/shell_snapshots` startup default
+or an explicit configured root, and accepts
 only an immediate regular `<thread-id>.<generation>.sh|ps1` whose thread ID maps
 to exactly one completed session with zero live claimants. It observes names and
 filesystem metadata without opening file contents. Location, age, size or a
@@ -74,8 +76,11 @@ An ambiguous result opens a mutation circuit until daemon restart.
 ## Configuration cannot widen what the daemon does
 
 `config.Validate` accepts `disabled`, `audit`, `recommend` and `enforce` while
-keeping audit as the default. Global mode is a hard upper bound, so a policy is
-not manually or automatically actionable without corresponding global consent.
+keeping audit as the default. `ghostgc start` then applies audit as a hard
+authority ceiling; `--mode reconcile` caps authority at recommendation and
+removes automatic policy authority. Global mode is a hard upper bound, so a
+policy is not manually or automatically actionable without corresponding
+global consent.
 `privacy.storeSourceContents: true` and
 `privacy.networkTelemetry: true` are likewise startup errors. A misspelled key
 is an error rather than a silently ignored setting.
@@ -363,6 +368,12 @@ None of them is detected. A near miss inside a macOS application bundle records
 a *conflict*, so `ghostgc explain` shows why it was refused rather than being
 silently absent.
 
+The one application-bundle exception is the exact Codex agent backend at
+`ChatGPT.app/Contents/Resources/codex` or
+`Codex.app/Contents/Resources/codex`. Its bundle/resource structure plus exact
+basename establishes identity; renderer, service, framework, crash and code
+mode helpers remain near misses.
+
 ## Secrets never reach disk
 
 `process.RedactArgs` runs before any command line is stored or logged. It
@@ -457,7 +468,7 @@ Tested in `storage_test.go:TestMigrationPreservesRecordedOwnership` and
 | Absent worktree inventory | hard current-row cap plus action retention; unresolved action subjects are preserved |
 | Database | retention windows plus a hard byte ceiling that triggers an aggressive pass |
 | SQLite connections | 1, so there is no lock-retry logic to get wrong |
-| Cache roots | exact `CODEX_HOME/shell_snapshots` roots from known sessions only |
+| Cache roots | exact allowed `CODEX_HOME/shell_snapshots` roots from known sessions only |
 | Cache traversal | `maxEntriesPerScan`, immediate children only |
 | Cache action | one artifact per approval, plus entry and byte bounds |
 | Cache approvals | 128 memory-only tokens, each single-use and two minutes |

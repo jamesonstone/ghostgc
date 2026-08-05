@@ -189,7 +189,10 @@ var ErrNotExist = errors.New("config: no configuration file")
 // Load reads a configuration file, applying built-in defaults for anything the
 // file does not set. A missing file is not an error: the defaults are safe.
 func Load(path string) (Config, error) {
-	cfg := Default()
+	return loadWithDefaults(path, Default())
+}
+
+func loadWithDefaults(path string, cfg Config) (Config, error) {
 	cfg.SourcePath = path
 
 	raw, err := os.ReadFile(path)

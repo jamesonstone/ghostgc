@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/jamesonstone/ghostgc/internal/config"
 	"github.com/jamesonstone/ghostgc/internal/platform"
@@ -68,27 +69,40 @@ func serviceInstall(ctx context.Context, e *env, plat platform.Platform, args []
 	if fs.NArg() != 0 {
 		return fmt.Errorf("unexpected service install argument %q", fs.Arg(0))
 	}
+	return installBackground(ctx, e, plat, nil)
+}
 
+func installBackground(ctx context.Context, e *env, plat platform.Platform, startupMode *config.StartupMode) error {
 	path, err := resolveSelfBinary()
 	if err != nil {
 		return err
 	}
-	if err := e.paths.EnsureDirs(); err != nil {
+	var cfg config.Config
+	arguments := []string{"daemon", "--config", e.paths.Config}
+	if startupMode == nil {
+		cfg, err = config.Load(e.paths.Config)
+	} else {
+		cfg, err = config.LoadForStartup(e.paths.Config, *startupMode)
+		arguments = []string{"daemon", "--mode", string(*startupMode), "--config", e.paths.Config}
+	}
+	if err != nil {
 		return err
 	}
-	if _, statErr := os.Stat(e.paths.Config); statErr != nil {
-		if err := os.WriteFile(e.paths.Config, []byte(config.Example()), 0o600); err != nil {
-			return err
-		}
-		fmt.Printf("Wrote a default audit-mode configuration to %s\n", e.paths.Config)
+	paths := cfg.ResolvePaths(e.paths)
+	if err := paths.Validate(); err != nil {
+		return err
 	}
+	if err := paths.EnsureDirs(); err != nil {
+		return err
+	}
+	arguments[len(arguments)-1] = paths.Config
 
 	if err := plat.InstallService(ctx, platform.ServiceOptions{
 		Label:      config.ServiceLabel,
 		BinaryPath: path,
-		Arguments:  []string{"daemon", "--config", e.paths.Config},
-		LogDir:     e.paths.LogDir,
-		StateDir:   e.paths.StateDir,
+		Arguments:  arguments,
+		LogDir:     paths.LogDir,
+		StateDir:   paths.StateDir,
 	}); err != nil {
 		return err
 	}
@@ -96,13 +110,22 @@ func serviceInstall(ctx context.Context, e *env, plat platform.Platform, args []
 	if err != nil {
 		return fmt.Errorf("service migrated but legacy executable remains: %w", err)
 	}
-	fmt.Printf("Installed %s\n", config.ServiceLabel)
-	fmt.Printf("  binary: %s\n  command: %s daemon --config %s\n  logs:   %s\n",
-		path, path, e.paths.Config, e.paths.LogDir)
+	if startupMode != nil && string(cfg.GlobalMode) != string(*startupMode) {
+		fmt.Printf("Started ghostgc with the %s ceiling; effective global mode is %s.\n", *startupMode, cfg.GlobalMode)
+	} else {
+		fmt.Printf("Started ghostgc in %s mode.\n", cfg.GlobalMode)
+	}
+	fmt.Printf("  binary: %s\n  command: %s %s\n  logs:   %s\n",
+		path, path, strings.Join(arguments, " "), paths.LogDir)
+	if cfg.Defaulted {
+		fmt.Printf("  config: built-in Codex defaults; optional overrides: %s\n", paths.Config)
+	} else {
+		fmt.Printf("  config: %s\n", paths.Config)
+	}
 	if legacy != "" {
 		fmt.Printf("  removed legacy executable: %s\n", legacy)
 	}
-	fmt.Println("\nThe daemon starts at login and restarts only after an unsuccessful exit, with a 30 second throttle.")
+	fmt.Println("\nThe background service starts now and at login. Run `ghostgc status` to inspect it.")
 	return nil
 }
 

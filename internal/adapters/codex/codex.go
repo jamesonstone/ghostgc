@@ -1,4 +1,4 @@
-// Package codex detects OpenAI Codex CLI sessions.
+// Package codex detects OpenAI Codex CLI and macOS app sessions.
 //
 // Detection is built from independent structural signals — executable
 // basename, path segments, the script a JavaScript runtime was handed, and
@@ -7,11 +7,10 @@
 //
 // Regular expressions over raw command lines are deliberately not used. A
 // machine running Codex is also likely to be running several unrelated things
-// with "codex" in their command line: the ChatGPT desktop app ships an Electron
-// framework literally named "Codex", and editor integrations pass
-// "--agent codexCLI" to unrelated helper binaries. Substring matching would
-// attribute all of them to a Codex session; segment- and basename-level
-// matching does not.
+// with "codex" in their command line: the macOS app ships an Electron framework
+// literally named "Codex", and editor integrations pass "--agent codexCLI" to
+// unrelated helper binaries. Substring matching would attribute all of them to
+// a Codex session; exact structural matching does not.
 package codex
 
 import (
@@ -150,10 +149,17 @@ func (a *Adapter) ExtractSessionMetadata(ctx context.Context, p process.Process)
 			meta.Invocation = meta.Invocation[:512] + "…"
 		}
 	}
-	if home := p.Env["CODEX_HOME"]; home != "" {
+	if home := codexHome(p); home != "" {
 		meta.Extra = map[string]string{"CODEX_HOME": home}
 	}
 	return meta, nil
+}
+
+func codexHome(p process.Process) string {
+	if home := p.Env["CODEX_HOME"]; home != "" {
+		return home
+	}
+	return defaultCodexHome()
 }
 
 // AttributeProcess implements adapters.AgentAdapter.

@@ -43,6 +43,7 @@ type helpSection struct {
 }
 
 var rootHelpSections = []helpSection{
+	{title: "Run", commands: []string{"start"}},
 	{title: "Observe", commands: []string{"status", "sessions", "session", "processes", "explain", "activity", "classifications"}},
 	{title: "Policy & Cleanup", commands: []string{"candidates", "policies", "policy", "cleanup", "actions"}},
 	{title: "Cache Lifecycle", commands: []string{"cache"}},
