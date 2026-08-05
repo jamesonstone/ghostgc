@@ -139,6 +139,13 @@ func TestCacheSchemaMigratesFromShippedWorktreeV9(t *testing.T) {
 	if err := upgraded.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM cache_evaluations`).Scan(&cacheRows); err != nil {
 		t.Fatalf("cache schema after v10 migration: %v", err)
 	}
+	var originalPath string
+	var retirementGrace int64
+	if err := upgraded.db.QueryRowContext(ctx,
+		`SELECT original_path, retirement_grace_until_ns FROM worktrees WHERE worktree_id = 'wt-existing'`).
+		Scan(&originalPath, &retirementGrace); err != nil || originalPath != "" || retirementGrace != 0 {
+		t.Fatalf("worktree retirement defaults after v11 migration = %q, %d, %v", originalPath, retirementGrace, err)
+	}
 }
 
 func TestDatabaseFromANewerBuildIsRefused(t *testing.T) {

@@ -41,7 +41,8 @@ type CachePreviewResponse struct {
 
 // CacheApplyRequest consumes one exact approval.
 type CacheApplyRequest struct {
-	Approval string `json:"approval"`
+	Approval     string `json:"approval"`
+	Confirmation string `json:"confirmation,omitempty"`
 }
 
 // CacheApplyResponse reports the durable action result.
@@ -53,6 +54,32 @@ type CacheApplyResponse struct {
 	Reason     string   `json:"reason"`
 	AtNs       int64    `json:"at_ns"`
 	Evidence   []string `json:"evidence"`
+}
+
+// CachePurgePlan is one exact foreground-only deletion capability.
+type CachePurgePlan struct {
+	ActionID       string                 `json:"action_id"`
+	ArtifactID     string                 `json:"artifact_id"`
+	RootPath       string                 `json:"root_path"`
+	QuarantinePath string                 `json:"quarantine_path"`
+	RootIdentity   cacheartifact.Identity `json:"root_identity"`
+	Identity       cacheartifact.Identity `json:"identity"`
+	Configuration  string                 `json:"configuration_digest"`
+	ExpiresNs      int64                  `json:"expires_ns"`
+	Completion     string                 `json:"completion"`
+}
+
+// CachePurgePrepareResponse commits intent and returns a foreground plan.
+type CachePurgePrepareResponse struct {
+	Action CacheApplyResponse `json:"action"`
+	Plan   CachePurgePlan     `json:"plan"`
+}
+
+// CachePurgeCompleteRequest reports foreground execution for verification.
+type CachePurgeCompleteRequest struct {
+	ActionID       string `json:"action_id"`
+	Completion     string `json:"completion"`
+	ExecutionError string `json:"execution_error,omitempty"`
 }
 
 // CacheQuarantinesResponse lists reversible quarantined artifacts.

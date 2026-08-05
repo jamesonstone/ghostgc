@@ -26,7 +26,7 @@ func TestProviderAcceptsOnlyExactCompletedExclusiveSnapshot(t *testing.T) {
 		ID: "session-1", NativeID: testThread, Agent: "codex", State: "completed", CodexHome: "/tmp/codex", Confidence: 1,
 	}}
 
-	result, err := New(501).Observe(context.Background(), sessions, filesystem, 10)
+	result, err := New(501, root).Observe(context.Background(), sessions, filesystem, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestProviderProtectsAmbiguousOrUnsafeEntries(t *testing.T) {
 			if tt.extra != nil {
 				sessions = append(sessions, *tt.extra)
 			}
-			result, err := New(501).Observe(context.Background(), sessions, filesystem, 10)
+			result, err := New(501, root).Observe(context.Background(), sessions, filesystem, 10)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -95,7 +95,7 @@ func TestProviderFailsClosedWhenTraversalBoundIsExhausted(t *testing.T) {
 	filesystem.Put(root, testThread+".1.sh", testIdentity(7, 11, "regular"))
 	filesystem.Put(root, testThread+".2.sh", testIdentity(7, 12, "regular"))
 
-	result, err := New(501).Observe(context.Background(), []cacheprovider.Session{testSession("completed")}, filesystem, 1)
+	result, err := New(501, root).Observe(context.Background(), []cacheprovider.Session{testSession("completed")}, filesystem, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,12 +112,27 @@ func TestProviderBoundsSessionAndRootWork(t *testing.T) {
 		{ID: "a", NativeID: testThread, Agent: "codex", State: "completed", CodexHome: "/tmp/a", Confidence: 1},
 		{ID: "b", NativeID: otherThread, Agent: "codex", State: "completed", CodexHome: "/tmp/b", Confidence: 1},
 	}
-	result, err := New(501).Observe(context.Background(), sessions, filesystem, 1)
+	result, err := New(501, "/tmp/a/shell_snapshots", "/tmp/b/shell_snapshots").Observe(context.Background(), sessions, filesystem, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result.Complete {
 		t.Fatal("session/root truncation must make the provider result incomplete")
+	}
+}
+
+func TestProviderIgnoresSessionRootsOutsideExplicitAllowlist(t *testing.T) {
+	filesystem := cachefs.NewFake()
+	root := "/tmp/codex/shell_snapshots"
+	filesystem.SetRoot(root, testIdentity(7, 10, "directory"))
+	filesystem.Put(root, testThread+".1.sh", testIdentity(7, 11, "regular"))
+	result, err := New(501, "/tmp/other/shell_snapshots").Observe(
+		context.Background(), []cacheprovider.Session{testSession("completed")}, filesystem, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Artifacts) != 0 || result.Inspected != 0 {
+		t.Fatalf("unapproved root was observed: %#v", result)
 	}
 }
 

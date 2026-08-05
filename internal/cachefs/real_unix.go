@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -147,45 +146,58 @@ func (r *Real) Restore(ctx context.Context, root, quarantinePath, destination st
 	return restored, nil
 }
 
-// Purge permanently unlinks one exact regular file from quarantine.
-func (r *Real) Purge(ctx context.Context, root, quarantinePath string, expectedRoot, expected cacheartifact.Identity) error {
+// QuarantineEntry observes one exact quarantine child without following links.
+func (r *Real) QuarantineEntry(ctx context.Context, root, quarantinePath string, expectedRoot cacheartifact.Identity) (cacheartifact.Identity, bool, error) {
 	if err := ctx.Err(); err != nil {
-		return err
+		return cacheartifact.Identity{}, false, err
 	}
 	rootFD, rootID, err := openRoot(root)
 	if err != nil {
-		return err
+		return cacheartifact.Identity{}, false, err
 	}
 	defer closeFD(rootFD)
 	if !rootID.SameObject(expectedRoot) || !safeQuarantinePath(quarantinePath) {
-		return ErrUnsafePath
+		return cacheartifact.Identity{}, false, ErrUnsafePath
 	}
 	qfd, err := openQuarantine(rootFD, rootID, false)
 	if err != nil {
-		return err
+		return cacheartifact.Identity{}, false, err
 	}
 	defer closeFD(qfd)
 	name := filepath.Base(quarantinePath)
 	current, err := statAt(qfd, name)
+	if errors.Is(err, os.ErrNotExist) {
+		return cacheartifact.Identity{}, false, nil
+	}
 	if err != nil {
-		return err
+		return cacheartifact.Identity{}, false, err
 	}
-	if !current.Equal(expected) || current.EntryType != "regular" || current.Nlink != 1 {
-		return ErrChangedIdentity
-	}
-	return authorizedPurge(qfd, name)
+	return current, true, nil
 }
 
 func openRoot(root string) (int, cacheartifact.Identity, error) {
 	if !filepath.IsAbs(root) || filepath.Clean(root) != root || strings.ContainsRune(root, '\x00') {
 		return -1, cacheartifact.Identity{}, ErrUnsafePath
 	}
-	if err := verifyNoSymlinkComponents(root); err != nil {
-		return -1, cacheartifact.Identity{}, err
-	}
-	fd, err := unix.Open(root, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+	flags := unix.O_RDONLY | unix.O_DIRECTORY | unix.O_CLOEXEC | unix.O_NOFOLLOW
+	fd, err := unix.Open(string(filepath.Separator), flags, 0)
 	if err != nil {
-		return -1, cacheartifact.Identity{}, fmt.Errorf("cache filesystem: opening provider root: %w", err)
+		return -1, cacheartifact.Identity{}, fmt.Errorf("cache filesystem: opening filesystem root: %w", err)
+	}
+	for _, component := range strings.Split(strings.TrimPrefix(root, string(filepath.Separator)), string(filepath.Separator)) {
+		if !safeBase(component) {
+			_ = unix.Close(fd)
+			return -1, cacheartifact.Identity{}, ErrUnsafePath
+		}
+		next, openErr := unix.Openat(fd, component, flags, 0)
+		_ = unix.Close(fd)
+		if openErr != nil {
+			if errors.Is(openErr, unix.ELOOP) || errors.Is(openErr, unix.ENOTDIR) {
+				return -1, cacheartifact.Identity{}, fmt.Errorf("%w: provider path component %q is not a physical directory", ErrUnsafePath, component)
+			}
+			return -1, cacheartifact.Identity{}, fmt.Errorf("cache filesystem: opening provider path component %q: %w", component, openErr)
+		}
+		fd = next
 	}
 	var stat unix.Stat_t
 	if err := unix.Fstat(fd, &stat); err != nil {
@@ -267,22 +279,4 @@ func safeBase(name string) bool {
 
 func safeQuarantinePath(path string) bool {
 	return filepath.Dir(path) == cacheartifact.QuarantineDirectory && safeBase(filepath.Base(path))
-}
-
-func verifyNoSymlinkComponents(path string) error {
-	current := string(filepath.Separator)
-	for _, component := range strings.Split(strings.TrimPrefix(path, current), current) {
-		if component == "" {
-			continue
-		}
-		current = filepath.Join(current, component)
-		info, err := os.Lstat(current)
-		if err != nil {
-			return fmt.Errorf("cache filesystem: inspecting path component: %w", err)
-		}
-		if info.Mode()&fs.ModeSymlink != 0 {
-			return fmt.Errorf("%w: symlink component %s", ErrUnsafePath, current)
-		}
-	}
-	return nil
 }

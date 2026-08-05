@@ -34,7 +34,7 @@ func TestDefaultsAreAuditOnly(t *testing.T) {
 	if !cfg.Privacy.RedactEnvironmentValues {
 		t.Fatal("redactEnvironmentValues must default to true")
 	}
-	if !cfg.Worktrees.Enabled || cfg.Worktrees.StaleAfter.D() != 7*24*time.Hour {
+	if !cfg.Worktrees.Enabled || cfg.Worktrees.StaleAfter.D() != 7*24*time.Hour || cfg.Worktrees.RetirementGrace.D() != 7*24*time.Hour {
 		t.Fatalf("worktree defaults = %+v", cfg.Worktrees)
 	}
 }
@@ -44,6 +44,11 @@ func TestWorktreeAuthorityValidation(t *testing.T) {
 	cfg.Worktrees.StaleAfter = Duration(167 * time.Hour)
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("staleAfter below seven days must be rejected")
+	}
+	cfg = Default()
+	cfg.Worktrees.RetirementGrace = Duration(23 * time.Hour)
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("retirementGrace below one day must be rejected")
 	}
 	cfg = Default()
 	cfg.Worktrees.Roots = []string{"/"}

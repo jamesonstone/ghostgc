@@ -1,6 +1,10 @@
 package api
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/jamesonstone/ghostgc/internal/worktree"
+)
 
 // WorktreeOptions narrows inventory.
 type WorktreeOptions struct {
@@ -15,24 +19,27 @@ type WorktreesResponse struct {
 
 // WorktreeView is one public inventory conclusion.
 type WorktreeView struct {
-	WorktreeID      string          `json:"worktree_id"`
-	ShortID         string          `json:"short_id"`
-	Path            string          `json:"path"`
-	Branch          string          `json:"branch,omitempty"`
-	HEAD            string          `json:"head"`
-	Ref             string          `json:"ref,omitempty"`
-	Sources         []string        `json:"sources"`
-	State           string          `json:"state"`
-	FirstSeenNs     int64           `json:"first_seen_ns"`
-	LastSeenNs      int64           `json:"last_seen_ns"`
-	LastActivityNs  int64           `json:"last_activity_ns"`
-	InactiveSinceNs int64           `json:"inactive_since_ns,omitempty"`
-	InactiveSeconds float64         `json:"inactive_seconds"`
-	Protection      []string        `json:"protection_reasons"`
-	Evidence        json.RawMessage `json:"evidence"`
-	Complete        bool            `json:"complete"`
-	RemovedNs       *int64          `json:"removed_ns,omitempty"`
-	RecreateCommand string          `json:"recreate_command,omitempty"`
+	WorktreeID        string          `json:"worktree_id"`
+	ShortID           string          `json:"short_id"`
+	Path              string          `json:"path"`
+	Branch            string          `json:"branch,omitempty"`
+	HEAD              string          `json:"head"`
+	Ref               string          `json:"ref,omitempty"`
+	Sources           []string        `json:"sources"`
+	State             string          `json:"state"`
+	FirstSeenNs       int64           `json:"first_seen_ns"`
+	LastSeenNs        int64           `json:"last_seen_ns"`
+	LastActivityNs    int64           `json:"last_activity_ns"`
+	InactiveSinceNs   int64           `json:"inactive_since_ns,omitempty"`
+	InactiveSeconds   float64         `json:"inactive_seconds"`
+	Protection        []string        `json:"protection_reasons"`
+	Evidence          json.RawMessage `json:"evidence"`
+	Complete          bool            `json:"complete"`
+	RemovedNs         *int64          `json:"removed_ns,omitempty"`
+	RecreateCommand   string          `json:"recreate_command,omitempty"`
+	OriginalPath      string          `json:"original_path,omitempty"`
+	RetiredNs         *int64          `json:"retired_ns,omitempty"`
+	RetirementGraceNs int64           `json:"retirement_grace_until_ns,omitempty"`
 }
 
 // WorktreeRemovalPreviewRequest selects one exact inventory identity or prefix.
@@ -52,7 +59,8 @@ type WorktreeRemovalPreviewResponse struct {
 
 // WorktreeRemovalApplyRequest consumes one approval.
 type WorktreeRemovalApplyRequest struct {
-	Approval string `json:"approval"`
+	Approval     string `json:"approval"`
+	Confirmation string `json:"confirmation,omitempty"`
 }
 
 // WorktreeRemovalApplyResponse reports one durable result.
@@ -66,6 +74,32 @@ type WorktreeRemovalApplyResponse struct {
 	Reason          string          `json:"reason"`
 	Evidence        json.RawMessage `json:"evidence"`
 	RecreateCommand string          `json:"recreate_command"`
+}
+
+// WorktreePurgePlan is one exact foreground native-removal capability.
+type WorktreePurgePlan struct {
+	ActionID      string                  `json:"action_id"`
+	WorktreeID    string                  `json:"worktree_id"`
+	PrimaryPath   string                  `json:"primary_path"`
+	RetiredPath   string                  `json:"retired_path"`
+	GitIdentity   worktree.GitIdentity    `json:"git_identity"`
+	PathIdentity  worktree.FileIdentity   `json:"path_identity"`
+	ApprovedLinks []worktree.ApprovedLink `json:"approved_links"`
+	ExpiresNs     int64                   `json:"expires_ns"`
+	Completion    string                  `json:"completion"`
+}
+
+// WorktreePurgePrepareResponse commits intent before foreground execution.
+type WorktreePurgePrepareResponse struct {
+	Action WorktreeRemovalApplyResponse `json:"action"`
+	Plan   WorktreePurgePlan            `json:"plan"`
+}
+
+// WorktreePurgeCompleteRequest reports foreground finalization for verification.
+type WorktreePurgeCompleteRequest struct {
+	ActionID       string `json:"action_id"`
+	Completion     string `json:"completion"`
+	ExecutionError string `json:"execution_error,omitempty"`
 }
 
 // WorktreeActionOptions narrows durable removal history.

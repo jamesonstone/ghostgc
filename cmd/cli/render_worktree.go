@@ -58,7 +58,7 @@ func renderWorktreeRemovalPreview(response api.WorktreeRemovalPreviewResponse) {
 	for _, gate := range response.Revalidation {
 		fmt.Printf("Revalidate: %s\n", gate)
 	}
-	fmt.Printf("\nNo removal performed. To approve exactly this preview:\n%s\n\n%s\n", response.Command, response.Note)
+	fmt.Printf("\nNo mutation performed. To approve exactly this preview:\n%s\n\n%s\n", response.Command, response.Note)
 }
 
 func renderWorktreeRemoval(response api.WorktreeRemovalApplyResponse) {
@@ -72,7 +72,7 @@ func renderWorktreeRemoval(response api.WorktreeRemovalApplyResponse) {
 
 func renderWorktreeActions(response api.WorktreeActionsResponse) {
 	if len(response.Actions) == 0 {
-		fmt.Println("No worktree removal actions recorded.")
+		fmt.Println("No worktree lifecycle actions recorded.")
 		return
 	}
 	w := newTable()

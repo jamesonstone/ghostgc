@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jamesonstone/ghostgc/internal/api"
+	"github.com/jamesonstone/ghostgc/internal/cachefs"
 )
 
 func cmdCache(ctx context.Context, e *env, args []string) error {
@@ -116,13 +118,14 @@ func cmdCacheActions(ctx context.Context, e *env, args []string) error {
 }
 
 func cmdCacheAction(ctx context.Context, e *env, action string, args []string) error {
-	fs := newFlagSet(e, "cache "+action, "--dry-run --artifact <id> [--policy <id>] | --apply --approval <token> --yes")
+	fs := newFlagSet(e, "cache "+action, "--dry-run --artifact <id> [--policy <id>] | --apply --approval <token> --yes [--confirm <full-id>]")
 	dryRun := fs.Bool("dry-run", false, "issue one exact short-lived preview")
 	apply := fs.Bool("apply", false, "consume a preview approval")
 	artifactID := fs.String("artifact", "", "exact opaque artifact id")
 	policyID := fs.String("policy", "", "exact cache policy id")
 	approval := fs.String("approval", "", "single-use approval from --dry-run")
 	yes := fs.Bool("yes", false, "confirm the exact approved action")
+	confirmation := fs.String("confirm", "", "full artifact id required for permanent purge")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -130,7 +133,7 @@ func cmdCacheAction(ctx context.Context, e *env, action string, args []string) e
 		return errors.New("choose exactly one of --dry-run or --apply")
 	}
 	if *dryRun {
-		if *artifactID == "" || *approval != "" || *yes || (action != "restore" && *policyID == "") {
+		if *artifactID == "" || *approval != "" || *yes || *confirmation != "" || (action != "restore" && *policyID == "") {
 			return errors.New("--dry-run requires --artifact and requires --policy for cleanup or purge")
 		}
 		response, err := cachePreview(ctx, e.api(), action, api.CachePreviewRequest{ArtifactID: *artifactID, PolicyID: *policyID})
@@ -144,9 +147,15 @@ func cmdCacheAction(ctx context.Context, e *env, action string, args []string) e
 		return nil
 	}
 	if *approval == "" || !*yes || *artifactID != "" || *policyID != "" {
-		return errors.New("--apply requires only --approval and --yes")
+		return errors.New("--apply requires --approval and --yes")
 	}
-	response, err := cacheApply(ctx, e.api(), action, api.CacheApplyRequest{Approval: *approval})
+	if action == "purge" && *confirmation == "" {
+		return errors.New("purge --apply also requires --confirm with the full artifact id")
+	}
+	if action != "purge" && *confirmation != "" {
+		return errors.New("--confirm is accepted only for permanent purge")
+	}
+	response, err := cacheApply(ctx, e.api(), action, api.CacheApplyRequest{Approval: *approval, Confirmation: *confirmation})
 	if err != nil {
 		return err
 	}
@@ -175,6 +184,38 @@ func cacheApply(ctx context.Context, client *api.Client, action string, request 
 	case "restore":
 		return client.CacheRestoreApply(ctx, request)
 	default:
-		return client.CachePurgeApply(ctx, request)
+		return executeCachePurge(ctx, client, cachefs.NewPurger(), request)
 	}
+}
+
+func executeCachePurge(ctx context.Context, client *api.Client, purger cachefs.Purger, request api.CacheApplyRequest) (api.CacheApplyResponse, error) {
+	prepared, err := client.CachePurgeApply(ctx, request)
+	if err != nil {
+		return api.CacheApplyResponse{}, err
+	}
+	if prepared.Action.Result != "purging" {
+		return prepared.Action, nil
+	}
+	plan := prepared.Plan
+	if time.Now().UnixNano() >= plan.ExpiresNs {
+		return client.CachePurgeComplete(ctx, api.CachePurgeCompleteRequest{
+			ActionID: plan.ActionID, Completion: plan.Completion,
+			ExecutionError: "foreground purge plan expired before execution",
+		})
+	}
+	executionErr := purger.Purge(ctx, plan.RootPath, plan.QuarantinePath, plan.RootIdentity, plan.Identity)
+	errText := ""
+	if executionErr != nil {
+		errText = executionErr.Error()
+	}
+	result, completeErr := client.CachePurgeComplete(ctx, api.CachePurgeCompleteRequest{
+		ActionID: plan.ActionID, Completion: plan.Completion, ExecutionError: errText,
+	})
+	if completeErr != nil {
+		if executionErr != nil {
+			return api.CacheApplyResponse{}, errors.Join(executionErr, completeErr)
+		}
+		return api.CacheApplyResponse{}, completeErr
+	}
+	return result, nil
 }

@@ -124,6 +124,14 @@ func (d *Daemon) collectWorktrees(ctx context.Context, snap *process.Snapshot, r
 		if missing.State == string(worktree.StateRemoved) {
 			continue
 		}
+		if missing.State == string(worktree.StateRetired) {
+			missing.LastSeenNs = now.UnixNano()
+			missing.Registered = false
+			missing.Complete = false
+			missing.ProtectionJSON = `["retired_registration_missing"]`
+			batch.records = append(batch.records, missing)
+			continue
+		}
 		batch.records = append(batch.records, missingWorktreeRecord(missing, now, d.startedAt))
 	}
 	sort.Slice(batch.records, func(i, j int) bool { return batch.records[i].WorktreeID < batch.records[j].WorktreeID })
@@ -179,6 +187,9 @@ func (d *Daemon) worktreeRecord(previous storage.WorktreeRecord, entry *sourcedO
 	}
 	sort.Slice(sources, func(i, j int) bool { return sources[i] < sources[j] })
 	sourcesJSON := marshalJSON(sources, "[]")
+	if previous.State == string(worktree.StateRetired) {
+		return retiredWorktreeRecord(previous, obs, now, processEvidenceComplete)
+	}
 	prior := worktree.Record{
 		ID: previous.WorktreeID, State: worktree.State(previous.State), HEAD: previous.HEAD,
 		Ref: previous.Ref, StatusFingerprint: previous.StatusFingerprint,

@@ -84,9 +84,21 @@ func TestCacheLifecycleFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err = daemon.CachePurgeApply(ctx, api.CacheApplyRequest{Approval: purge.Approval})
+	prepared, err := daemon.CachePurgeApply(ctx, api.CacheApplyRequest{Approval: purge.Approval, Confirmation: artifact.ID})
+	if err != nil || prepared.Action.Result != "purging" {
+		t.Fatalf("purge prepare = %#v, %v", prepared, err)
+	}
+	if err := filesystem.Purge(ctx, prepared.Plan.RootPath, prepared.Plan.QuarantinePath, prepared.Plan.RootIdentity, prepared.Plan.Identity); err != nil {
+		t.Fatal(err)
+	}
+	result, err = daemon.CachePurgeComplete(ctx, api.CachePurgeCompleteRequest{ActionID: prepared.Plan.ActionID, Completion: prepared.Plan.Completion})
 	if err != nil || result.Result != "purged" || filesystem.Exists(root, cleanup.Destination) {
 		t.Fatalf("purge apply = %#v, %v", result, err)
+	}
+	if _, err := daemon.CachePurgeComplete(ctx, api.CachePurgeCompleteRequest{
+		ActionID: prepared.Plan.ActionID, Completion: prepared.Plan.Completion,
+	}); err == nil {
+		t.Fatal("purge completion capability replay succeeded")
 	}
 	if !filesystem.Exists(root, "control.txt") {
 		t.Fatal("purge changed the protected control entry")
@@ -148,8 +160,13 @@ func TestPartialPurgeRemainsVisible(t *testing.T) {
 	_, _ = d.CacheCleanupApply(ctx, api.CacheApplyRequest{Approval: preview.Approval})
 	now = now.Add(time.Minute)
 	preview, _ = d.CachePurgePreview(ctx, api.CachePreviewRequest{ArtifactID: candidates.Artifacts[0].ID, PolicyID: "codex-snapshots"})
-	filesystem.Partial = true
-	result, err := d.CachePurgeApply(ctx, api.CacheApplyRequest{Approval: preview.Approval})
+	prepared, err := d.CachePurgeApply(ctx, api.CacheApplyRequest{Approval: preview.Approval, Confirmation: candidates.Artifacts[0].ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	filesystem.Delete(prepared.Plan.RootPath, prepared.Plan.QuarantinePath)
+	filesystem.Put(prepared.Plan.RootPath, prepared.Plan.QuarantinePath, fixtureIdentity(9))
+	result, err := d.CachePurgeComplete(ctx, api.CachePurgeCompleteRequest{ActionID: prepared.Plan.ActionID, Completion: prepared.Plan.Completion})
 	if err != nil || result.Result != "partial" {
 		t.Fatalf("partial purge = %#v, %v", result, err)
 	}
@@ -161,15 +178,15 @@ func TestPartialPurgeRemainsVisible(t *testing.T) {
 	if err != nil || artifact.Artifact.Lifecycle != cacheartifact.StatePartial {
 		t.Fatalf("partial purge projection = %#v, %v", artifact, err)
 	}
-	replayed, err := d.CachePurgeApply(ctx, api.CacheApplyRequest{Approval: preview.Approval})
-	if err != nil || replayed.Result != "rejected" {
+	replayed, err := d.CachePurgeApply(ctx, api.CacheApplyRequest{Approval: preview.Approval, Confirmation: candidates.Artifacts[0].ID})
+	if err != nil || replayed.Action.Result != "rejected" {
 		t.Fatalf("partial purge reused its approval: %#v, %v", replayed, err)
 	}
 	retry, err := d.CachePurgePreview(ctx, api.CachePreviewRequest{
 		ArtifactID: candidates.Artifacts[0].ID, PolicyID: "codex-snapshots",
 	})
-	if err != nil || retry.Approval == "" || retry.Approval == preview.Approval {
-		t.Fatalf("partial purge did not require a fresh approval: %#v, %v", retry, err)
+	if err == nil || retry.Approval != "" {
+		t.Fatalf("ambiguous purge did not trip the mutation circuit: %#v, %v", retry, err)
 	}
 }
 
@@ -198,6 +215,7 @@ func newCacheFixture(t *testing.T, now *time.Time) (*Daemon, *cachefs.Fake, *sto
 	cfg := config.Default()
 	cfg.Cache.Enabled = true
 	cfg.Cache.GlobalMode = config.ModeRecommend
+	cfg.Cache.Roots = []string{root}
 	cfg.Cache.MinStable = config.Duration(time.Minute)
 	cfg.Cache.QuarantineGrace = config.Duration(time.Minute)
 	cfg.Cache.Policies = []config.CachePolicy{{

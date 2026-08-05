@@ -19,11 +19,6 @@ func (d *Daemon) CacheRestoreApply(ctx context.Context, request api.CacheApplyRe
 	return d.applyCacheApproval(ctx, "restore", request)
 }
 
-// CachePurgeApply consumes one quarantine-only purge approval.
-func (d *Daemon) CachePurgeApply(ctx context.Context, request api.CacheApplyRequest) (api.CacheApplyResponse, error) {
-	return d.applyCacheApproval(ctx, "purge", request)
-}
-
 func (d *Daemon) applyCacheApproval(ctx context.Context, kind string, request api.CacheApplyRequest) (api.CacheApplyResponse, error) {
 	if request.Approval == "" {
 		return api.CacheApplyResponse{}, errors.New("cache apply requires an approval")
@@ -54,8 +49,6 @@ func (d *Daemon) applyCacheApproval(ctx context.Context, kind string, request ap
 		return d.applyCacheQuarantineLocked(ctx, actionID, approval, now)
 	case "restore":
 		return d.applyCacheRestoreLocked(ctx, actionID, approval, now)
-	case "purge":
-		return d.applyCachePurgeLocked(ctx, actionID, approval, now)
 	default:
 		return d.rejectCacheAction(ctx, actionID, approval, "unsupported cache action", now)
 	}

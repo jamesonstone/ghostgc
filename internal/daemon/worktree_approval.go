@@ -12,6 +12,7 @@ import (
 )
 
 type worktreeApproval struct {
+	kind          string
 	bindingDigest string
 	record        storage.WorktreeRecord
 	validation    worktreeValidation
@@ -22,10 +23,13 @@ type worktreeApproval struct {
 // WorktreeRemovalPreview issues one memory-only approval after fresh checks.
 func (d *Daemon) WorktreeRemovalPreview(ctx context.Context, req api.WorktreeRemovalPreviewRequest) (api.WorktreeRemovalPreviewResponse, error) {
 	if req.WorktreeID == "" {
-		return api.WorktreeRemovalPreviewResponse{}, errors.New("worktree removal preview requires worktree_id")
+		return api.WorktreeRemovalPreviewResponse{}, errors.New("worktree retirement preview requires worktree_id")
 	}
 	d.scanMu.Lock()
 	defer d.scanMu.Unlock()
+	if !d.filesystemMutationsHealthy() {
+		return api.WorktreeRemovalPreviewResponse{}, errors.New("filesystem mutation circuit is open; restart the daemon and re-observe")
+	}
 	record, err := d.store.GetWorktree(ctx, req.WorktreeID)
 	if err != nil {
 		return api.WorktreeRemovalPreviewResponse{}, err
@@ -43,7 +47,7 @@ func (d *Daemon) WorktreeRemovalPreview(ctx context.Context, req api.WorktreeRem
 		return api.WorktreeRemovalPreviewResponse{}, err
 	}
 	now := time.Now()
-	approval := &worktreeApproval{bindingDigest: binding, record: record, validation: validation, expires: now.Add(approvalLifetime)}
+	approval := &worktreeApproval{kind: "retire", bindingDigest: binding, record: record, validation: validation, expires: now.Add(approvalLifetime)}
 	d.actionMu.Lock()
 	d.pruneWorktreeApprovals(now)
 	if len(d.worktreeApprovals) >= maxApprovals {
@@ -57,8 +61,8 @@ func (d *Daemon) WorktreeRemovalPreview(ctx context.Context, req api.WorktreeRem
 		"expires_ns": approval.expires.UnixNano(), "worktree_id": record.WorktreeID,
 	}}, "[]")
 	if err := d.store.AppendAudit(ctx, storage.AuditRecord{
-		TsNs: now.UnixNano(), Kind: "worktree.removal.previewed", Subject: record.WorktreeID,
-		Summary:      fmt.Sprintf("manual worktree removal preview issued; approval expires at %s", approval.expires.Format(time.RFC3339)),
+		TsNs: now.UnixNano(), Kind: "worktree.retirement.previewed", Subject: record.WorktreeID,
+		Summary:      fmt.Sprintf("manual worktree retirement preview issued; approval expires at %s", approval.expires.Format(time.RFC3339)),
 		EvidenceJSON: evidence,
 	}); err != nil {
 		d.actionMu.Lock()
@@ -77,7 +81,7 @@ func (d *Daemon) WorktreeRemovalPreview(ctx context.Context, req api.WorktreeRem
 			"no nested mounts, operations, submodules, dirty content or unsafe symlinks",
 			"the exact resolved Git executable is unchanged",
 		},
-		Note: "No filesystem change has occurred. This approval is single-use, memory-only, and expires in two minutes; the branch will remain.",
+		Note: "No filesystem change has occurred. Apply moves the registered checkout to a restorable sibling path; the branch remains.",
 	}, nil
 }
 

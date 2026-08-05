@@ -79,6 +79,10 @@ func (c *Client) CachePurgePreview(ctx context.Context, request CachePreviewRequ
 	return c.cachePreview(ctx, "purge", request)
 }
 
-func (c *Client) CachePurgeApply(ctx context.Context, request CacheApplyRequest) (CacheApplyResponse, error) {
-	return c.cacheApply(ctx, "purge", request)
+func (c *Client) CachePurgeApply(ctx context.Context, request CacheApplyRequest) (CachePurgePrepareResponse, error) {
+	return post[CacheApplyRequest, CachePurgePrepareResponse](ctx, c, "/cache/purge/apply", request)
+}
+
+func (c *Client) CachePurgeComplete(ctx context.Context, request CachePurgeCompleteRequest) (CacheApplyResponse, error) {
+	return post[CachePurgeCompleteRequest, CacheApplyResponse](ctx, c, "/cache/purge/complete", request)
 }

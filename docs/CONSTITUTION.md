@@ -13,8 +13,9 @@
   daemon did not observe is a fabrication.
 - Missing activity evidence is not inactivity. Deltas require two ordered,
   available samples for the same exact process key.
-- Worktree staleness is continuous evidence, never age alone. Removal is manual,
-  non-force and branch-preserving; incomplete evidence protects the worktree.
+- Worktree staleness is continuous evidence, never age alone. Cleanup first
+  retires the checkout reversibly; permanent finalization is later, manual,
+  grace-gated, non-force, foreground-only, and branch-preserving.
 - Record what was observed when it was observed. Do not re-derive a fact each
   cycle that the operating system can destroy between cycles.
 - Run with the least privilege that can do the job, and inspect only what that
@@ -28,6 +29,10 @@
   process signalling authority. Observation never grants deletion: one proven
   artifact may be quarantined reversibly, while permanent purge requires a new
   approval after a grace period.
+- The persistent daemon never owns permanent filesystem deletion capability.
+  Irreversible cache unlink and native worktree removal exist only in exact,
+  short-lived foreground executors after full-ID confirmation; ambiguous results
+  open a mutation circuit until restart and fresh observation.
 
 ## CONSTRAINTS
 
@@ -55,9 +60,9 @@
   metadata and reads version-control plumbing only; worktree inspection retains
   aggregate dirty evidence, never filenames.
 - Cache artifact contents are never read. A cache provider must prove one exact
-  root, file contract and exclusive session owner from primary-source-backed
-  metadata; an unproven, shared, linked, changed or incomplete artifact is
-  protected.
+  explicitly allowed root, file contract and exclusive session owner from
+  primary-source-backed metadata. Roots are descriptor-walked without following
+  components; an unproven, shared, linked, changed or incomplete artifact is protected.
 - Expensive activity inspection is restricted to live, same-user processes
   already attributed to a coding-agent session. File paths and socket endpoints
   discovered during that pass never reach storage.
@@ -78,9 +83,14 @@
 - Primary, locked, missing, prunable, dirty, active, unreadable or operational
   worktrees are protected, as are local-only commits, unsafe detached commits,
   submodules, nested mounts and incomplete path-usage inspection.
-- Worktree removal never uses force, prune, branch deletion, network access, a
+- Worktree cleanup never uses force, prune, branch deletion, network access, a
   shell or recursive filesystem deletion. Durable attempting evidence precedes
-  the native Git side effect, and the branch remains.
+  reversible retirement and foreground finalization, and the branch remains.
+- Worktree retirement uses native non-force move to an absent same-filesystem
+  sibling and durably binds original path, retirement path, inode, registration,
+  branch and grace. Restore is separately approved. Finalization requires a new
+  complete validation, full stable ID, and daemon verification of path and
+  registration absence.
 - Worktree Git commands revalidate their resolved executable identity for every
   invocation. User-writable Git is executed only from a private
   content-addressed snapshot of at most 128 MiB bound to the same approval;
@@ -169,6 +179,8 @@
   administrative Git directories, independently of its current path.
 - **Stale worktree** — a present, registered, unprotected secondary worktree
   with at least seven continuous days of complete inactivity evidence.
+- **Retired worktree** — a registered checkout moved intact to its deterministic
+  sibling retirement path and still recoverable until separately finalized.
 - **Identity evidence** — evidence that a process *is* an agent program.
   Executable and argument derived.
 - **Membership evidence** — evidence that a process is *inside* an agent

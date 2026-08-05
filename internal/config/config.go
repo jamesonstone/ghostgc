@@ -96,10 +96,11 @@ type Privacy struct {
 
 // Worktrees controls bounded, read-only inventory and manual removal authority.
 type Worktrees struct {
-	Enabled      bool     `yaml:"enabled"`
-	ScanInterval Duration `yaml:"scanInterval"`
-	StaleAfter   Duration `yaml:"staleAfter"`
-	Roots        []string `yaml:"roots"`
+	Enabled         bool     `yaml:"enabled"`
+	ScanInterval    Duration `yaml:"scanInterval"`
+	StaleAfter      Duration `yaml:"staleAfter"`
+	RetirementGrace Duration `yaml:"retirementGrace"`
+	Roots           []string `yaml:"roots"`
 }
 
 // Agent enables or disables a single agent adapter.
@@ -170,9 +171,10 @@ func Default() Config {
 			NetworkTelemetry:        false,
 		},
 		Worktrees: Worktrees{
-			Enabled:      true,
-			ScanInterval: Duration(5 * time.Minute),
-			StaleAfter:   Duration(7 * 24 * time.Hour),
+			Enabled:         true,
+			ScanInterval:    Duration(5 * time.Minute),
+			StaleAfter:      Duration(7 * 24 * time.Hour),
+			RetirementGrace: Duration(7 * 24 * time.Hour),
 		},
 		Agents: map[string]Agent{
 			"codex": {Enabled: true},

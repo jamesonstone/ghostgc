@@ -16,6 +16,9 @@ func (c Config) validateWorktrees() error {
 	if c.Worktrees.StaleAfter.D() < 7*24*time.Hour {
 		return fmt.Errorf("worktrees.staleAfter is %s, which is below the minimum of 168h", c.Worktrees.StaleAfter.D())
 	}
+	if c.Worktrees.RetirementGrace.D() < 24*time.Hour {
+		return fmt.Errorf("worktrees.retirementGrace is %s, which is below the minimum of 24h", c.Worktrees.RetirementGrace.D())
+	}
 	if len(c.Worktrees.Roots) > maxWorktreeRoots {
 		return fmt.Errorf("worktrees.roots has %d entries, which exceeds the maximum of %d", len(c.Worktrees.Roots), maxWorktreeRoots)
 	}

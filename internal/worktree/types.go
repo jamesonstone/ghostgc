@@ -14,6 +14,7 @@ const (
 	StateProtected State = "protected"
 	StateUnknown   State = "unknown"
 	StateMissing   State = "missing"
+	StateRetired   State = "retired"
 	StateRemoved   State = "removed"
 )
 

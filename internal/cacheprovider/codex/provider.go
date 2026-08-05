@@ -23,11 +23,18 @@ const minimumExclusiveConfidence = 0.95
 
 // Provider observes only CODEX_HOME/shell_snapshots.
 type Provider struct {
-	uid uint32
+	uid   uint32
+	roots map[string]bool
 }
 
 // New constructs the provider for the daemon user.
-func New(uid uint32) *Provider { return &Provider{uid: uid} }
+func New(uid uint32, roots ...string) *Provider {
+	allowed := make(map[string]bool, len(roots))
+	for _, root := range roots {
+		allowed[root] = true
+	}
+	return &Provider{uid: uid, roots: allowed}
+}
 
 // ID returns the pinned provider contract identifier.
 func (p *Provider) ID() string { return cacheartifact.ProviderCodexShellSnapshot }
@@ -57,7 +64,10 @@ func (p *Provider) Observe(ctx context.Context, sessions []cacheprovider.Session
 		if session.NativeID != "" {
 			byNative[session.NativeID] = append(byNative[session.NativeID], session)
 		}
-		roots[filepath.Join(session.CodexHome, "shell_snapshots")] = true
+		root := filepath.Join(session.CodexHome, "shell_snapshots")
+		if p.roots[root] {
+			roots[root] = true
+		}
 	}
 	rootPaths := make([]string, 0, len(roots))
 	for root := range roots {

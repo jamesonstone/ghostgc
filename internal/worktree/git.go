@@ -191,11 +191,11 @@ func (g *Git) succeeds(ctx context.Context, path string, args ...string) bool {
 	return err == nil
 }
 
-// Remove invokes only native, non-force worktree removal.
-func (g *Git) Remove(ctx context.Context, repository, canonicalPath string) error {
+// Move invokes native worktree relocation without force.
+func (g *Git) Move(ctx context.Context, repository, source, destination string) error {
 	if err := g.VerifyIdentity(); err != nil {
 		return err
 	}
-	_, err := g.run(ctx, repository, "worktree", "remove", canonicalPath)
+	_, err := g.run(ctx, repository, "worktree", "move", source, destination)
 	return err
 }

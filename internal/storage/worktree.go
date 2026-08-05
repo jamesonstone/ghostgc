@@ -12,12 +12,13 @@ const worktreeColumns = `worktree_id, path, path_device, path_inode,
 	common_git_dir, admin_git_dir, head, ref, branch, sources, state,
 	first_seen_ns, last_seen_ns, last_activity_ns, inactive_since_ns,
 	daemon_started_ns, status_fingerprint, protection, evidence, approved_links,
-	git_identity, registered, complete, removed_ns, recreate_command`
+	git_identity, registered, complete, removed_ns, recreate_command,
+	original_path, retired_ns, retirement_grace_until_ns`
 
 // UpsertWorktree stores one current conclusion without changing first seen.
 func (t *Tx) UpsertWorktree(rec WorktreeRecord) error {
 	_, err := t.tx.ExecContext(t.ctx, `INSERT INTO worktrees (`+worktreeColumns+`)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(worktree_id) DO UPDATE SET
 		path=excluded.path, path_device=excluded.path_device, path_inode=excluded.path_inode,
 		common_git_dir=excluded.common_git_dir, admin_git_dir=excluded.admin_git_dir,
@@ -28,13 +29,14 @@ func (t *Tx) UpsertWorktree(rec WorktreeRecord) error {
 		protection=excluded.protection, evidence=excluded.evidence,
 		approved_links=excluded.approved_links, git_identity=excluded.git_identity,
 		registered=excluded.registered, complete=excluded.complete, removed_ns=excluded.removed_ns,
-		recreate_command=excluded.recreate_command`, rec.WorktreeID, rec.Path,
+		recreate_command=excluded.recreate_command, original_path=excluded.original_path,
+		retired_ns=excluded.retired_ns, retirement_grace_until_ns=excluded.retirement_grace_until_ns`, rec.WorktreeID, rec.Path,
 		rec.PathDevice, rec.PathInode, rec.CommonGitDir, rec.AdminGitDir, rec.HEAD,
 		rec.Ref, rec.Branch, jsonOrEmpty(rec.SourcesJSON), rec.State, rec.FirstSeenNs,
 		rec.LastSeenNs, rec.LastActivityNs, rec.InactiveSinceNs, rec.DaemonStartedNs,
 		rec.StatusFingerprint, jsonOrEmpty(rec.ProtectionJSON), jsonOrEmpty(rec.EvidenceJSON),
 		jsonOrEmpty(rec.ApprovedLinksJSON), jsonOrEmpty(rec.GitIdentityJSON), rec.Registered, rec.Complete,
-		rec.RemovedNs, rec.RecreateCommand)
+		rec.RemovedNs, rec.RecreateCommand, rec.OriginalPath, rec.RetiredNs, rec.RetirementGraceNs)
 	if err != nil {
 		return fmt.Errorf("storage: upserting worktree %s: %w", rec.WorktreeID, err)
 	}
@@ -47,7 +49,7 @@ func (t *Tx) ResetWorktreeInactivity(atNs, daemonStartedNs int64) error {
 	_, err := t.tx.ExecContext(t.ctx, `UPDATE worktrees SET state = 'unknown',
 		last_activity_ns = ?, inactive_since_ns = 0,
 		daemon_started_ns = ?, complete = 0,
-		protection = '["daemon_scan_incomplete"]' WHERE state <> 'removed'`,
+		protection = '["daemon_scan_incomplete"]' WHERE state NOT IN ('removed', 'retired')`,
 		atNs, daemonStartedNs)
 	if err != nil {
 		return fmt.Errorf("storage: resetting worktree inactivity: %w", err)
@@ -62,12 +64,12 @@ func (t *Tx) PruneAbsentWorktrees(max int) (int64, error) {
 		return 0, errors.New("storage: worktree inventory bound must be positive")
 	}
 	result, err := t.tx.ExecContext(t.ctx, `DELETE FROM worktrees
-		WHERE registered = 0 AND state <> 'removed'
-		AND worktree_id NOT IN (SELECT worktree_id FROM worktree_actions WHERE result = 'attempting')
+		WHERE registered = 0 AND state NOT IN ('removed', 'retired')
+		AND worktree_id NOT IN (SELECT worktree_id FROM worktree_actions WHERE result IN ('attempting', 'purging', 'partial'))
 		AND worktree_id NOT IN (
 			SELECT worktree_id FROM worktrees WHERE state <> 'removed'
 			ORDER BY registered DESC,
-			worktree_id IN (SELECT worktree_id FROM worktree_actions WHERE result = 'attempting') DESC,
+			worktree_id IN (SELECT worktree_id FROM worktree_actions WHERE result IN ('attempting', 'purging', 'partial')) DESC,
 			last_seen_ns DESC, worktree_id ASC LIMIT ?
 		)`, max)
 	if err != nil {
@@ -84,7 +86,7 @@ func (s *Store) ListCurrentWorktrees(ctx context.Context, limit int) ([]Worktree
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT `+worktreeColumns+` FROM worktrees
 		WHERE state <> 'removed' ORDER BY registered DESC,
-		worktree_id IN (SELECT worktree_id FROM worktree_actions WHERE result = 'attempting') DESC, last_seen_ns DESC,
+		worktree_id IN (SELECT worktree_id FROM worktree_actions WHERE result IN ('attempting', 'purging', 'partial')) DESC, last_seen_ns DESC,
 		worktree_id ASC LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("storage: listing current worktrees: %w", err)
@@ -186,20 +188,24 @@ func validWorktreePrefix(value string) bool {
 
 func scanWorktree(row rowScanner) (WorktreeRecord, error) {
 	var rec WorktreeRecord
-	var removed sql.NullInt64
+	var removed, retired sql.NullInt64
 	err := row.Scan(&rec.WorktreeID, &rec.Path, &rec.PathDevice, &rec.PathInode,
 		&rec.CommonGitDir, &rec.AdminGitDir, &rec.HEAD, &rec.Ref, &rec.Branch,
 		&rec.SourcesJSON, &rec.State, &rec.FirstSeenNs, &rec.LastSeenNs,
 		&rec.LastActivityNs, &rec.InactiveSinceNs, &rec.DaemonStartedNs,
 		&rec.StatusFingerprint, &rec.ProtectionJSON, &rec.EvidenceJSON,
 		&rec.ApprovedLinksJSON, &rec.GitIdentityJSON, &rec.Registered, &rec.Complete, &removed,
-		&rec.RecreateCommand)
+		&rec.RecreateCommand, &rec.OriginalPath, &retired, &rec.RetirementGraceNs)
 	if err != nil {
 		return rec, fmt.Errorf("storage: scanning worktree: %w", err)
 	}
 	if removed.Valid {
 		value := removed.Int64
 		rec.RemovedNs = &value
+	}
+	if retired.Valid {
+		value := retired.Int64
+		rec.RetiredNs = &value
 	}
 	return rec, nil
 }
