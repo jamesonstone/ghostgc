@@ -31,8 +31,14 @@ ghostgc worktrees
 ghostgc logs
 ```
 
-`ghostgc logs` shows recent audit entries and then follows new ones. Press
-Ctrl-C to return to the shell, or add `--follow=false` for a one-time snapshot.
+`ghostgc logs` shows lifecycle and policy entries and then follows new ones.
+Press Ctrl-C to return to the shell. Add `--verbose` to include
+`process.attributed` entries, or `--follow=false` for one complete snapshot.
+
+When candidates are empty, read the funnel printed by `ghostgc status` or
+`ghostgc candidates`: active sessions, exact policy-executable matches,
+orphaned classifications, and matched policy decisions identify the first
+unsatisfied stage.
 
 Use `ghostgc explain <pid>` and the relevant `show` or `explain` command for any
 surprising conclusion. Unknown or incomplete evidence should appear as a

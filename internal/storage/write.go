@@ -109,7 +109,7 @@ func (t *Tx) UpsertSession(rec SessionRecord) error {
 			native_session_id, previous_state, state_changed_ns,
 			host_proc_uid, host_pid, host_name, host_exec_path,
 			branch, repository_busy, terminal_sid
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(session_id) DO UPDATE SET
 			state             = excluded.state,
 			confidence        = excluded.confidence,
@@ -130,11 +130,11 @@ func (t *Tx) UpsertSession(rec SessionRecord) error {
 			branch            = excluded.branch,
 			repository_busy   = excluded.repository_busy,
 			terminal_sid      = excluded.terminal_sid,
-			ended_ns          = NULL`,
+			ended_ns          = excluded.ended_ns`,
 		rec.SessionID, rec.AgentID, rec.RootProcUID, rec.RootPID, rec.State, rec.Confidence,
 		rec.WorkingDir, rec.RepositoryPath, rec.TTY, rec.Invocation,
 		jsonObjectOrEmpty(rec.MetadataJSON), jsonOrEmpty(rec.EvidenceJSON),
-		rec.StartedNs, rec.LastSeenNs,
+		rec.StartedNs, rec.LastSeenNs, rec.EndedNs,
 		rec.NativeSessionID, rec.PreviousState, rec.StateChangedNs,
 		rec.HostProcUID, rec.HostPID, rec.HostName, rec.HostExecPath,
 		rec.Branch, rec.RepositoryBusy, rec.TerminalSID)

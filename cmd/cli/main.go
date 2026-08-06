@@ -212,7 +212,7 @@ func init() {
 		{
 			name:    "logs",
 			summary: "show and follow the audit log",
-			usage:   "[--follow=false] [--limit <n>] [--kind <kind>] [--subject <subject>]",
+			usage:   "[--follow=false] [--verbose] [--limit <n>] [--kind <kind>] [--subject <subject>]",
 			run:     cmdLogs,
 		},
 		{

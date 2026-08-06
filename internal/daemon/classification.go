@@ -36,6 +36,9 @@ func (d *Daemon) classifyActivity(ctx context.Context, snap *process.Snapshot,
 	for _, rec := range sessionsByID {
 		ended[rec.SessionID] = rec.EndedNs != nil
 	}
+	for _, rec := range res.Sessions {
+		ended[rec.SessionID] = rec.EndedNs != nil
+	}
 	for _, rec := range res.Ended {
 		ended[rec.SessionID] = true
 	}

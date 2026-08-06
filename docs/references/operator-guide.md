@@ -42,13 +42,16 @@ matches only. Reconcile mode permits the existing preview/apply workflows.
 | `ghostgc worktree purge` | grace-gated foreground native removal |
 | `ghostgc worktree actions` | durable worktree lifecycle history |
 | `ghostgc classifications\|policies\|metrics` | decisions, configuration, and health evidence |
-| `ghostgc logs [-f]` | show current audit history and follow new entries until interrupted |
+| `ghostgc logs [-f] [--verbose]` | follow lifecycle/policy audit entries; optionally include attribution noise |
 | `ghostgc doctor` | diagnose configuration and installation, even with no daemon |
 | `ghostgc config init\|path\|show` | manage configuration |
 | `ghostgc service install\|uninstall\|status` | advanced background-service controls |
 
-Add `--json` for machine-readable output. Following logs emit one compact JSON
-response per line; use `ghostgc logs --follow=false` for one response and exit.
+Add `--json` for machine-readable output. Following logs exclude
+`process.attributed` by default and emit one compact JSON response per line;
+add `--verbose`/`-v` or an explicit `--kind process.attributed` to include
+attribution. `ghostgc logs --follow=false` returns complete history in one
+response and exits.
 
 ## Optional configuration
 
@@ -58,6 +61,8 @@ roots, policies, bounds, cadence, privacy, or storage paths, run
 startup command again. The strict YAML file overlays the selected profile. It
 can narrow the mode, but audit startup cannot become actionable and reconcile
 startup cannot become automatic. Unknown fields and unsafe values stop startup.
+`ghostgc config show` reads the active daemon's exact effective configuration;
+without a daemon it previews the default audit startup profile.
 
 ## Process cleanup
 
@@ -69,6 +74,11 @@ ghostgc policies
 ghostgc candidates
 ghostgc logs --kind policy.candidate
 ```
+
+`ghostgc candidates` and `ghostgc status` also show the candidate funnel:
+active sessions, exact policy-executable matches, orphaned classifications,
+and matched policy decisions. A zero at an earlier stage explains why no audit
+decision or recommendation exists yet.
 
 When the matches are correct, enable manual reconciliation and request one
 exact preview:

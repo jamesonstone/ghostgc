@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/jamesonstone/ghostgc/internal/config"
 )
 
 // ErrDaemonUnreachable reports that nothing is listening on the socket.
@@ -115,6 +117,11 @@ func (c *Client) Status(ctx context.Context) (StatusResponse, error) {
 	return get[StatusResponse](ctx, c, "/status", nil)
 }
 
+// EffectiveConfig fetches the exact configuration loaded by the daemon.
+func (c *Client) EffectiveConfig(ctx context.Context) (config.Config, error) {
+	return get[config.Config](ctx, c, "/config", nil)
+}
+
 // Sessions lists sessions.
 func (c *Client) Sessions(ctx context.Context, opts ListOptions) (SessionsResponse, error) {
 	return get[SessionsResponse](ctx, c, "/sessions", listQuery(opts))
@@ -181,6 +188,9 @@ func (c *Client) Logs(ctx context.Context, opts LogOptions) (LogsResponse, error
 	}
 	if opts.Kind != "" {
 		q.Set("kind", opts.Kind)
+	}
+	if opts.ExcludeKind != "" {
+		q.Set("exclude_kind", opts.ExcludeKind)
 	}
 	if opts.Subject != "" {
 		q.Set("subject", opts.Subject)

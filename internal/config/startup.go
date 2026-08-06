@@ -42,6 +42,7 @@ func LoadForStartup(path string, mode StartupMode) (Config, error) {
 		return Config{}, err
 	}
 	applyStartupCeiling(&cfg, mode)
+	cfg.StartupMode = mode
 	if err := cfg.Validate(); err != nil {
 		return Config{}, fmt.Errorf("config: %s: %w", path, err)
 	}

@@ -52,6 +52,9 @@ func TestLogsFollowByDefaultAndDrainCursorPages(t *testing.T) {
 		if request.Limit != 2 || request.Kind != "scan" || request.Subject != "daemon" {
 			t.Fatalf("filters changed while following: %+v", request)
 		}
+		if request.ExcludeKind != "" {
+			t.Fatalf("an explicit kind unexpectedly retained the default exclusion: %+v", request)
+		}
 	}
 	assertSummaryOrder(t, output, "one", "two", "three", "four", "five")
 }
@@ -59,8 +62,10 @@ func TestLogsFollowByDefaultAndDrainCursorPages(t *testing.T) {
 func TestLogsFollowFlagsCanDisableFollowing(t *testing.T) {
 	for _, flag := range []string{"--follow=false", "-f=false"} {
 		calls := 0
-		e := &env{fetchLogs: func(context.Context, api.LogOptions) (api.LogsResponse, error) {
+		var request api.LogOptions
+		e := &env{fetchLogs: func(_ context.Context, opts api.LogOptions) (api.LogsResponse, error) {
 			calls++
+			request = opts
 			return api.LogsResponse{}, nil
 		}}
 		if err := cmdLogs(context.Background(), e, []string{flag}); err != nil {
@@ -69,6 +74,40 @@ func TestLogsFollowFlagsCanDisableFollowing(t *testing.T) {
 		if calls != 1 {
 			t.Fatalf("cmdLogs(%q) made %d requests, want one", flag, calls)
 		}
+		if request.ExcludeKind != "" {
+			t.Fatalf("one-shot logs excluded %q, want complete history", request.ExcludeKind)
+		}
+	}
+}
+
+func TestFollowedLogsHideAttributionUnlessRequested(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string
+		wantExclude string
+		wantKind    string
+	}{
+		{name: "default", wantExclude: "process.attributed"},
+		{name: "verbose", args: []string{"--verbose"}},
+		{name: "short verbose", args: []string{"-v"}},
+		{name: "explicit attribution", args: []string{"--kind", "process.attributed"}, wantKind: "process.attributed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			var request api.LogOptions
+			e := &env{fetchLogs: func(_ context.Context, opts api.LogOptions) (api.LogsResponse, error) {
+				request = opts
+				cancel()
+				return api.LogsResponse{}, nil
+			}}
+			if err := cmdLogs(ctx, e, tt.args); err != nil {
+				t.Fatal(err)
+			}
+			if request.ExcludeKind != tt.wantExclude || request.Kind != tt.wantKind {
+				t.Fatalf("log request = %+v, want exclusion %q kind %q", request, tt.wantExclude, tt.wantKind)
+			}
+		})
 	}
 }
 

@@ -123,11 +123,12 @@ func (d *Daemon) Explain(ctx context.Context, pid int) (api.ExplainResponse, err
 // Logs implements api.Backend.
 func (d *Daemon) Logs(ctx context.Context, opts api.LogOptions) (api.LogsResponse, error) {
 	entries, err := d.store.ListAudit(ctx, storage.AuditFilter{
-		SinceNs: opts.SinceNs,
-		AfterID: opts.AfterID,
-		Kind:    opts.Kind,
-		Subject: opts.Subject,
-		Limit:   opts.Limit,
+		SinceNs:     opts.SinceNs,
+		AfterID:     opts.AfterID,
+		Kind:        opts.Kind,
+		ExcludeKind: opts.ExcludeKind,
+		Subject:     opts.Subject,
+		Limit:       opts.Limit,
 	})
 	if err != nil {
 		return api.LogsResponse{}, err

@@ -136,6 +136,9 @@ type Config struct {
 	// Defaulted reports that no configuration file existed and built-in
 	// defaults are in use.
 	Defaulted bool `yaml:"-"`
+	// StartupMode records the built-in profile selected before optional
+	// overrides and authority ceilings. It is runtime metadata, not YAML.
+	StartupMode StartupMode `yaml:"-" json:"startupMode,omitempty"`
 }
 
 // Default returns the built-in configuration. Audit remains the safe default;

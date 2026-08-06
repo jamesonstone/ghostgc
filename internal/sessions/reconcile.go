@@ -17,7 +17,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, snap *process.Snapshot, tree
 	now := snap.Taken
 	nowNs := now.UnixNano()
 
-	graph := adapters.Graph{Snapshot: snap, Tree: tree, Roots: map[int]adapters.AgentRoot{}}
+	graph := adapters.Graph{
+		Snapshot: snap, Tree: tree, Roots: map[int]adapters.AgentRoot{},
+		KnownSessions: r.knownProviderSessions(),
+	}
 
 	// Step one: every adapter identifies its own session roots. Adapters do
 	// not see each other's conclusions, so a process claimed by two adapters
@@ -57,12 +60,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, snap *process.Snapshot, tree
 		pendingSessionState: make(map[string]State),
 		pendingSessionRoot:  make(map[string]process.Key),
 		pendingNativeIndex:  make(map[string]string),
+		pendingMetadata:     make(map[string]adapters.SessionMetadata),
 	}
 
 	// Step two: turn detected roots into sessions before anything else is
 	// attributed, so that a process carrying a brand-new session's identifier
 	// can be matched to it in the same cycle.
 	live, secondary := r.buildSessions(ctx, graph, res, nowNs)
+	providerSessions := r.discoverProviderSessions(ctx, graph)
+	r.buildProviderSessions(graph, providerSessions, res, live, nowNs)
 
 	// Step three: attribute every inspected process.
 	for _, p := range snap.Processes {
@@ -72,7 +78,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, snap *process.Snapshot, tree
 		if !p.Detailed || p.UID != r.selfUID {
 			continue
 		}
-		attr := r.attribute(ctx, p, graph, tree)
+		attr := r.attribute(ctx, p, graph, tree, providerSessions)
 		if attr.SessionID == "" {
 			continue
 		}

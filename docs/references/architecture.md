@@ -95,21 +95,24 @@ Every 15 seconds by default:
    counters (`proc_pidinfo`) for the remaining processes — 24 ms for 1121.
 3. **Tree.** Parent links are classified and only believable ones become edges.
 4. **Detection.** Each adapter identifies its session roots from the snapshot.
-5. **Attribution.** Each inspected process is offered to each adapter; the
+5. **Provider lifecycle.** Optional adapter evidence may refine an exact native
+   ID into a task session only when it remains bound to an identified host root.
+   Unknown or unsafe evidence retains the host session.
+6. **Attribution.** Each inspected process is offered to each adapter; the
    highest-confidence answer wins. A process nothing claims falls back to
    ownership recorded at an earlier observation.
-6. **Classify.** Complete exact-key activity evidence becomes an activity state;
+7. **Classify.** Complete exact-key activity evidence becomes an activity state;
    missing evidence remains unknown and detachment remains an independent fact.
-7. **Evaluate policy.** Strict exact-match policies produce candidates,
+8. **Evaluate policy.** Strict exact-match policies produce candidates,
    non-overridable refusals or cooldowns. A decision grants no authority until
    the global and per-policy mode gates are applied after commit.
-8. **Persist.** Sessions, processes, ownership, observations, classifications,
+9. **Persist.** Sessions, processes, ownership, observations, classifications,
    policy decisions, exits and audit
    entries are written in **one transaction**, so a crash mid-cycle cannot leave
    a session recorded without its processes.
-9. **Commit.** Only after that transaction succeeds do the reconciler and
+10. **Commit.** Only after that transaction succeeds do the reconciler and
    bounded classification windows advance their in-memory views.
-10. **Narrow enforcement.** Under global enforce, select at most the first
+11. **Narrow enforcement.** Under global enforce, select at most the first
     current candidate from the singular automatic policy, then hold the scan
     lane through fresh revalidation, the pre-action transaction, the exact
     platform gate and completion evidence. Refusals and cooldowns never enter
@@ -280,7 +283,7 @@ automatic pre-action revalidation plus the final platform gate depend on it too.
 | `internal/cachepolicy` | two-observation settling and independent exact cache authority | `cacheartifact`, `config` |
 | `internal/cachefs` | descriptor-anchored metadata and reversible moves plus a separate foreground purger | `cacheartifact` |
 | `internal/config` | configuration, path validation and authority bounds | nothing |
-| `internal/api` | socket transport, request and response types | `adapters`, `protection`, `storage` |
+| `internal/api` | socket transport, request and response types | `adapters`, `config`, `protection`, `storage` |
 | `internal/daemon` | the loop, the API backend, diagnostics | everything above |
 
 The platform implementations deliberately do not import `internal/platform`, so
@@ -346,9 +349,14 @@ separate per-process activity state: `active`, `waiting`, `idle`, `suspicious`,
 five continuous minutes of complete exact-key evidence. Unknown remains
 protected and no activity state authorises an action.
 
-The transition out of a live state is by process *key*, never PID: a recycled
-PID cannot keep a finished session alive, and the evidence for the transition
-says so explicitly when the PID is in use by something else.
+Host sessions transition out of a live state by process *key*, never PID: a
+recycled PID cannot keep a finished session alive, and the evidence for the
+transition says so explicitly when the PID is in use by something else. An
+adapter may additionally expose task-level lifecycle behind the optional
+`SessionLifecycleAdapter`. The Codex implementation reads one bounded,
+identity-validated rollout and binds its native thread ID to an intact
+descendant of the identified host root. Unknown provider evidence keeps the
+host session active; provider completion never establishes process ownership.
 
 ## Adding an agent adapter
 
@@ -364,6 +372,11 @@ Implement `adapters.AgentAdapter`:
 - `NativeSessionID` — the agent's own session identifier carried by a process,
   when it carries one. Membership evidence only: environments are inherited.
 - `ProtectedPatterns` — classes you refuse to see terminated.
+
+An adapter whose provider exposes a distinct task lifetime may also implement
+`adapters.SessionLifecycleAdapter`. It must consider only already known native
+identities, bind every result to an identified host root, bound external reads,
+and omit unknown or unsafe results instead of inferring completion.
 
 Match executable basenames exactly and path components as whole segments. Do not
 pattern-match raw command lines: a developer machine has many processes with an

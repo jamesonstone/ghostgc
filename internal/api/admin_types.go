@@ -23,10 +23,20 @@ type CandidateEntry struct {
 
 // CandidatesResponse backs `ghostgc candidates`.
 type CandidatesResponse struct {
-	Enforceable []CandidateEntry `json:"enforceable"`
-	Recommended []CandidateEntry `json:"recommended"`
-	Audited     []CandidateEntry `json:"audited"`
-	Note        string           `json:"note"`
+	Enforceable []CandidateEntry     `json:"enforceable"`
+	Recommended []CandidateEntry     `json:"recommended"`
+	Audited     []CandidateEntry     `json:"audited"`
+	Diagnostics CandidateDiagnostics `json:"diagnostics"`
+	Note        string               `json:"note"`
+}
+
+// CandidateDiagnostics explains the current policy funnel even when no exact
+// target reached policy evaluation.
+type CandidateDiagnostics struct {
+	ActiveSessions          int `json:"active_sessions"`
+	MatchingExecutables     int `json:"matching_executables"`
+	OrphanedClassifications int `json:"orphaned_classifications"`
+	PolicyDecisions         int `json:"policy_decisions"`
 }
 
 // PolicySummary describes a loaded policy.

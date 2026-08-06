@@ -53,6 +53,10 @@
 - Evidence that a process belongs to a session is not evidence that it *is* the
   agent. Environment variables are inherited by every descendant, so they
   establish lineage only, capped below the policy-eligible threshold.
+- Provider lifecycle may narrow an already proven agent lineage to one task
+  only when exact native identity and intact ancestry agree. Missing,
+  malformed, ambiguous or unsafe lifecycle evidence preserves the active host
+  session and its protections.
 - Relationships declare whether they may establish ownership. A shared terminal,
   process group or repository is context, never ownership.
 - Recorded ownership is durable. Confidence may not fall, a `root` relation may

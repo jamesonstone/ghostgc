@@ -64,7 +64,10 @@ ghostgc doctor
 ghostgc stop
 ```
 
-Use `ghostgc logs --follow=false` for a one-time audit-log snapshot.
+Followed logs show lifecycle and policy signal by default. Add `--verbose` to
+include process-attribution entries, or `--follow=false` for a complete
+one-time audit-log snapshot. `ghostgc config show` reports the active daemon's
+effective profile and overrides.
 
 Run `ghostgc --help` for all commands. To override defaults, generate the
 optional strict configuration and restart in either mode:

@@ -167,6 +167,10 @@ type Graph struct {
 	// Roots maps root PID to the detected root. It is populated before
 	// AttributeProcess is called.
 	Roots map[int]AgentRoot
+	// KnownSessions carries only previously committed provider identities and
+	// their exact host roots. It lets an optional lifecycle adapter refresh a
+	// task after its last child exits without scanning every provider record.
+	KnownSessions []KnownSession
 }
 
 // AgentAdapter is implemented once per agent runtime.

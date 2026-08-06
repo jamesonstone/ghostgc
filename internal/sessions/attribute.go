@@ -13,9 +13,15 @@ import (
 
 // attribute asks every adapter, then falls back to durable ownership, then to
 // environment membership.
-func (r *Reconciler) attribute(ctx context.Context, p process.Process, graph adapters.Graph, tree *process.Tree) Attribution {
+func (r *Reconciler) attribute(ctx context.Context, p process.Process, graph adapters.Graph, tree *process.Tree,
+	providerSessions map[string]providerSessionInfo) Attribution {
 	uid := p.Key().UID()
 	best := Attribution{Key: p.Key(), LinkState: tree.Link(p.PID)}
+	if provider := r.attributeByProviderSession(p, graph, providerSessions); provider.SessionID != "" {
+		provider.Key = p.Key()
+		provider.LinkState = best.LinkState
+		return provider
+	}
 
 	for _, a := range r.reg.All() {
 		got := a.AttributeProcess(ctx, p, graph)
