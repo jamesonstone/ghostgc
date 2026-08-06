@@ -54,6 +54,15 @@ add `--verbose`/`-v` or an explicit `--kind process.attributed` to include
 attribution. `ghostgc logs --follow=false` returns complete history in one
 response and exits.
 
+`ghostgc logs` reads the durable SQLite audit trail; it does not tail the
+background service's diagnostic file. On macOS that diagnostic output is
+`~/Library/Logs/ghostgc/ghostgc.out.log`. Ghostgc continuously retains its
+newest output within a 10 MB (10,000,000 byte) hard bound. Service startup
+safely empties the superseded `ghostgc.err.log`; differently named legacy files
+are untouched.
+Startup refuses linked, foreign-owned, non-regular, or group/world-writable
+managed log paths instead of truncating them.
+
 ## Optional configuration
 
 Built-in settings are sufficient for standard Codex installations. For custom

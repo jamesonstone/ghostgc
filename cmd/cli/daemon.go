@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/jamesonstone/ghostgc/internal/config"
 	"github.com/jamesonstone/ghostgc/internal/daemon"
 	"github.com/jamesonstone/ghostgc/internal/platform"
+	"github.com/jamesonstone/ghostgc/internal/servicelog"
 	"github.com/jamesonstone/ghostgc/internal/storage"
 	"github.com/jamesonstone/ghostgc/internal/version"
 )
@@ -19,10 +21,11 @@ import (
 // cmdDaemon runs the persistent observation process from the same executable
 // as the short-lived control commands.
 func cmdDaemon(ctx context.Context, e *env, args []string) error {
-	fs := newFlagSet(e, "daemon", "[--mode audit|reconcile] [--config <path>] [--log-level <level>] [--once] [--version]")
+	fs := newFlagSet(e, "daemon", "[--mode audit|reconcile] [--config <path>] [--log-level <level>] [--service-log] [--once] [--version]")
 	configPath := fs.String("config", "", "path to config.yaml")
 	startupMode := fs.String("mode", "", "startup mode: audit or reconcile")
 	logLevel := fs.String("log-level", "info", "log level: debug, info, warn, error")
+	serviceLog := fs.Bool("service-log", false, "write to the bounded background-service log")
 	showVersion := fs.Bool("version", false, "print version and exit")
 	once := fs.Bool("once", false, "run a single observation cycle and exit")
 	if err := fs.Parse(args); err != nil {
@@ -63,7 +66,16 @@ func cmdDaemon(ctx context.Context, e *env, args []string) error {
 		return err
 	}
 
-	log := daemonLogger(*logLevel)
+	var logOutput io.Writer = os.Stderr
+	if *serviceLog {
+		writer, openErr := servicelog.Open(paths.LogDir)
+		if openErr != nil {
+			return openErr
+		}
+		defer func() { _ = writer.Close() }()
+		logOutput = writer
+	}
+	log := daemonLogger(*logLevel, logOutput)
 	store, err := storage.Open(paths.Database)
 	var recovered *storage.ErrRecovered
 	switch {
@@ -119,10 +131,10 @@ func daemonPaths(e *env, override string) (config.Paths, error) {
 	return paths, nil
 }
 
-func daemonLogger(level string) *slog.Logger {
+func daemonLogger(level string, output io.Writer) *slog.Logger {
 	var lvl slog.Level
 	if err := lvl.UnmarshalText([]byte(level)); err != nil {
 		lvl = slog.LevelInfo
 	}
-	return slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: lvl}))
+	return slog.New(slog.NewJSONHandler(output, &slog.HandlerOptions{Level: lvl}))
 }

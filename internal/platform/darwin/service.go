@@ -71,7 +71,7 @@ func esc(s string) string {
 	return b.String()
 }
 
-func renderLaunchdPlist(label, binaryPath string, arguments []string, logDir string) string {
+func renderLaunchdPlist(label, binaryPath string, arguments []string) string {
 	var program strings.Builder
 	for _, arg := range append([]string{binaryPath}, arguments...) {
 		_, _ = fmt.Fprintf(&program, "\t\t<string>%s</string>\n", esc(arg))
@@ -79,8 +79,8 @@ func renderLaunchdPlist(label, binaryPath string, arguments []string, logDir str
 	return fmt.Sprintf(launchdPlist,
 		esc(label),
 		strings.TrimSuffix(program.String(), "\n"),
-		esc(filepath.Join(logDir, "ghostgc.out.log")),
-		esc(filepath.Join(logDir, "ghostgc.err.log")),
+		"/dev/null",
+		"/dev/null",
 	)
 }
 
@@ -106,7 +106,7 @@ func (c *Collector) InstallService(ctx context.Context, label, binaryPath string
 	if err := os.MkdirAll(logDir, 0o750); err != nil {
 		return err
 	}
-	content := renderLaunchdPlist(label, abs, arguments, logDir)
+	content := renderLaunchdPlist(label, abs, arguments)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		return err
 	}

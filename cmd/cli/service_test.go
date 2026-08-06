@@ -56,7 +56,7 @@ func TestServiceInstallRegistersCurrentBinaryAsDaemon(t *testing.T) {
 	if opts.BinaryPath != canonical {
 		t.Errorf("binary = %q, want %q", opts.BinaryPath, canonical)
 	}
-	wantArgs := []string{"daemon", "--config", paths.Config}
+	wantArgs := []string{"daemon", "--service-log", "--config", paths.Config}
 	if !reflect.DeepEqual(opts.Arguments, wantArgs) {
 		t.Errorf("arguments = %#v, want %#v", opts.Arguments, wantArgs)
 	}
@@ -82,7 +82,7 @@ func TestInstallBackgroundPersistsReconcileMode(t *testing.T) {
 	if err := installBackground(context.Background(), &env{paths: paths}, fake, &mode); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"daemon", "--mode", "reconcile", "--config", paths.Config}
+	want := []string{"daemon", "--service-log", "--mode", "reconcile", "--config", paths.Config}
 	if got := fake.InstalledService().Arguments; !reflect.DeepEqual(got, want) {
 		t.Fatalf("service arguments = %#v, want %#v", got, want)
 	}
