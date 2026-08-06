@@ -14,7 +14,6 @@ func TestRenderLaunchdPlistUsesSingleBinaryCommand(t *testing.T) {
 		"com.example.ghost&gc",
 		"/Applications/Ghost & Co/ghostgc",
 		[]string{"daemon", "--config", "/tmp/config & audit.yaml"},
-		"/tmp/ghostgc logs",
 	)
 
 	wantCommand := strings.Join([]string{
@@ -28,12 +27,15 @@ func TestRenderLaunchdPlistUsesSingleBinaryCommand(t *testing.T) {
 	}
 	for _, want := range []string{
 		"<string>com.example.ghost&amp;gc</string>",
-		"<string>/tmp/ghostgc logs/ghostgc.out.log</string>",
-		"<string>/tmp/ghostgc logs/ghostgc.err.log</string>",
+		"<key>StandardOutPath</key>\n\t<string>/dev/null</string>",
+		"<key>StandardErrorPath</key>\n\t<string>/dev/null</string>",
 	} {
 		if !strings.Contains(content, want) {
 			t.Errorf("rendered plist missing %q", want)
 		}
+	}
+	if strings.Contains(content, "ghostgc.out.log") || strings.Contains(content, "ghostgc.err.log") {
+		t.Error("launchd must not write an unbounded service log")
 	}
 	if strings.Contains(content, "ghostgcd") {
 		t.Error("rendered plist still references the removed daemon executable")

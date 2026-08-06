@@ -97,12 +97,12 @@ func installBackground(ctx context.Context, e *env, plat platform.Platform, star
 		return err
 	}
 	var cfg config.Config
-	arguments := []string{"daemon", "--config", e.paths.Config}
+	arguments := []string{"daemon", "--service-log", "--config", e.paths.Config}
 	if startupMode == nil {
 		cfg, err = config.Load(e.paths.Config)
 	} else {
 		cfg, err = config.LoadForStartup(e.paths.Config, *startupMode)
-		arguments = []string{"daemon", "--mode", string(*startupMode), "--config", e.paths.Config}
+		arguments = []string{"daemon", "--service-log", "--mode", string(*startupMode), "--config", e.paths.Config}
 	}
 	if err != nil {
 		return err

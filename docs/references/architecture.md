@@ -80,7 +80,12 @@ profile, while `--mode reconcile` permits manual recommendations. Startup
 profiles supply pinned standard Codex roots, accept an optional strict YAML
 overlay, and cap the resulting authority below automatic enforcement. Keeping
 the process boundary preserves isolation while one artifact makes installation
-and service registration self-contained.
+and service registration self-contained. The service daemon owns its structured
+diagnostic writer: launchd sends stdout and stderr to `/dev/null`, while the
+daemon retains the newest output in the exact private `ghostgc.out.log` file
+within a 10 MB (10,000,000 byte) bound. The writer validates both known
+service-log paths before mutation and has no directory traversal or general
+cleanup authority.
 
 ## The observation cycle
 
@@ -283,6 +288,7 @@ automatic pre-action revalidation plus the final platform gate depend on it too.
 | `internal/cachepolicy` | two-observation settling and independent exact cache authority | `cacheartifact`, `config` |
 | `internal/cachefs` | descriptor-anchored metadata and reversible moves plus a separate foreground purger | `cacheartifact` |
 | `internal/config` | configuration, path validation and authority bounds | nothing |
+| `internal/servicelog` | exact-path validated, bounded background-service diagnostics | nothing |
 | `internal/api` | socket transport, request and response types | `adapters`, `config`, `protection`, `storage` |
 | `internal/daemon` | the loop, the API backend, diagnostics | everything above |
 

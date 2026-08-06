@@ -184,6 +184,11 @@ now describe the single-binary contract. New logs use `ghostgc.out.log` and
 successful service reinstall removes the adjacent legacy executable after the
 new service is registered.
 
+That original two-file launchd logging decision is superseded by
+[0016-bounded-service-logs](../0016-bounded-service-logs/SPEC.md): launchd no
+longer appends filesystem logs, and the daemon owns one bounded diagnostic
+writer. Differently named legacy files remain untouched.
+
 ## REPOSITORY MEMORY
 
 - This spec preserves the executable-boundary rationale, rejected one-process
