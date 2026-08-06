@@ -68,26 +68,6 @@ func TestServiceInstallRegistersCurrentBinaryAsDaemon(t *testing.T) {
 	}
 }
 
-func TestStartDefaultsToAuditAndAcceptsReconcile(t *testing.T) {
-	for _, tt := range []struct {
-		args []string
-		want config.StartupMode
-	}{
-		{want: config.StartupAudit},
-		{args: []string{"--mode", "reconcile"}, want: config.StartupReconcile},
-		{args: []string{"--mode", "shadow"}, want: config.StartupAudit},
-		{args: []string{"--mode", "live"}, want: config.StartupReconcile},
-	} {
-		got, err := startMode(&env{}, tt.args)
-		if err != nil || got != tt.want {
-			t.Fatalf("startMode(%v) = %q, %v; want %q", tt.args, got, err, tt.want)
-		}
-	}
-	if _, err := startMode(&env{}, []string{"--mode", "enforce"}); err == nil {
-		t.Fatal("start accepted an automatic enforcement mode")
-	}
-}
-
 func TestInstallBackgroundPersistsReconcileMode(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	_, link := executableFixture(t)

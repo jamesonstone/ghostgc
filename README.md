@@ -40,6 +40,14 @@ Start safely in audit/shadow mode with no configuration required:
 ghostgc start
 ```
 
+Start and immediately follow the high-signal audit log:
+
+```bash
+ghostgc start --logs
+```
+
+Ctrl-C stops the foreground log view; the background service keeps running.
+
 Enable live, manually approved reconciliation:
 
 ```bash
@@ -74,8 +82,9 @@ optional strict configuration and restart in either mode:
 
 ```bash
 ghostgc config init
-ghostgc start                  # audit ceiling
-ghostgc start --mode reconcile # manual-action ceiling
+ghostgc start                         # audit ceiling
+ghostgc start --logs                  # audit ceiling and followed logs
+ghostgc start --mode reconcile --logs # manual-action ceiling and followed logs
 ```
 
 ## References

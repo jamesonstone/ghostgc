@@ -182,6 +182,18 @@ func TestLogsHelpShowsLongAndShortFollowFlags(t *testing.T) {
 	}
 }
 
+func TestStartHelpShowsLogShortcut(t *testing.T) {
+	output, code := captureHelpRun(t, []string{"start", "-h"}, false)
+	if code != 0 {
+		t.Fatalf("start help exit code = %d, want 0", code)
+	}
+	for _, want := range []string{"--mode", "--logs", "follow the audit log after startup"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("start help is missing %q:\n%s", want, output)
+		}
+	}
+}
+
 func captureHelpRun(t *testing.T, args []string, terminal bool) (string, int) {
 	t.Helper()
 	previousHelp := cliHelpOutput
