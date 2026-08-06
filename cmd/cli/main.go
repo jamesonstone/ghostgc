@@ -126,7 +126,7 @@ func init() {
 		{
 			name:    "start",
 			summary: "start in audit mode, or select manual reconciliation",
-			usage:   "[--mode audit|reconcile]",
+			usage:   "[--mode audit|reconcile] [--logs]",
 			run:     cmdStart,
 		},
 		{

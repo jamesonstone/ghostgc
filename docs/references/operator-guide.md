@@ -10,7 +10,8 @@ it opens no TCP port.
 `ghostgc start --mode reconcile` enables recommendations and exact manually
 approved actions. Neither command enables automatic cleanup, and neither needs
 a configuration file. `ghostgc stop` stops and unregisters the background
-service.
+service. Add `--logs` to either startup command to follow the same high-signal
+stream as `ghostgc logs`; Ctrl-C leaves the background service running.
 
 The built-in profile enables Codex CLI and the macOS Codex app, the exact
 physical `~/.codex/shell_snapshots` and `~/.codex/worktrees` directories when
@@ -21,7 +22,7 @@ matches only. Reconcile mode permits the existing preview/apply workflows.
 
 | Command | Purpose |
 | --- | --- |
-| `ghostgc start [--mode audit\|reconcile]` | start or refresh the background service |
+| `ghostgc start [--mode audit\|reconcile] [--logs]` | start or refresh the service, optionally following logs |
 | `ghostgc stop` | stop and unregister the background service |
 | `ghostgc status` | daemon health, mode, counts, and last scan |
 | `ghostgc sessions` | observed agent sessions |

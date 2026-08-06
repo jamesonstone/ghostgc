@@ -8,7 +8,14 @@ machine.
 
 ```bash
 make install
-ghostgc start
+ghostgc start --logs
+```
+
+This starts the audit service and follows its high-signal log stream. Press
+Ctrl-C when you are ready to run the inspection commands below; the background
+service keeps running.
+
+```bash
 ghostgc doctor
 ghostgc status
 ```
@@ -49,7 +56,12 @@ protection, never a candidate.
 When the audit output is credible, restart in reconciliation mode:
 
 ```bash
-ghostgc start --mode reconcile
+ghostgc start --mode reconcile --logs
+```
+
+Press Ctrl-C to leave the log view, then confirm the effective mode:
+
+```bash
 ghostgc status
 ```
 
