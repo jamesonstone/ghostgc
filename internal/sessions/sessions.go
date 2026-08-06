@@ -13,6 +13,7 @@
 package sessions
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/jamesonstone/ghostgc/internal/adapters"
@@ -119,6 +120,7 @@ type Result struct {
 	pendingSessionState map[string]State
 	pendingSessionRoot  map[string]process.Key
 	pendingNativeIndex  map[string]string
+	pendingMetadata     map[string]adapters.SessionMetadata
 }
 
 // Commit applies the result's cross-cycle state to the Reconciler. Call it
@@ -135,6 +137,9 @@ func (r *Reconciler) Commit(res *Result) {
 	}
 	for native, id := range res.pendingNativeIndex {
 		r.nativeIndex[native] = id
+	}
+	for id, metadata := range res.pendingMetadata {
+		r.sessionMetadata[id] = metadata
 	}
 }
 
@@ -167,6 +172,8 @@ type Reconciler struct {
 	// session that owns it — including a session that has already finished,
 	// which is the interesting case.
 	nativeIndex map[string]string
+	// sessionMetadata retains exact provider metadata used for lifecycle refresh.
+	sessionMetadata map[string]adapters.SessionMetadata
 }
 
 // New constructs a Reconciler.
@@ -175,14 +182,15 @@ func New(reg *adapters.Registry, selfPID int, selfUID uint32, repos *repository.
 		repos = repository.NewFinder()
 	}
 	return &Reconciler{
-		reg:          reg,
-		selfPID:      selfPID,
-		selfUID:      selfUID,
-		repos:        repos,
-		ownership:    make(map[string]storage.OwnershipRecord),
-		sessionState: make(map[string]State),
-		sessionRoot:  make(map[string]process.Key),
-		nativeIndex:  make(map[string]string),
+		reg:             reg,
+		selfPID:         selfPID,
+		selfUID:         selfUID,
+		repos:           repos,
+		ownership:       make(map[string]storage.OwnershipRecord),
+		sessionState:    make(map[string]State),
+		sessionRoot:     make(map[string]process.Key),
+		nativeIndex:     make(map[string]string),
+		sessionMetadata: make(map[string]adapters.SessionMetadata),
 	}
 }
 
@@ -198,6 +206,10 @@ func (r *Reconciler) Seed(sessions []storage.SessionRecord, ownership map[string
 		}
 		if s.NativeSessionID != "" {
 			r.nativeIndex[nativeKey(s.AgentID, s.NativeSessionID)] = s.SessionID
+		}
+		var metadata adapters.SessionMetadata
+		if json.Unmarshal([]byte(s.MetadataJSON), &metadata) == nil {
+			r.sessionMetadata[s.SessionID] = metadata
 		}
 	}
 }

@@ -99,10 +99,17 @@ func TestAutomaticCleanupSignalsOneExactCurrentCandidate(t *testing.T) {
 	if err != nil || len(candidates.Enforceable) != 1 || len(candidates.Recommended) != 0 {
 		t.Fatalf("enforceable projection = %+v, %v", candidates, err)
 	}
+	if candidates.Diagnostics.MatchingExecutables != 1 || candidates.Diagnostics.OrphanedClassifications != 1 ||
+		candidates.Diagnostics.PolicyDecisions != 1 {
+		t.Fatalf("candidate diagnostics = %+v", candidates.Diagnostics)
+	}
 	status, err := h.d.Status(context.Background())
 	if err != nil || status.SignallingEnabled || status.ManualCleanupEnabled ||
 		!status.AutomaticCleanupEnabled || status.CleanupCandidates != 1 {
 		t.Fatalf("enforcement status = %+v, %v", status, err)
+	}
+	if status.CandidateDiagnostics != candidates.Diagnostics {
+		t.Fatalf("status diagnostics = %+v, candidates = %+v", status.CandidateDiagnostics, candidates.Diagnostics)
 	}
 	policies, err := h.d.Policies(context.Background())
 	if err != nil || len(policies.Policies) != 1 || !policies.Policies[0].Automatic {

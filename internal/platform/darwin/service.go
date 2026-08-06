@@ -151,6 +151,12 @@ func (c *Collector) ServiceStatus(ctx context.Context, label string) (installed,
 		// Registered on disk but not loaded into the session.
 		return installed, false, unitPath, 0, 0, nil
 	}
+	pid, lastExit = parseLaunchctlList(out)
+	running = pid > 0
+	return installed, running, unitPath, pid, lastExit, nil
+}
+
+func parseLaunchctlList(out []byte) (pid, lastExit int) {
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.TrimSpace(line)
 		key, value, ok := strings.Cut(line, "=")
@@ -158,11 +164,11 @@ func (c *Collector) ServiceStatus(ctx context.Context, label string) (installed,
 			continue
 		}
 		value = strings.TrimSuffix(strings.TrimSpace(value), ";")
-		switch strings.TrimSpace(strings.Trim(key, `"`)) {
+		key = strings.Trim(strings.TrimSpace(key), `"`)
+		switch key {
 		case "PID":
 			if n, convErr := strconv.Atoi(value); convErr == nil {
 				pid = n
-				running = n > 0
 			}
 		case "LastExitStatus":
 			if n, convErr := strconv.Atoi(value); convErr == nil {
@@ -170,7 +176,7 @@ func (c *Collector) ServiceStatus(ctx context.Context, label string) (installed,
 			}
 		}
 	}
-	return installed, running, unitPath, pid, lastExit, nil
+	return pid, lastExit
 }
 
 func run(ctx context.Context, name string, args ...string) error {

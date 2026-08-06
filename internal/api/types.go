@@ -7,6 +7,8 @@ package api
 
 import (
 	"context"
+
+	"github.com/jamesonstone/ghostgc/internal/config"
 )
 
 // APIVersion is the path prefix for every endpoint.
@@ -23,18 +25,19 @@ const (
 
 // StatusResponse backs `ghostgc status`.
 type StatusResponse struct {
-	Health                 Health         `json:"health"`
-	Mode                   string         `json:"mode"`
-	Version                string         `json:"version"`
-	Platform               string         `json:"platform"`
-	PID                    int            `json:"pid"`
-	StartedNs              int64          `json:"started_ns"`
-	UptimeSeconds          float64        `json:"uptime_seconds"`
-	Agents                 []string       `json:"agents"`
-	SessionsByState        map[string]int `json:"sessions_by_state"`
-	ClassificationsByState map[string]int `json:"classifications_by_state"`
-	Sessions               int            `json:"sessions"`
-	CleanupCandidates      int            `json:"cleanup_candidates"`
+	Health                 Health               `json:"health"`
+	Mode                   string               `json:"mode"`
+	Version                string               `json:"version"`
+	Platform               string               `json:"platform"`
+	PID                    int                  `json:"pid"`
+	StartedNs              int64                `json:"started_ns"`
+	UptimeSeconds          float64              `json:"uptime_seconds"`
+	Agents                 []string             `json:"agents"`
+	SessionsByState        map[string]int       `json:"sessions_by_state"`
+	ClassificationsByState map[string]int       `json:"classifications_by_state"`
+	Sessions               int                  `json:"sessions"`
+	CleanupCandidates      int                  `json:"cleanup_candidates"`
+	CandidateDiagnostics   CandidateDiagnostics `json:"candidate_diagnostics"`
 	// SignallingEnabled is the compatibility alias for manual cleanup.
 	SignallingEnabled       bool           `json:"signalling_enabled"`
 	ManualCleanupEnabled    bool           `json:"manual_cleanup_enabled"`
@@ -79,11 +82,12 @@ type ListOptions struct {
 
 // LogOptions narrows an audit-log request.
 type LogOptions struct {
-	Limit   int
-	Kind    string
-	Subject string
-	SinceNs int64
-	AfterID *int64
+	Limit       int
+	Kind        string
+	ExcludeKind string
+	Subject     string
+	SinceNs     int64
+	AfterID     *int64
 }
 
 // ActivityOptions narrows activity history.
@@ -108,6 +112,7 @@ type ClassificationOptions struct {
 // keeps the transport unaware of the daemon and the daemon unaware of HTTP.
 type Backend interface {
 	Status(ctx context.Context) (StatusResponse, error)
+	EffectiveConfig(ctx context.Context) (config.Config, error)
 	Sessions(ctx context.Context, opts ListOptions) (SessionsResponse, error)
 	Session(ctx context.Context, idOrPrefix string) (SessionDetail, error)
 	Processes(ctx context.Context, opts ListOptions) (ProcessesResponse, error)

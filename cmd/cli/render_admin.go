@@ -40,6 +40,9 @@ func renderCandidates(r api.CandidatesResponse) {
 			}
 		}
 	}
+	fmt.Printf("\nCandidate funnel: %d active session(s), %d exact policy executable match(es), %d orphaned classification(s), %d matched policy decision(s).\n",
+		r.Diagnostics.ActiveSessions, r.Diagnostics.MatchingExecutables,
+		r.Diagnostics.OrphanedClassifications, r.Diagnostics.PolicyDecisions)
 	if r.Note != "" {
 		fmt.Printf("\n%s\n", r.Note)
 	}

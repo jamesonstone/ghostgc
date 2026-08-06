@@ -128,7 +128,7 @@ var execClasses = []struct {
 		reason: "executable name is too broad to establish what the process is doing (specification section 14)",
 		names: []string{
 			"node", "bun", "deno", "python", "python3", "ruby", "perl", "php",
-			"go", "java", "dotnet", "git", "bash", "zsh", "sh", "dash", "fish",
+			"go", "java", "dotnet", "git", "gh", "bash", "zsh", "sh", "dash", "fish",
 			"ksh", "tcsh", "csh", "nu", "xonsh", "ssh", "rsync", "tmux", "screen",
 		},
 	},

@@ -256,7 +256,7 @@ after the owning session ended. Even that classification grants no authority.
 - its executable belongs to a protected class: editors, language servers,
   container runtimes, database servers, build and test tools, development
   servers, or the broad runtime names specification section 14 rules out
-  (`node`, `python`, `go`, `java`, `git`, `bash`, `zsh`, …);
+  (`node`, `python`, `go`, `java`, `git`, `gh`, `bash`, `zsh`, …);
 - an agent adapter contributed a rule that matches it.
 
 Every protection carries a human-readable reason, asserted by
@@ -303,6 +303,28 @@ session identifier is recorded as belonging to that session, capped at
 0.95 policy-eligible floor. A variable every descendant inherits forever can
 establish lineage and must never establish eligibility for action
 (`sessions_test.go:TestEnvironmentMembershipAttributesToTheOwningSession`).
+
+### Provider lifecycle narrows lifetime, never ownership
+
+The Codex desktop backend can outlive many individual tasks. Ghostgc therefore
+uses Codex's own rollout lifecycle to distinguish task sessions, but only after
+process ancestry has already proved the host lineage and the descendant carries
+the exact same native thread ID as `session_meta`. Lifecycle evidence never
+attributes an unrelated process and never grants action authority by itself.
+
+The rollout reader considers only UUIDs already observed in process environments
+or committed sessions. It accepts one same-user, single-link regular file under
+the exact physical `CODEX_HOME/sessions` tree, refuses linked or writable path
+components, bounds the metadata and tail reads, and requires a matching metadata
+ID plus a valid latest `task_started` or `task_complete` event. Missing,
+ambiguous, malformed, oversized or unsafe evidence leaves the process on the
+active host session and protected. A completed task still needs detachment,
+complete known-idle evidence, stability, an exact policy match, and every
+ordinary protection and action gate before it can become actionable.
+
+Tested in `internal/adapters/codex/rollout_test.go`,
+`internal/sessions/provider_sessions_test.go` and
+`internal/daemon/enforcement_test.go`.
 
 ### Not every relationship may establish ownership
 

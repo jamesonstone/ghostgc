@@ -175,7 +175,7 @@ func TestLogsHelpShowsLongAndShortFollowFlags(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("logs help exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"--follow", "-f", "default true"} {
+	for _, want := range []string{"--follow", "-f", "default true", "--verbose", "-v"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("logs help is missing %q:\n%s", want, output)
 		}

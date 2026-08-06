@@ -15,11 +15,14 @@ var logPollInterval = time.Second
 type logFetcher func(context.Context, api.LogOptions) (api.LogsResponse, error)
 
 func cmdLogs(ctx context.Context, e *env, args []string) error {
-	fs := newFlagSet(e, "logs", "[--follow=false] [--limit <n>] [--kind <kind>] [--subject <subject>]")
+	fs := newFlagSet(e, "logs", "[--follow=false] [--verbose] [--limit <n>] [--kind <kind>] [--subject <subject>]")
 	var opts api.LogOptions
 	follow := true
+	verbose := false
 	fs.BoolVar(&follow, "follow", true, "continue printing new entries")
 	fs.BoolVar(&follow, "f", true, "shorthand for --follow")
+	fs.BoolVar(&verbose, "verbose", false, "include process attribution entries while following")
+	fs.BoolVar(&verbose, "v", false, "shorthand for --verbose")
 	fs.IntVar(&opts.Limit, "limit", 50, "initial entries and follow batch size")
 	fs.StringVar(&opts.Kind, "kind", "", "filter by entry kind")
 	fs.StringVar(&opts.Subject, "subject", "", "filter by subject")
@@ -28,6 +31,9 @@ func cmdLogs(ctx context.Context, e *env, args []string) error {
 	}
 	if fs.NArg() != 0 {
 		return fmt.Errorf("unexpected logs argument %q", fs.Arg(0))
+	}
+	if follow && !verbose && opts.Kind == "" {
+		opts.ExcludeKind = "process.attributed"
 	}
 
 	resp, err := e.logs(ctx, opts)

@@ -133,7 +133,7 @@ func TestUninspectedProcessIsProtected(t *testing.T) {
 // Section 14 of the specification lists executable names that are too broad to
 // justify any automated action.
 func TestBroadRuntimeNamesAreProtected(t *testing.T) {
-	for _, name := range []string{"node", "python3", "go", "java", "git", "bash", "zsh", "ruby"} {
+	for _, name := range []string{"node", "python3", "go", "java", "git", "gh", "bash", "zsh", "ruby"} {
 		in := base()
 		in.Process.ExecPath = "/usr/bin/" + name
 		got := Evaluate(in)

@@ -92,6 +92,7 @@ func (d *Daemon) Status(ctx context.Context) (api.StatusResponse, error) {
 			resp.CleanupCandidates++
 		}
 	}
+	resp.CandidateDiagnostics = d.candidateDiagnostics(recs, classCounts, decisions, snap)
 	cacheCandidates, err := d.CacheCandidates(ctx)
 	if err != nil {
 		return api.StatusResponse{}, err

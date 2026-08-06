@@ -77,6 +77,9 @@ func renderStatus(s api.StatusResponse) {
 	}
 
 	fmt.Printf("Cleanup candidates: %d\n", s.CleanupCandidates)
+	fmt.Printf("Candidate funnel: %d active session(s), %d exact policy executable match(es), %d orphaned classification(s), %d matched policy decision(s)\n",
+		s.CandidateDiagnostics.ActiveSessions, s.CandidateDiagnostics.MatchingExecutables,
+		s.CandidateDiagnostics.OrphanedClassifications, s.CandidateDiagnostics.PolicyDecisions)
 	fmt.Printf("Cache lifecycle: enabled=%t mode=%s candidates=%d quarantined=%d\n",
 		s.CacheEnabled, s.CacheMode, s.CacheCandidates, s.CacheQuarantined)
 	fmt.Printf("Worktrees: %d stale, %d protected\n", s.StaleWorktrees, s.ProtectedWorktrees)

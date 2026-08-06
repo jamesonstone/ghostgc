@@ -20,7 +20,7 @@ func TestStatusResponseOmitsDevelopmentMetadata(t *testing.T) {
 		"health": true, "mode": true, "version": true, "platform": true,
 		"pid": true, "started_ns": true, "uptime_seconds": true, "agents": true,
 		"sessions_by_state": true, "classifications_by_state": true,
-		"sessions": true, "cleanup_candidates": true, "signalling_enabled": true,
+		"sessions": true, "cleanup_candidates": true, "candidate_diagnostics": true, "signalling_enabled": true,
 		"manual_cleanup_enabled": true, "automatic_cleanup_enabled": true,
 		"cache_enabled": true, "cache_mode": true, "cache_candidates": true,
 		"cache_quarantined":  true,

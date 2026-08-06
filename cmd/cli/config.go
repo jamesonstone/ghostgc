@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/jamesonstone/ghostgc/internal/api"
 	"github.com/jamesonstone/ghostgc/internal/config"
 )
 
@@ -21,7 +22,7 @@ func cmdConfig(ctx context.Context, e *env, args []string) error {
 	case "init":
 		return configInit(e, args[1:])
 	case "show":
-		return configShow(e)
+		return configShow(ctx, e)
 	default:
 		return fmt.Errorf("unknown subcommand %q; expected init, path or show", args[0])
 	}
@@ -48,8 +49,12 @@ func configInit(e *env, args []string) error {
 	return nil
 }
 
-func configShow(e *env) error {
-	cfg, err := config.Load(e.paths.Config)
+func configShow(ctx context.Context, e *env) error {
+	cfg, err := e.api().EffectiveConfig(ctx)
+	active := err == nil
+	if errors.Is(err, api.ErrDaemonUnreachable) {
+		cfg, err = config.LoadForStartup(e.paths.Config, config.StartupAudit)
+	}
 	if err != nil {
 		return err
 	}
@@ -60,7 +65,14 @@ func configShow(e *env) error {
 	if cfg.Defaulted {
 		source += " (not present; built-in defaults in use)"
 	}
-	fmt.Printf("Source: %s\n", source)
+	if active {
+		fmt.Printf("Source: active daemon, %s\n", source)
+	} else {
+		fmt.Printf("Source: default start preview, %s\n", source)
+	}
+	if cfg.StartupMode != "" {
+		fmt.Printf("Startup profile: %s\n", cfg.StartupMode)
+	}
 	fmt.Printf("Global mode: %s\n", cfg.GlobalMode)
 	fmt.Printf("Agents: %v\n", cfg.EnabledAgents())
 	fmt.Printf("Process scan: %s\n", cfg.Sampling.ProcessScan.D())

@@ -32,6 +32,10 @@ func TestAPIRoundTripOverUnixSocket(t *testing.T) {
 	if status.Mode != "audit" {
 		t.Fatalf("mode = %q", status.Mode)
 	}
+	effective, err := client.EffectiveConfig(ctx)
+	if err != nil || effective.GlobalMode != "audit" {
+		t.Fatalf("effective config over the socket = %+v, %v", effective, err)
+	}
 
 	sess, err := client.Sessions(ctx, api.ListOptions{})
 	if err != nil {

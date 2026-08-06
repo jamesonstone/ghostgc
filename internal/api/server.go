@@ -121,6 +121,9 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET "+p+"/status", s.handle(func(r *http.Request) (any, error) {
 		return s.Backend.Status(r.Context())
 	}))
+	mux.HandleFunc("GET "+p+"/config", s.handle(func(r *http.Request) (any, error) {
+		return s.Backend.EffectiveConfig(r.Context())
+	}))
 	mux.HandleFunc("GET "+p+"/sessions", s.handle(func(r *http.Request) (any, error) {
 		return s.Backend.Sessions(r.Context(), listOptions(r))
 	}))
@@ -165,7 +168,7 @@ func (s *Server) routes() http.Handler {
 	}))
 	mux.HandleFunc("GET "+p+"/logs", s.handle(func(r *http.Request) (any, error) {
 		q := r.URL.Query()
-		opts := LogOptions{Kind: q.Get("kind"), Subject: q.Get("subject")}
+		opts := LogOptions{Kind: q.Get("kind"), ExcludeKind: q.Get("exclude_kind"), Subject: q.Get("subject")}
 		opts.Limit, _ = strconv.Atoi(q.Get("limit"))
 		opts.SinceNs, _ = strconv.ParseInt(q.Get("since_ns"), 10, 64)
 		if q.Has("after_id") {

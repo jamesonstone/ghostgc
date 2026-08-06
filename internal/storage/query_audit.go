@@ -57,11 +57,12 @@ func (s *Store) ProcessRelationships(ctx context.Context, procUID string) ([]Rel
 
 // AuditFilter narrows an audit-log query.
 type AuditFilter struct {
-	SinceNs int64
-	AfterID *int64
-	Kind    string
-	Subject string
-	Limit   int
+	SinceNs     int64
+	AfterID     *int64
+	Kind        string
+	ExcludeKind string
+	Subject     string
+	Limit       int
 }
 
 // ListAudit returns audit entries newest first, or oldest first after a cursor.
@@ -82,6 +83,10 @@ func (s *Store) ListAudit(ctx context.Context, f AuditFilter) ([]AuditRecord, er
 	if f.Kind != "" {
 		where = append(where, "kind = ?")
 		args = append(args, f.Kind)
+	}
+	if f.ExcludeKind != "" {
+		where = append(where, "kind <> ?")
+		args = append(args, f.ExcludeKind)
 	}
 	if f.Subject != "" {
 		where = append(where, "subject = ?")

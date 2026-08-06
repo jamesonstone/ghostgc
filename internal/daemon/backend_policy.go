@@ -23,6 +23,18 @@ func (d *Daemon) Candidates(ctx context.Context) (api.CandidatesResponse, error)
 		Audited:     make([]api.CandidateEntry, 0, len(records)),
 		Note:        authorityNote,
 	}
+	sessions, err := d.store.ListSessions(ctx, storage.SessionFilter{})
+	if err != nil {
+		return api.CandidatesResponse{}, err
+	}
+	classifications, err := d.store.ClassificationCounts(ctx, "")
+	if err != nil {
+		return api.CandidatesResponse{}, err
+	}
+	d.mu.RLock()
+	snapshot := d.snapshot
+	d.mu.RUnlock()
+	resp.Diagnostics = d.candidateDiagnostics(sessions, classifications, records, snapshot)
 	for _, rec := range records {
 		entry := candidateEntry(rec)
 		if entry.PID == 0 {
